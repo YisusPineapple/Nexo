@@ -231,4 +231,159 @@ void main() {
       expect(q1, equals(q2));
     });
   });
+  group('PlaybackQueue.withAdvancedToNext', () {
+    test('advances to the next index in the common case', () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a'), _song('b'), _song('c')],
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      expect(queue.withAdvancedToNext().valueOrNull?.currentIndex, 1);
+    });
+
+    test('RepeatMode.one stays on the same song', () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a'), _song('b')],
+        repeatMode: RepeatMode.one,
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      expect(queue.withAdvancedToNext().valueOrNull?.currentIndex, 0);
+    });
+
+    test('RepeatMode.all wraps to the first song at the end', () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a'), _song('b')],
+        currentIndex: 1,
+        repeatMode: RepeatMode.all,
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      expect(queue.withAdvancedToNext().valueOrNull?.currentIndex, 0);
+    });
+
+    test('RepeatMode.off reaching the end sets currentIndex to -1', () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a'), _song('b')],
+        currentIndex: 1,
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      final advanced = queue.withAdvancedToNext().valueOrNull!;
+      expect(advanced.currentIndex, -1);
+      expect(advanced.isEmpty, isFalse); // still has songs, just finished
+    });
+
+    test('advancing again from a finished queue wraps back to the start',
+        () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a'), _song('b')],
+        currentIndex: 1,
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      final finished = queue.withAdvancedToNext().valueOrNull!;
+      final again = finished.withAdvancedToNext().valueOrNull!;
+      expect(again.currentIndex, 0);
+    });
+
+    test('rejects advancing an empty queue', () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: const [],
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      expect(queue.withAdvancedToNext().isErr, isTrue);
+    });
+  });
+
+  group('PlaybackQueue.withAdvancedToPrevious', () {
+    test('decrements to the previous index in the common case', () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a'), _song('b')],
+        currentIndex: 1,
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      expect(queue.withAdvancedToPrevious().valueOrNull?.currentIndex, 0);
+    });
+
+    test(
+        'RepeatMode.off at the first song restarts it rather than '
+        'stopping', () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a'), _song('b')],
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      expect(queue.withAdvancedToPrevious().valueOrNull?.currentIndex, 0);
+    });
+
+    test('RepeatMode.all wraps to the last song from the first', () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a'), _song('b')],
+        repeatMode: RepeatMode.all,
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      expect(queue.withAdvancedToPrevious().valueOrNull?.currentIndex, 1);
+    });
+
+    test('from a finished queue, previous resumes at the last song', () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a'), _song('b')],
+        currentIndex: 1,
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      final finished = queue.withAdvancedToNext().valueOrNull!;
+      expect(finished.currentIndex, -1);
+      expect(finished.withAdvancedToPrevious().valueOrNull?.currentIndex, 1);
+    });
+  });
+
+  group('PlaybackQueue.withShuffleEnabled edge cases', () {
+    test('still rejects a genuinely out-of-bounds newCurrentIndex', () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a'), _song('b')],
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      final result = queue.withShuffleEnabled(
+        shuffled: [_song('b'), _song('a')],
+        newCurrentIndex: 5,
+      );
+      expect(result.isErr, isTrue);
+    });
+
+    test(
+        'accepts newCurrentIndex -1 when shuffling an already-finished '
+        'queue', () {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a'), _song('b')],
+        currentIndex: 1,
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+      final finished = queue.withAdvancedToNext().valueOrNull!;
+
+      final result = finished.withShuffleEnabled(
+        shuffled: [_song('b'), _song('a')],
+        newCurrentIndex: -1,
+      );
+      expect(result.isOk, isTrue);
+      expect(result.valueOrNull?.currentIndex, -1);
+    });
+  });
 }

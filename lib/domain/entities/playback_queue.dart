@@ -17,10 +17,8 @@ import 'song.dart';
 ///
 /// Crossfade and playback speed are deliberately NOT modeled here.
 /// The spec describes them as engine-wide behaviors, not per-queue
-/// ones, so they'll live on a separate player-session/settings entity
-/// introduced alongside PlaybackRepository. If different queues
-/// actually need independent crossfade/speed, this can be extended
-/// later without breaking existing fields.
+/// ones, so they live on [PlaybackSettings] instead (introduced
+/// alongside PlaybackRepository in Sub-fase 1.3).
 final class PlaybackQueue {
   const PlaybackQueue._({
     required this.id,
@@ -41,8 +39,12 @@ final class PlaybackQueue {
   /// exactly, without re-deriving anything from song content.
   final List<Song> songs;
 
-  /// Index into [songs] of the currently playing/selected track.
-  /// -1 when [songs] is empty.
+  /// Index into [songs] of the currently playing/selected track. -1
+  /// when [songs] is empty, OR when a non-empty queue has simply run
+  /// out of songs to advance to (RepeatMode.off reaching the end —
+  /// see [withAdvancedToNext]). [isEmpty] checks [songs] directly, not
+  /// this field, so the two cases stay distinguishable to callers that
+  /// need to tell them apart.
   final int currentIndex;
 
   final RepeatMode repeatMode;
@@ -153,8 +155,8 @@ final class PlaybackQueue {
   /// Enables true shuffle: the ENTIRE queue is reordered once
   /// (REPRODUCCIÓN §2: "Aleatorio verdadero... no aleatorio por
   /// canción"), not re-randomized per track change. Both [shuffled]
-  /// and [newCurrentIndex] are supplied by the caller (a future
-  /// ShuffleQueueUseCase holding the actual RNG and permutation) —
+  /// and [newCurrentIndex] are supplied by the caller
+  /// (ShuffleQueueUseCase, holding the actual RNG and permutation) —
   /// this entity only validates and stores the result. It doesn't try
   /// to re-derive "where did the current song end up" from content,
   /// because that's ambiguous with duplicate songs; the use case that
@@ -171,7 +173,15 @@ final class PlaybackQueue {
         'got ${shuffled.length}.',
       ));
     }
+    // newCurrentIndex == -1 is accepted even when `shuffled` is
+    // non-empty: it means "the queue had already run out of songs to
+    // play" (see currentIndex's docs) BEFORE being shuffled, which is
+    // a legitimate state to shuffle from — a user can still want to
+    // shuffle a queue for next time after it finished playing. Any
+    // other negative value, or anything >= shuffled.length, remains
+    // rejected as a genuine out-of-bounds error.
     if (shuffled.isNotEmpty &&
+        newCurrentIndex != -1 &&
         (newCurrentIndex < 0 || newCurrentIndex >= shuffled.length)) {
       return Err(ValidationFailure(
         'newCurrentIndex $newCurrentIndex is out of bounds for a '
@@ -241,6 +251,74 @@ final class PlaybackQueue {
       preShuffleOrder: preShuffleOrder,
       preShuffleCurrentIndex: preShuffleCurrentIndex,
     ));
+  }
+
+  /// Computes the next current-song position once the current song
+  /// finishes naturally, honoring [repeatMode]:
+  /// - [RepeatMode.one]: no-op, the same song plays again.
+  /// - Otherwise, advances to the next index; at the end of the list,
+  ///   [RepeatMode.all] wraps to 0, while [RepeatMode.off] sets
+  ///   currentIndex to -1 (queue finished — see that field's docs).
+  ///
+  /// Calling this AGAIN on an already-finished (-1) queue wraps back
+  /// to song 0 regardless of [repeatMode]. This only happens via an
+  /// explicit second call, which in practice means a manual "skip
+  /// next" press after the queue stopped — a deliberately different
+  /// user action from the natural end-of-song trigger that finished
+  /// it, and wrapping there keeps a manual skip from becoming
+  /// permanently inert once repeat is off.
+  Result<PlaybackQueue, Failure> withAdvancedToNext() {
+    if (songs.isEmpty) {
+      return const Err(ValidationFailure('Cannot advance an empty queue.'));
+    }
+    if (repeatMode == RepeatMode.one) {
+      return Ok(this);
+    }
+    final isLastSong = currentIndex == songs.length - 1;
+    if (!isLastSong) {
+      return withCurrentIndex(currentIndex + 1);
+    }
+    if (repeatMode == RepeatMode.all) {
+      return withCurrentIndex(0);
+    }
+    // RepeatMode.off, reached the natural end.
+    return Ok(PlaybackQueue._(
+      id: id,
+      songs: songs,
+      currentIndex: -1,
+      repeatMode: repeatMode,
+      source: source,
+      shuffleEnabled: shuffleEnabled,
+      preShuffleOrder: preShuffleOrder,
+      preShuffleCurrentIndex: preShuffleCurrentIndex,
+    ));
+  }
+
+  /// Symmetric to [withAdvancedToNext] for skipping backward. Unlike
+  /// advancing past the end, going backward past the start does NOT
+  /// stop the queue even with [RepeatMode.off] — conventionally,
+  /// "previous" from the first song just restarts that song, matching
+  /// the behavior most media players already give a "previous"
+  /// button. From an already-finished (-1) queue, previous resumes at
+  /// the last song, since that's the one that was just playing.
+  Result<PlaybackQueue, Failure> withAdvancedToPrevious() {
+    if (songs.isEmpty) {
+      return const Err(ValidationFailure('Cannot advance an empty queue.'));
+    }
+    if (repeatMode == RepeatMode.one) {
+      return Ok(this);
+    }
+    if (currentIndex < 0) {
+      return withCurrentIndex(songs.length - 1);
+    }
+    final isFirstSong = currentIndex == 0;
+    if (!isFirstSong) {
+      return withCurrentIndex(currentIndex - 1);
+    }
+    if (repeatMode == RepeatMode.all) {
+      return withCurrentIndex(songs.length - 1);
+    }
+    return withCurrentIndex(0); // restart the first song
   }
 
   @override

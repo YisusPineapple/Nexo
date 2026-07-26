@@ -33,4 +33,27 @@ void main() {
       expect(err.map((v) => v + 1), const Err<int, String>('boom'));
     });
   });
+  
+  group('Result.asyncAndThen', () {
+    test('runs transform and returns its result for Ok', () async {
+      const ok = Ok<int, String>(2);
+      final result = await ok.asyncAndThen(
+        (v) async => Ok<int, String>(v + 1),
+      );
+      expect(result, const Ok<int, String>(3));
+    });
+
+    test(
+        'short-circuits to the existing error for Err without running '
+        'transform', () async {
+      const err = Err<int, String>('boom');
+      var transformCalled = false;
+      final result = await err.asyncAndThen((v) async {
+        transformCalled = true;
+        return Ok<int, String>(v + 1);
+      });
+      expect(result, const Err<int, String>('boom'));
+      expect(transformCalled, isFalse);
+    });
+  });
 }

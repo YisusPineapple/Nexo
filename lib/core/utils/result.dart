@@ -30,6 +30,21 @@ sealed class Result<T, F> {
     };
   }
 
+  /// Chains an async, Result-returning operation onto a successful
+  /// value, short-circuiting to the existing [Err] without running
+  /// [transform] otherwise. Added for the playback use cases (Sub-fase
+  /// 1.4), which all perform multi-step sequences of dependent
+  /// repository calls (fetch -> mutate -> persist) — without this,
+  /// each one hand-rolls the same switch-on-Result short-circuiting.
+  Future<Result<R, F>> asyncAndThen<R>(
+    Future<Result<R, F>> Function(T value) transform,
+  ) {
+    return switch (this) {
+      Ok<T, F>(value: final v) => transform(v),
+      Err<T, F>(error: final e) => Future.value(Err(e)),
+    };
+  }
+
   bool get isOk => this is Ok<T, F>;
   bool get isErr => this is Err<T, F>;
 
