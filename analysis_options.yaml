@@ -1,0 +1,26 @@
+# Configures `dart analyze`. Built on package:lints' recommended set
+# (the official Dart-team baseline) rather than a stricter third-party
+# set like very_good_analysis — Domain's zero-external-dependency
+# policy is about what lib/ code imports, but keeping the ANALYSIS
+# tooling itself minimal and officially maintained is a separate,
+# equally deliberate choice.
+include: package:lints/recommended.yaml
+
+linter:
+  rules:
+    # Every use case in this app funnels errors through Result instead
+    # of throwing. A fire-and-forgotten Future silently swallowing an
+    # error is exactly the bug that pattern exists to prevent — this
+    # catches it at analysis time instead of relying on code review.
+    - unawaited_futures
+
+    # RESILIENCIA requires internal logging that "nunca sale del
+    # dispositivo" (never leaves the device). A stray print() left in
+    # by accident is the easiest way to violate that once a real
+    # logger exists in the Data layer.
+    - avoid_print
+
+    # Matches the explicit-return-type style already used everywhere
+    # in this codebase (every use case's `call`, every entity method)
+    # — catches the one that slips through by habit instead of intent.
+    - always_declare_return_types

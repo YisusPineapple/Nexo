@@ -22,10 +22,17 @@ class FakeSongRepository implements SongRepository {
   /// exercise the error path without needing real I/O to break.
   bool failIndexing = false;
 
+  /// Number of times [indexDirectories] actually ran. Lets tests
+  /// confirm a use case's OWN validation short-circuited before ever
+  /// reaching the repository (e.g. rejecting an empty path list),
+  /// rather than only asserting on the final Result.
+  int indexDirectoriesCallCount = 0;
+
   @override
   Future<Result<void, Failure>> indexDirectories(
     List<String> directoryPaths,
   ) async {
+    indexDirectoriesCallCount++;
     if (failIndexing) {
       return const Err(UnexpectedFailure('Fake indexing failure.'));
     }
