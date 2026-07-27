@@ -73,8 +73,7 @@ void main() {
       expect(audioRepo.loadedSong, isNull);
     });
 
-    test('engineError is returned as-is, without touching the queue',
-        () async {
+    test('engineError is returned as-is, without touching the queue', () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [_song('a'), _song('b')],

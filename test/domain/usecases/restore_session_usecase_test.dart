@@ -37,8 +37,7 @@ void main() {
       expect(result.valueOrNull, isNull);
     });
 
-    test('loads the engine at the saved position without resuming',
-        () async {
+    test('loads the engine at the saved position without resuming', () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [_song('a')],

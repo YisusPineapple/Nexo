@@ -17,8 +17,7 @@ import 'use_case.dart';
 /// and a session pointing at a since-deleted queue is a normal,
 /// recoverable situation per this app's general resilience posture,
 /// not a bug to surface as an error.
-final class RestoreSessionUseCase
-    implements UseCase<PlaybackQueue?, NoParams> {
+final class RestoreSessionUseCase implements UseCase<PlaybackQueue?, NoParams> {
   RestoreSessionUseCase(
     this._playbackRepository,
     this._audioPlayerRepository,

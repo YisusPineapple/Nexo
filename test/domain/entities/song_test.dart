@@ -94,7 +94,8 @@ void main() {
   });
 
   group('Song equality', () {
-    test('two Song instances with the same id are equal regardless of '
+    test(
+        'two Song instances with the same id are equal regardless of '
         'other fields', () {
       final a = _buildSong(id: 's1', title: 'Original Title');
       final b = _buildSong(id: 's1', title: 'Retagged Title');

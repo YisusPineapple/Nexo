@@ -78,9 +78,7 @@ class FakeSongRepository implements SongRepository {
   Future<Result<List<Song>, Failure>> searchSongs(String query) async {
     final normalized = query.toLowerCase();
     return Ok(
-      _songs
-          .where((s) => s.title.toLowerCase().contains(normalized))
-          .toList(),
+      _songs.where((s) => s.title.toLowerCase().contains(normalized)).toList(),
     );
   }
 }

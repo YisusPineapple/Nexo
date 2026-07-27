@@ -60,10 +60,9 @@ final class PlaybackQueue {
   /// ambiguous if the queue contains the same Song twice.
   final int? preShuffleCurrentIndex;
 
-  Song? get currentSong =>
-      (currentIndex >= 0 && currentIndex < songs.length)
-          ? songs[currentIndex]
-          : null;
+  Song? get currentSong => (currentIndex >= 0 && currentIndex < songs.length)
+      ? songs[currentIndex]
+      : null;
 
   bool get isEmpty => songs.isEmpty;
 

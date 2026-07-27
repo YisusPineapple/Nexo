@@ -144,9 +144,8 @@ void main() {
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
-      final shuffled = queue
-          .withShuffleEnabled(shuffled: [c, a, b], newCurrentIndex: 2)
-          .valueOrNull!;
+      final shuffled = queue.withShuffleEnabled(
+          shuffled: [c, a, b], newCurrentIndex: 2).valueOrNull!;
 
       expect(shuffled.songs, [c, a, b]);
       expect(shuffled.currentIndex, 2);
@@ -164,9 +163,8 @@ void main() {
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
-      final shuffled = queue
-          .withShuffleEnabled(shuffled: [c, a, b], newCurrentIndex: 2)
-          .valueOrNull!;
+      final shuffled = queue.withShuffleEnabled(
+          shuffled: [c, a, b], newCurrentIndex: 2).valueOrNull!;
       final restored = shuffled.withShuffleDisabled();
 
       expect(restored.songs, [a, b, c]);
@@ -174,8 +172,7 @@ void main() {
       expect(restored.shuffleEnabled, isFalse);
     });
 
-    test('withShuffleEnabled rejects a shuffled list of the wrong length',
-        () {
+    test('withShuffleEnabled rejects a shuffled list of the wrong length', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [_song('a'), _song('b')],
@@ -278,8 +275,7 @@ void main() {
       expect(advanced.isEmpty, isFalse); // still has songs, just finished
     });
 
-    test('advancing again from a finished queue wraps back to the start',
-        () {
+    test('advancing again from a finished queue wraps back to the start', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [_song('a'), _song('b')],

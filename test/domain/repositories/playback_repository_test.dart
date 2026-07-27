@@ -73,8 +73,7 @@ void main() {
       );
     });
 
-    test('getPlaybackSettings defaults to PlaybackSettings.defaults',
-        () async {
+    test('getPlaybackSettings defaults to PlaybackSettings.defaults', () async {
       final repo = FakePlaybackRepository();
       final result = await repo.getPlaybackSettings();
       expect(result.valueOrNull, PlaybackSettings.defaults);

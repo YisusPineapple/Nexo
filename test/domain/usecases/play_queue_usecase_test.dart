@@ -37,7 +37,8 @@ PlaybackQueue _queue(String id, {int currentIndex = 0}) {
 void main() {
   group('PlayQueueUseCase.play', () {
     test('loads and resumes the current song', () async {
-      final playbackRepo = FakePlaybackRepository(initialQueues: [_queue('q1')]);
+      final playbackRepo =
+          FakePlaybackRepository(initialQueues: [_queue('q1')]);
       final audioRepo = FakeAudioPlayerRepository();
       final useCase = PlayQueueUseCase(playbackRepo, audioRepo);
 
@@ -82,7 +83,8 @@ void main() {
 
   group('PlayQueueUseCase.skipNext', () {
     test('advances the queue and loads the new current song', () async {
-      final playbackRepo = FakePlaybackRepository(initialQueues: [_queue('q1')]);
+      final playbackRepo =
+          FakePlaybackRepository(initialQueues: [_queue('q1')]);
       final audioRepo = FakeAudioPlayerRepository();
       final useCase = PlayQueueUseCase(playbackRepo, audioRepo);
 
@@ -115,8 +117,7 @@ void main() {
       expect(audioRepo.isPaused, isTrue);
     });
 
-    test('seekTo delegates the exact position to the audio engine',
-        () async {
+    test('seekTo delegates the exact position to the audio engine', () async {
       final audioRepo = FakeAudioPlayerRepository();
       final useCase = PlayQueueUseCase(FakePlaybackRepository(), audioRepo);
       await useCase.seekTo(const Duration(seconds: 30));

@@ -33,7 +33,7 @@ void main() {
       expect(err.map((v) => v + 1), const Err<int, String>('boom'));
     });
   });
-  
+
   group('Result.asyncAndThen', () {
     test('runs transform and returns its result for Ok', () async {
       const ok = Ok<int, String>(2);

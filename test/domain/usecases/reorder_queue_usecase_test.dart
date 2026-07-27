@@ -48,8 +48,7 @@ void main() {
       );
     });
 
-    test('propagates a ValidationFailure for an out-of-bounds index',
-        () async {
+    test('propagates a ValidationFailure for an out-of-bounds index', () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [_song('a')],
