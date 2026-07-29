@@ -6,6 +6,11 @@
 # equally deliberate choice.
 include: package:lints/recommended.yaml
 
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+
+
 linter:
   rules:
     # Every use case in this app funnels errors through Result instead

@@ -11,3 +11,8 @@ environment:
 dev_dependencies:
   test: ^1.25.0
   lints: ^5.0.0
+  drift_dev: ^2.34.5
+  build_runner: ^2.15.3
+dependencies:
+  drift: ^2.34.3
+  sqlite3: ^3.5.0
