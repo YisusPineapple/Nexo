@@ -14,5 +14,8 @@ dev_dependencies:
   drift_dev: ^2.34.5
   build_runner: ^2.15.3
 dependencies:
+  audio_metadata_reader: ^1.7.0
   drift: ^2.34.3
+  image: ^4.9.1
+  path: ^1.9.1
   sqlite3: ^3.5.0
