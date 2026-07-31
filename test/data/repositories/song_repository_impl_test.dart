@@ -1,5 +1,5 @@
 import 'package:drift/native.dart';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nexo/core/error/failures.dart';
 import 'package:nexo/data/local/app_database.dart';

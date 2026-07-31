@@ -1,6 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nexo/data/local/app_database.dart';
 import 'package:nexo/domain/entities/audio_format.dart';

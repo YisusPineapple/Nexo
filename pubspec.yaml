@@ -7,15 +7,23 @@ publish_to: 'none'
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
+  flutter: ">=3.24.0"
 
 dev_dependencies:
-  test: ^1.25.0
+  flutter_test:
+    sdk: flutter
   lints: ^5.0.0
   drift_dev: ^2.34.5
-  build_runner: ^2.15.3
+  build_runner: ^2.4.9
+
 dependencies:
+  flutter:
+    sdk: flutter
   audio_metadata_reader: ^1.7.0
   drift: ^2.34.3
   image: ^4.9.1
   path: ^1.9.1
   sqlite3: ^3.5.0
+
+flutter:
+  uses-material-design: true

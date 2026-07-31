@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nexo/data/sources/audio_file_scanner.dart';
 import 'package:nexo/domain/entities/audio_format.dart';

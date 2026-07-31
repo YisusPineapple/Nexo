@@ -1,4 +1,4 @@
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:nexo/domain/usecases/refresh_library_usecase.dart';
 import 'package:nexo/domain/usecases/use_case.dart';
 

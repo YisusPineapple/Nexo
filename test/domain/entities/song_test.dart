@@ -1,4 +1,4 @@
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:nexo/domain/entities/audio_format.dart';
 import 'package:nexo/domain/entities/song.dart';
 import 'package:nexo/domain/value_objects/artist_id.dart';

@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:nexo/domain/entities/audio_format.dart';
 import 'package:nexo/domain/entities/playback_queue.dart';
 import 'package:nexo/domain/entities/queue_source.dart';

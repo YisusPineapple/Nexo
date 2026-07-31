@@ -1,4 +1,4 @@
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:nexo/domain/entities/crossfade_config.dart';
 
 void main() {
