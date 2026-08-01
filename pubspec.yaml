@@ -26,6 +26,11 @@ dependencies:
   sqlite3: ^3.5.0
   just_audio: ^0.10.6
   audio_service: ^0.18.19
+  flutter_riverpod: ^2.6.1
+  path_provider: ^2.1.6
+  just_audio_media_kit: ^2.1.0
+  media_kit_libs_linux: ^1.2.1
+  media_kit_libs_windows_audio: ^1.0.9
 
 flutter:
   uses-material-design: true
