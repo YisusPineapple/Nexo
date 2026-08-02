@@ -73,6 +73,20 @@ void main() {
       expect(result.valueOrNull?.length, 1);
     });
 
+    test('searchSongs also matches by artist', () async {
+      await seedSong(id: 's1', artist: 'the-unique-artist');
+      await seedSong(id: 's2', artist: 'someone-else');
+      final result = await repo.searchSongs('unique-artist');
+      expect(result.valueOrNull?.map((s) => s.id.value), ['s1']);
+    });
+
+    test('searchSongs also matches by album', () async {
+      await seedSong(id: 's1', artist: 'artist-1', albumId: 'Purple Album');
+      await seedSong(id: 's2', artist: 'artist-1', albumId: 'Yellow Album');
+      final result = await repo.searchSongs('purple album');
+      expect(result.valueOrNull?.map((s) => s.id.value), ['s1']);
+    });
+
     test('getAllSongs returns every seeded song', () async {
       await seedSong(id: 's1', artist: 'artist-1');
       await seedSong(id: 's2', artist: 'artist-2');

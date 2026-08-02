@@ -168,14 +168,13 @@ class SongRepositoryImpl implements SongRepository {
 
   @override
   Future<Result<List<Song>, Failure>> searchSongs(String query) async {
-    // SQLite's LIKE is case-insensitive for ASCII by default, so this
-    // satisfies the contract's "case-insensitive" requirement without
-    // needing a separate lower() call on either side.
     final normalized = query.toLowerCase();
     final rows = await _db.select(_db.songs).get();
-    final matching = rows
-        .where((row) => row.title.toLowerCase().contains(normalized))
-        .toList();
+    final matching = rows.where((row) {
+      return row.title.toLowerCase().contains(normalized) ||
+          row.trackArtistId.toLowerCase().contains(normalized) ||
+          (row.albumId?.toLowerCase().contains(normalized) ?? false);
+    }).toList();
     return _mapRows(matching);
   }
 
