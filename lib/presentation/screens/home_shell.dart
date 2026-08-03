@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/navigation_providers.dart';
+import '../widgets/mini_player.dart';
 import 'library/albums_screen.dart';
 import 'library/artists_screen.dart';
 import 'library/folders_screen.dart';
@@ -15,9 +16,6 @@ typedef _NavDestination = ({
   IconData selectedIcon,
 });
 
-/// Single source of truth for both the rail and the bar below, and for
-/// the IndexedStack order — add a destination here once, not in three
-/// places kept in sync by hand.
 const _destinations = <_NavDestination>[
   (label: 'Songs', icon: Icons.music_note_outlined, selectedIcon: Icons.music_note),
   (label: 'Albums', icon: Icons.album_outlined, selectedIcon: Icons.album),
@@ -36,9 +34,6 @@ const _screens = <Widget>[
   PlaylistsScreen(),
 ];
 
-/// Adaptive shell: [NavigationRail] on wide screens (desktop —
-/// Linux/Windows), [NavigationBar] on narrow screens (Android phone).
-/// 600dp is Material 3's native compact/medium breakpoint.
 class HomeShell extends ConsumerWidget {
   const HomeShell({super.key});
 
@@ -51,9 +46,6 @@ class HomeShell extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= _wideBreakpoint;
-
-        // Preserves the scroll position and local state of each screen when switching
-        // tabs, instead of rebuilding it from scratch each time.
         final body = IndexedStack(index: selectedIndex, children: _screens);
 
         void onSelect(int i) =>
@@ -77,14 +69,26 @@ class HomeShell extends ConsumerWidget {
                   ],
                 ),
                 const VerticalDivider(width: 1),
-                Expanded(child: body),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Expanded(child: body),
+                      const MiniPlayer(),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
         }
 
         return Scaffold(
-          body: body,
+          body: Column(
+            children: [
+              Expanded(child: body),
+              const MiniPlayer(),
+            ],
+          ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: selectedIndex,
             onDestinationSelected: onSelect,

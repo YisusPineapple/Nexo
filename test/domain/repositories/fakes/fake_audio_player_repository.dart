@@ -75,4 +75,16 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
     if (failWith != null) return Err(failWith!);
     return Ok(loadedAt ?? Duration.zero);
   }
+
+  @override
+  Stream<Duration> get positionStream => Stream.value(Duration.zero);
+
+  @override
+  Stream<Duration?> get durationStream => Stream.value(Duration.zero);
+
+  @override
+  Stream<bool> get playingStream => Stream.value(isResumed);
+
+  @override
+  Stream<void> get completedStream => const Stream.empty();
 }

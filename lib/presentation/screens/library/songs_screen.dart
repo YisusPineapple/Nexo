@@ -4,7 +4,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:nexo/domain/entities/queue_source.dart';
 import '../../providers/library_providers.dart';
+import '../../providers/playback_providers.dart';
 import '../../utils/song_sort.dart';
 
 class SongsScreen extends ConsumerStatefulWidget {
@@ -154,6 +156,14 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      onTap: () {
+                        ref.read(playbackControllerProvider.notifier).playSongs(
+                              queueIdStr: 'library_songs',
+                              songs: songs,
+                              startIndex: index,
+                              source: const ManualQueueSource(),
+                            );
+                      },
                     );
                   },
                 );

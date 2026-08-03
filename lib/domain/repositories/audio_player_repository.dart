@@ -29,4 +29,13 @@ abstract interface class AudioPlayerRepository {
   Future<Result<void, Failure>> setSpeed(PlaybackSpeed speed);
   Future<Result<void, Failure>> setCrossfade(CrossfadeConfig config);
   Future<Result<Duration, Failure>> getCurrentPosition();
+
+  /// Reactive streams for the Presentation layer to drive the Now Playing UI.
+  Stream<Duration> get positionStream;
+  Stream<Duration?> get durationStream;
+  Stream<bool> get playingStream;
+  
+  /// Emits an event whenever the current track finishes playing naturally,
+  /// allowing the orchestration layer to trigger auto-advance.
+  Stream<void> get completedStream;
 }

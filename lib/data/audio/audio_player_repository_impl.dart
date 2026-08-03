@@ -141,6 +141,20 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
     return Ok(_player.position);
   }
 
+  @override
+  Stream<Duration> get positionStream => _player.positionStream;
+
+  @override
+  Stream<Duration?> get durationStream => _player.durationStream;
+
+  @override
+  Stream<bool> get playingStream => _player.playingStream;
+
+  @override
+  Stream<void> get completedStream => _player.processingStateStream
+      .where((state) => state == ja.ProcessingState.completed)
+      .map((_) {});
+
   /// Not part of [AudioPlayerRepository] — the interface has no
   /// lifecycle method, but a real [ja.AudioPlayer] holds native
   /// resources that must be released exactly once. Whichever
