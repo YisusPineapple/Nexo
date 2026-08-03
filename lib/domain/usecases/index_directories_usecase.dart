@@ -14,13 +14,23 @@ import 'use_case.dart';
 /// and Domain doesn't, so a path that's merely a different STRING but
 /// resolves to the same directory won't be caught here. This only
 /// rejects paths that are identical as written.
+///
+/// [onProgress] is an EXTRA optional parameter beyond what the base
+/// [UseCase] interface requires — Dart allows an overriding method to
+/// add optional parameters, so callers that only know this as
+/// `UseCase<void, List<String>>` are unaffected, while Presentation
+/// (which knows the concrete type) can pass a callback straight
+/// through to [SongRepository.indexDirectories].
 final class IndexDirectoriesUseCase implements UseCase<void, List<String>> {
   IndexDirectoriesUseCase(this._songRepository);
 
   final SongRepository _songRepository;
 
   @override
-  Future<Result<void, Failure>> call(List<String> directoryPaths) async {
+  Future<Result<void, Failure>> call(
+    List<String> directoryPaths, {
+    void Function(int current, int total)? onProgress,
+  }) async {
     if (directoryPaths.isEmpty) {
       return const Err(
         ValidationFailure('Cannot index an empty list of directories.'),
@@ -37,6 +47,9 @@ final class IndexDirectoriesUseCase implements UseCase<void, List<String>> {
         'should be indexed once.',
       ));
     }
-    return _songRepository.indexDirectories(directoryPaths);
+    return _songRepository.indexDirectories(
+      directoryPaths,
+      onProgress: onProgress,
+    );
   }
 }

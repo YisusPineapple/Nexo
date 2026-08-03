@@ -30,8 +30,9 @@ class FakeSongRepository implements SongRepository {
 
   @override
   Future<Result<void, Failure>> indexDirectories(
-    List<String> directoryPaths,
-  ) async {
+    List<String> directoryPaths, {
+    void Function(int current, int total)? onProgress,
+  }) async {
     indexDirectoriesCallCount++;
     if (failIndexing) {
       return const Err(UnexpectedFailure('Fake indexing failure.'));

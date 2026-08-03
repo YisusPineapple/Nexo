@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -16,19 +17,143 @@ import '../local/mappers/song_mapper.dart';
 import '../sources/audio_file_scanner.dart';
 import '../sources/song_metadata_reader.dart';
 
+/// Messages the spawned indexing isolate sends back over its
+/// [SendPort] — a small closed hierarchy instead of raw dynamic/Map
+/// messages, so the receiving side pattern-matches exhaustively
+/// instead of guessing at a message's shape.
+sealed class _IndexingMessage {
+  const _IndexingMessage();
+}
+
+/// Sent after each file finishes processing, found or skipped alike —
+/// [current] always advances even for a file that fails
+/// [Song.create]'s own validation, so the total never stalls on a bad
+/// file (RESILIENCIA).
+final class _IndexingProgress extends _IndexingMessage {
+  const _IndexingProgress({required this.current, required this.total});
+  final int current;
+  final int total;
+}
+
+final class _IndexingDone extends _IndexingMessage {
+  const _IndexingDone(this.songs);
+  final List<Song> songs;
+}
+
+/// An UNEXPECTED failure that aborted the whole scan — as opposed to
+/// a single bad file, which is silently skipped and never reaches
+/// this class at all.
+final class _IndexingFailed extends _IndexingMessage {
+  const _IndexingFailed(this.message);
+  final String message;
+}
+
+/// Bundles everything [_indexingIsolateEntry] needs — [Isolate.spawn]
+/// only accepts a single message argument, so multiple values are
+/// bundled into one small transferable class instead of an
+/// index-based positional List/Map.
+class _IndexingIsolateArgs {
+  const _IndexingIsolateArgs({
+    required this.directoryPaths,
+    required this.coverArtCacheDirectory,
+    required this.sendPort,
+  });
+
+  final List<String> directoryPaths;
+  final String coverArtCacheDirectory;
+  final SendPort sendPort;
+}
+
+/// Runs entirely inside the isolate [Isolate.spawn] creates — a
+/// top-level function, not a class method, since it must not close
+/// over any instance state.
+Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
+  const scanner = AudioFileScanner();
+  const metadataReader = SongMetadataReader();
+
+  try {
+    // Scan every directory FIRST to know the true total up front —
+    // reporting progress against a total that keeps growing mid-scan
+    // would be more confusing than reporting nothing at all.
+    final found = <(String, AudioFormat)>[];
+    for (final directoryPath in args.directoryPaths) {
+      found.addAll(await scanner.scan(directoryPath));
+    }
+
+    final total = found.length;
+    final songs = <Song>[];
+    for (var i = 0; i < total; i++) {
+      final (path, format) = found[i];
+      final song = await _buildSong(
+        path,
+        format,
+        metadataReader: metadataReader,
+        coverArtCacheDirectory: args.coverArtCacheDirectory,
+      );
+      // A malformed tag can fail Song.create's own validation (e.g. a
+      // corrupt duration) — skip that ONE file rather than aborting
+      // the whole scan.
+      if (song != null) songs.add(song);
+      args.sendPort.send(_IndexingProgress(current: i + 1, total: total));
+    }
+
+    args.sendPort.send(_IndexingDone(songs));
+  } catch (e) {
+    args.sendPort.send(_IndexingFailed(e.toString()));
+  }
+}
+
+Future<Song?> _buildSong(
+  String path,
+  AudioFormat format, {
+  required SongMetadataReader metadataReader,
+  required String coverArtCacheDirectory,
+}) async {
+  final file = File(path);
+  final stat = await file.stat();
+  final extracted = await metadataReader.read(file);
+
+  final id = SongId(path);
+  String? coverArtPath;
+  if (extracted.coverArtBytes != null) {
+    coverArtPath = await metadataReader.cacheCoverArt(
+      coverBytes: extracted.coverArtBytes!,
+      cacheDirectory: coverArtCacheDirectory,
+      songId: id.value.hashCode.toRadixString(16),
+    );
+  }
+
+  final songResult = Song.create(
+    id: id,
+    title: extracted.title ?? p.basenameWithoutExtension(path),
+    trackArtistId: ArtistId(extracted.artist ?? 'unknown-artist'),
+    albumId: extracted.album == null ? null : AlbumId(extracted.album!),
+    trackNumber: extracted.trackNumber,
+    discNumber: extracted.discNumber,
+    duration: extracted.duration,
+    filePath: path,
+    format: format,
+    fileSizeBytes: stat.size,
+    genreNames: extracted.genres,
+    year: extracted.year,
+    coverArtPath: coverArtPath,
+    dateAddedUtc: DateTime.now().toUtc(),
+  );
+
+  return songResult.valueOrNull;
+}
+
 /// Real [SongRepository] backed by [AppDatabase] (Drift),
 /// [AudioFileScanner] (filesystem), and [SongMetadataReader]
 /// (audio_metadata_reader + image).
 ///
-/// The actual scan + metadata-read loop now runs inside a spawned
-/// [Isolate.run] — satisfying PARTE A's "todo I/O pesado... en
-/// Isolates" requirement, flagged as pending since this file was
-/// first written. [AudioFileScanner]/[SongMetadataReader] are no
-/// longer constructor-injectable: both are stateless `const` classes
-/// with no interface to fake against, and the isolate function builds
-/// its own fresh instances rather than capturing this repository's —
-/// which would force them to be isolate-transferable for no real gain,
-/// since neither holds any state to begin with.
+/// Indexing spawns a dedicated isolate ([Isolate.spawn], not the
+/// simpler [Isolate.run]) so it can stream per-file progress back over
+/// a [SendPort] as it works. The extra [onExit] port below exists
+/// because [Isolate.run] handled isolate-crash reporting for us
+/// automatically — dropping to [Isolate.spawn] means re-adding that
+/// safety net ourselves, or a genuinely crashed isolate would leave
+/// this Future waiting forever instead of completing with a Failure.
 class SongRepositoryImpl implements SongRepository {
   SongRepositoryImpl(
     this._db, {
@@ -41,16 +166,15 @@ class SongRepositoryImpl implements SongRepository {
   final String _coverArtCacheDirectory;
   final SongMapper _mapper;
 
-  /// Every directory ever passed to [indexDirectories], so [refresh]
-  /// can re-scan them without the caller remembering the list itself.
   final List<String> _indexedDirectories = [];
 
   @override
   Future<Result<void, Failure>> indexDirectories(
-    List<String> directoryPaths,
-  ) async {
+    List<String> directoryPaths, {
+    void Function(int current, int total)? onProgress,
+  }) async {
     _indexedDirectories.addAll(directoryPaths);
-    return _scanAndPersist(directoryPaths);
+    return _scanAndPersist(directoryPaths, onProgress: onProgress);
   }
 
   @override
@@ -59,107 +183,63 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   Future<Result<void, Failure>> _scanAndPersist(
-    List<String> directoryPaths,
-  ) async {
-    try {
-      // Copied to a local BEFORE the closure below — the function
-      // passed to Isolate.run must never capture `this` (which holds
-      // _db, an AppDatabase/Drift connection that is NOT
-      // isolate-transferable), only plain, transferable values like
-      // this String.
-      final coverArtCacheDirectory = _coverArtCacheDirectory;
+    List<String> directoryPaths, {
+    void Function(int current, int total)? onProgress,
+  }) async {
+    final receivePort = ReceivePort();
+    final exitPort = ReceivePort();
+    final completer = Completer<Result<List<Song>, Failure>>();
 
-      // Everything CPU/file-parsing heavy (audio_metadata_reader's
-      // tag parsing, image.decodeImage/copyResize for cover art)
-      // happens inside the spawned isolate, off the UI's event loop.
-      // DB writes stay on THIS isolate, since they go through the
-      // AppDatabase instance this repository already holds — not
-      // something to hand into an unrelated second isolate.
-      final songs = await Isolate.run(
-        () => _scanDirectoriesToSongs(
-          directoryPaths,
+    void finish(Result<List<Song>, Failure> result) {
+      if (!completer.isCompleted) completer.complete(result);
+    }
+
+    receivePort.listen((rawMessage) {
+      switch (rawMessage) {
+        case _IndexingProgress(:final current, :final total):
+          onProgress?.call(current, total);
+        case _IndexingDone(:final songs):
+          finish(Ok(songs));
+        case _IndexingFailed(:final message):
+          finish(Err(UnexpectedFailure(message)));
+      }
+    });
+    exitPort.listen((_) {
+      finish(
+        const Err(UnexpectedFailure('Indexing isolate exited unexpectedly.')),
+      );
+    });
+
+    try {
+      final coverArtCacheDirectory = _coverArtCacheDirectory;
+      await Isolate.spawn(
+        _indexingIsolateEntry,
+        _IndexingIsolateArgs(
+          directoryPaths: directoryPaths,
           coverArtCacheDirectory: coverArtCacheDirectory,
+          sendPort: receivePort.sendPort,
         ),
+        onExit: exitPort.sendPort,
       );
 
-      for (final song in songs) {
-        await _db
-            .into(_db.songs)
-            .insertOnConflictUpdate(_mapper.toCompanion(song));
-      }
-      return const Ok(null);
+      final result = await completer.future;
+      return await result.when(
+        ok: (songs) async {
+          for (final song in songs) {
+            await _db
+                .into(_db.songs)
+                .insertOnConflictUpdate(_mapper.toCompanion(song));
+          }
+          return const Ok(null);
+        },
+        err: (failure) async => Err(failure),
+      );
     } catch (e) {
       return Err(UnexpectedFailure('Failed to index directories.', cause: e));
+    } finally {
+      receivePort.close();
+      exitPort.close();
     }
-  }
-
-  /// Runs entirely inside the isolate [Isolate.run] spawns — `static`
-  /// so it cannot accidentally close over `this`.
-  static Future<List<Song>> _scanDirectoriesToSongs(
-    List<String> directoryPaths, {
-    required String coverArtCacheDirectory,
-  }) async {
-    const scanner = AudioFileScanner();
-    const metadataReader = SongMetadataReader();
-    final songs = <Song>[];
-
-    for (final directoryPath in directoryPaths) {
-      final found = await scanner.scan(directoryPath);
-      for (final (path, format) in found) {
-        final song = await _buildSong(
-          path,
-          format,
-          metadataReader: metadataReader,
-          coverArtCacheDirectory: coverArtCacheDirectory,
-        );
-        // A malformed tag can fail Song.create's own validation (e.g.
-        // a corrupt duration) — skip that ONE file rather than
-        // aborting the whole scan. RESILIENCIA: a bad file must never
-        // halt indexing.
-        if (song != null) songs.add(song);
-      }
-    }
-    return songs;
-  }
-
-  static Future<Song?> _buildSong(
-    String path,
-    AudioFormat format, {
-    required SongMetadataReader metadataReader,
-    required String coverArtCacheDirectory,
-  }) async {
-    final file = File(path);
-    final stat = await file.stat();
-    final extracted = await metadataReader.read(file);
-
-    final id = SongId(path);
-    String? coverArtPath;
-    if (extracted.coverArtBytes != null) {
-      coverArtPath = await metadataReader.cacheCoverArt(
-        coverBytes: extracted.coverArtBytes!,
-        cacheDirectory: coverArtCacheDirectory,
-        songId: id.value.hashCode.toRadixString(16),
-      );
-    }
-
-    final songResult = Song.create(
-      id: id,
-      title: extracted.title ?? p.basenameWithoutExtension(path),
-      trackArtistId: ArtistId(extracted.artist ?? 'unknown-artist'),
-      albumId: extracted.album == null ? null : AlbumId(extracted.album!),
-      trackNumber: extracted.trackNumber,
-      discNumber: extracted.discNumber,
-      duration: extracted.duration,
-      filePath: path,
-      format: format,
-      fileSizeBytes: stat.size,
-      genreNames: extracted.genres,
-      year: extracted.year,
-      coverArtPath: coverArtPath,
-      dateAddedUtc: DateTime.now().toUtc(),
-    );
-
-    return songResult.valueOrNull;
   }
 
   @override

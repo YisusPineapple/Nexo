@@ -30,7 +30,16 @@ abstract interface class SongRepository {
   /// extracts metadata, and adds/updates the indexed library.
   /// Idempotent for paths already indexed: existing songs are updated
   /// in place, never duplicated.
-  Future<Result<void, Failure>> indexDirectories(List<String> directoryPaths);
+  ///
+  /// [onProgress], if supplied, is called after each file finishes
+  /// processing (indexed or skipped) with how many have been
+  /// processed so far and the total found. Optional so callers that
+  /// don't care about UI feedback (background [refresh], tests) don't
+  /// need to pass one.
+  Future<Result<void, Failure>> indexDirectories(
+    List<String> directoryPaths, {
+    void Function(int current, int total)? onProgress,
+  });
 
   /// Re-scans every previously indexed directory. Today this is the
   /// user-triggered stand-in for live watch mode (see class docs) —

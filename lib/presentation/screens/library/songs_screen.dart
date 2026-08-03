@@ -35,9 +35,6 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
   Future<void> _pickAndIndexFolder() async {
     final String? path;
     try {
-      // Shells out to zenity/kdialog/qarma on Linux — if none of
-      // those are installed, this throws instead of just returning
-      // null. See this feature's own rollout notes.
       path = await FilePicker.getDirectoryPath();
     } catch (e) {
       if (!mounted) return;
@@ -66,6 +63,12 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
       }
     });
 
+    IndexingProgress? progress;
+    if (indexState case AsyncData(value: final value?)) {
+      progress = value;
+    }
+    final isIndexing = progress != null;
+
     return Scaffold(
       appBar: AppBar(
         title: TextField(
@@ -80,7 +83,7 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
           IconButton(
             icon: const Icon(Icons.create_new_folder_outlined),
             tooltip: 'Add music folder',
-            onPressed: indexState.isLoading ? null : _pickAndIndexFolder,
+            onPressed: isIndexing ? null : _pickAndIndexFolder,
           ),
           PopupMenuButton<SongSortOption>(
             initialValue: sortOption,
@@ -94,55 +97,73 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
             ],
           ),
         ],
-        bottom: indexState.isLoading
-            ? const PreferredSize(
-                preferredSize: Size.fromHeight(4),
-                child: LinearProgressIndicator(),
+        bottom: isIndexing
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(4),
+                child: LinearProgressIndicator(
+                  value: progress.total == 0
+                      ? null
+                      : progress.current / progress.total,
+                ),
               )
             : null,
       ),
-      body: songsAsync.when(
-        data: (songs) {
-          if (songs.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('No songs found.'),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed:
-                        indexState.isLoading ? null : _pickAndIndexFolder,
-                    icon: const Icon(Icons.create_new_folder_outlined),
-                    label: const Text('Add music folder'),
-                  ),
-                ],
+      body: Column(
+        children: [
+          if (isIndexing)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                'Indexing ${progress.current} of ${progress.total}...',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
-            );
-          }
-          return ListView.builder(
-            itemExtent: 72,
-            itemCount: songs.length,
-            itemBuilder: (context, index) {
-              final song = songs[index];
-              return ListTile(
-                title: Text(
-                  song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  '${song.trackArtistId.value} • '
-                  '${_formatDuration(song.duration)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              );
-            },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('Error: $error')),
+            ),
+          Expanded(
+            child: songsAsync.when(
+              data: (songs) {
+                if (songs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('No songs found.'),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: isIndexing ? null : _pickAndIndexFolder,
+                          icon: const Icon(Icons.create_new_folder_outlined),
+                          label: const Text('Add music folder'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  itemExtent: 72,
+                  itemCount: songs.length,
+                  itemBuilder: (context, index) {
+                    final song = songs[index];
+                    return ListTile(
+                      title: Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        '${song.trackArtistId.value} • '
+                        '${_formatDuration(song.duration)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) =>
+                  Center(child: Text('Error: $error')),
+            ),
+          ),
+        ],
       ),
     );
   }

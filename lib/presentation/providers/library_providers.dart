@@ -8,8 +8,6 @@ import '../../domain/usecases/use_case.dart';
 import '../utils/song_sort.dart';
 import 'repository_providers.dart';
 
-/// Committed search text — set by SongsScreen only AFTER its own
-/// 300ms debounce fires. Empty means "no search, show everything".
 final songSearchQueryProvider = StateProvider<String>((ref) => '');
 
 final songSortOptionProvider =
@@ -28,15 +26,6 @@ final _indexDirectoriesUseCaseProvider =
   return IndexDirectoriesUseCase(ref.watch(songRepositoryProvider));
 });
 
-/// Resolves search vs. full-library fetch, then applies the current
-/// sort — exactly the "Presentation/use-case concern layered on top
-/// of one query" the Domain repository's own docs describe.
-///
-/// Throwing the [Failure] rather than returning it is a deliberate,
-/// one-time translation AT this boundary: FutureProvider already
-/// catches exceptions into AsyncValue.error, Flutter's own idiom for
-/// surfacing async failures via .when(). Nowhere else in the app does
-/// a Result get thrown instead of handled.
 final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(songSearchQueryProvider);
   final sortOption = ref.watch(songSortOptionProvider);
@@ -55,34 +44,40 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   );
 });
 
-/// Drives the "pick a folder, index it" action from the UI. Modeled
-/// as an [AsyncNotifier] rather than a one-off Future called directly
-/// from the widget, so loading/error state survives independently of
-/// the widget's own build cycle — a SnackBar can react to it via
-/// ref.listen without the widget owning that state itself.
+/// null: idle or just finished. Non-null: actively indexing, with how
+/// many of the total have been processed so far.
+typedef IndexingProgress = ({int current, int total});
+
+/// Drives the "pick a folder, index it" action from the UI, now with
+/// real per-file progress instead of an indeterminate spinner.
 final indexDirectoriesControllerProvider =
-    AsyncNotifierProvider<IndexDirectoriesController, void>(
+    AsyncNotifierProvider<IndexDirectoriesController, IndexingProgress?>(
   IndexDirectoriesController.new,
 );
 
-class IndexDirectoriesController extends AsyncNotifier<void> {
+class IndexDirectoriesController extends AsyncNotifier<IndexingProgress?> {
   @override
-  Future<void> build() async {
-    // Idle by default — nothing runs until indexDirectory() is called.
-  }
+  Future<IndexingProgress?> build() async => null; // idle by default
 
   Future<void> indexDirectory(String path) async {
-    state = const AsyncLoading();
-    final result =
-        await ref.read(_indexDirectoriesUseCaseProvider).call([path]);
+    state = const AsyncData(null); // clears any previous error
+
+    final result = await ref.read(_indexDirectoriesUseCaseProvider).call(
+      [path],
+      onProgress: (current, total) {
+        state = AsyncData((current: current, total: total));
+      },
+    );
+
     state = result.when(
       ok: (_) {
-        // The DB changed underneath sortedSongsProvider, which has no
-        // way to know that on its own — force it to refetch.
         ref.invalidate(sortedSongsProvider);
-        return const AsyncData(null);
+        return const AsyncData(null); // back to idle
       },
-      err: (failure) => AsyncValue<void>.error(failure, StackTrace.current),
+      err: (failure) => AsyncValue<IndexingProgress?>.error(
+        failure,
+        StackTrace.current,
+      ),
     );
   }
 }
