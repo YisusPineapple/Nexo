@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:path/path.dart' as p;
 
@@ -19,36 +20,29 @@ import '../sources/song_metadata_reader.dart';
 /// [AudioFileScanner] (filesystem), and [SongMetadataReader]
 /// (audio_metadata_reader + image).
 ///
-/// PENDING (flagged, not hidden): the actual scan + metadata-read
-/// loop below runs on the calling isolate, not a background one —
-/// PARTE A's Isolate requirement for indexing is NOT yet satisfied
-/// here. DB writes themselves already run in their own isolate (via
-/// [AppDatabase]'s [openConnection]), but the CPU/file work in
-/// [_indexSingleFile] does not yet. Wrapping this in `Isolate.run()`
-/// is the very next thing to do once this file itself is verified
-/// compiling and passing tests.
+/// The actual scan + metadata-read loop now runs inside a spawned
+/// [Isolate.run] — satisfying PARTE A's "todo I/O pesado... en
+/// Isolates" requirement, flagged as pending since this file was
+/// first written. [AudioFileScanner]/[SongMetadataReader] are no
+/// longer constructor-injectable: both are stateless `const` classes
+/// with no interface to fake against, and the isolate function builds
+/// its own fresh instances rather than capturing this repository's —
+/// which would force them to be isolate-transferable for no real gain,
+/// since neither holds any state to begin with.
 class SongRepositoryImpl implements SongRepository {
   SongRepositoryImpl(
     this._db, {
     required String coverArtCacheDirectory,
-    AudioFileScanner scanner = const AudioFileScanner(),
-    SongMetadataReader metadataReader = const SongMetadataReader(),
     SongMapper mapper = const SongMapper(),
   })  : _coverArtCacheDirectory = coverArtCacheDirectory,
-        _scanner = scanner,
-        _metadataReader = metadataReader,
         _mapper = mapper;
 
   final AppDatabase _db;
   final String _coverArtCacheDirectory;
-  final AudioFileScanner _scanner;
-  final SongMetadataReader _metadataReader;
   final SongMapper _mapper;
 
   /// Every directory ever passed to [indexDirectories], so [refresh]
   /// can re-scan them without the caller remembering the list itself.
-  /// In-memory only for now — persisting this across app restarts is
-  /// a follow-up, not silently assumed to already work.
   final List<String> _indexedDirectories = [];
 
   @override
@@ -68,11 +62,30 @@ class SongRepositoryImpl implements SongRepository {
     List<String> directoryPaths,
   ) async {
     try {
-      for (final directoryPath in directoryPaths) {
-        final found = await _scanner.scan(directoryPath);
-        for (final (path, format) in found) {
-          await _indexSingleFile(path, format);
-        }
+      // Copied to a local BEFORE the closure below — the function
+      // passed to Isolate.run must never capture `this` (which holds
+      // _db, an AppDatabase/Drift connection that is NOT
+      // isolate-transferable), only plain, transferable values like
+      // this String.
+      final coverArtCacheDirectory = _coverArtCacheDirectory;
+
+      // Everything CPU/file-parsing heavy (audio_metadata_reader's
+      // tag parsing, image.decodeImage/copyResize for cover art)
+      // happens inside the spawned isolate, off the UI's event loop.
+      // DB writes stay on THIS isolate, since they go through the
+      // AppDatabase instance this repository already holds — not
+      // something to hand into an unrelated second isolate.
+      final songs = await Isolate.run(
+        () => _scanDirectoriesToSongs(
+          directoryPaths,
+          coverArtCacheDirectory: coverArtCacheDirectory,
+        ),
+      );
+
+      for (final song in songs) {
+        await _db
+            .into(_db.songs)
+            .insertOnConflictUpdate(_mapper.toCompanion(song));
       }
       return const Ok(null);
     } catch (e) {
@@ -80,17 +93,51 @@ class SongRepositoryImpl implements SongRepository {
     }
   }
 
-  Future<void> _indexSingleFile(String path, AudioFormat format) async {
+  /// Runs entirely inside the isolate [Isolate.run] spawns — `static`
+  /// so it cannot accidentally close over `this`.
+  static Future<List<Song>> _scanDirectoriesToSongs(
+    List<String> directoryPaths, {
+    required String coverArtCacheDirectory,
+  }) async {
+    const scanner = AudioFileScanner();
+    const metadataReader = SongMetadataReader();
+    final songs = <Song>[];
+
+    for (final directoryPath in directoryPaths) {
+      final found = await scanner.scan(directoryPath);
+      for (final (path, format) in found) {
+        final song = await _buildSong(
+          path,
+          format,
+          metadataReader: metadataReader,
+          coverArtCacheDirectory: coverArtCacheDirectory,
+        );
+        // A malformed tag can fail Song.create's own validation (e.g.
+        // a corrupt duration) — skip that ONE file rather than
+        // aborting the whole scan. RESILIENCIA: a bad file must never
+        // halt indexing.
+        if (song != null) songs.add(song);
+      }
+    }
+    return songs;
+  }
+
+  static Future<Song?> _buildSong(
+    String path,
+    AudioFormat format, {
+    required SongMetadataReader metadataReader,
+    required String coverArtCacheDirectory,
+  }) async {
     final file = File(path);
     final stat = await file.stat();
-    final extracted = await _metadataReader.read(file);
+    final extracted = await metadataReader.read(file);
 
     final id = SongId(path);
     String? coverArtPath;
     if (extracted.coverArtBytes != null) {
-      coverArtPath = await _metadataReader.cacheCoverArt(
+      coverArtPath = await metadataReader.cacheCoverArt(
         coverBytes: extracted.coverArtBytes!,
-        cacheDirectory: _coverArtCacheDirectory,
+        cacheDirectory: coverArtCacheDirectory,
         songId: id.value.hashCode.toRadixString(16),
       );
     }
@@ -112,14 +159,7 @@ class SongRepositoryImpl implements SongRepository {
       dateAddedUtc: DateTime.now().toUtc(),
     );
 
-    // A malformed tag can fail Song.create's own validation (e.g. a
-    // corrupt duration) — skip that ONE file rather than aborting the
-    // whole scan. RESILIENCIA: a bad file must never halt indexing.
-    if (songResult.isErr) return;
-
-    await _db.into(_db.songs).insertOnConflictUpdate(
-          _mapper.toCompanion(songResult.valueOrNull!),
-        );
+    return songResult.valueOrNull;
   }
 
   @override

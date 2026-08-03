@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,10 +32,39 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
     });
   }
 
+  Future<void> _pickAndIndexFolder() async {
+    final String? path;
+    try {
+      // Shells out to zenity/kdialog/qarma on Linux — if none of
+      // those are installed, this throws instead of just returning
+      // null. See this feature's own rollout notes.
+      path = await FilePicker.getDirectoryPath();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Folder picker unavailable: $e')),
+      );
+      return;
+    }
+    if (path == null || !mounted) return;
+    await ref
+        .read(indexDirectoriesControllerProvider.notifier)
+        .indexDirectory(path);
+  }
+
   @override
   Widget build(BuildContext context) {
     final songsAsync = ref.watch(sortedSongsProvider);
     final sortOption = ref.watch(songSortOptionProvider);
+    final indexState = ref.watch(indexDirectoriesControllerProvider);
+
+    ref.listen(indexDirectoriesControllerProvider, (previous, next) {
+      if (next case AsyncError(:final error)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not index folder: $error')),
+        );
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -47,6 +77,11 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.create_new_folder_outlined),
+            tooltip: 'Add music folder',
+            onPressed: indexState.isLoading ? null : _pickAndIndexFolder,
+          ),
           PopupMenuButton<SongSortOption>(
             initialValue: sortOption,
             tooltip: 'Sort by',
@@ -59,14 +94,34 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
             ],
           ),
         ],
+        bottom: indexState.isLoading
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(4),
+                child: LinearProgressIndicator(),
+              )
+            : null,
       ),
       body: songsAsync.when(
         data: (songs) {
           if (songs.isEmpty) {
-            return const Center(child: Text('No songs found.'));
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('No songs found.'),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed:
+                        indexState.isLoading ? null : _pickAndIndexFolder,
+                    icon: const Icon(Icons.create_new_folder_outlined),
+                    label: const Text('Add music folder'),
+                  ),
+                ],
+              ),
+            );
           }
           return ListView.builder(
-            itemExtent: 72, // Material two-line ListTile height
+            itemExtent: 72,
             itemCount: songs.length,
             itemBuilder: (context, index) {
               final song = songs[index];

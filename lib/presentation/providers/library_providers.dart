@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/song.dart';
 import '../../domain/usecases/get_all_songs_usecase.dart';
+import '../../domain/usecases/index_directories_usecase.dart';
 import '../../domain/usecases/search_songs_usecase.dart';
 import '../../domain/usecases/use_case.dart';
 import '../utils/song_sort.dart';
@@ -20,6 +21,11 @@ final _getAllSongsUseCaseProvider = Provider<GetAllSongsUseCase>((ref) {
 
 final _searchSongsUseCaseProvider = Provider<SearchSongsUseCase>((ref) {
   return SearchSongsUseCase(ref.watch(songRepositoryProvider));
+});
+
+final _indexDirectoriesUseCaseProvider =
+    Provider<IndexDirectoriesUseCase>((ref) {
+  return IndexDirectoriesUseCase(ref.watch(songRepositoryProvider));
 });
 
 /// Resolves search vs. full-library fetch, then applies the current
@@ -48,3 +54,35 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
     err: (failure) => throw failure,
   );
 });
+
+/// Drives the "pick a folder, index it" action from the UI. Modeled
+/// as an [AsyncNotifier] rather than a one-off Future called directly
+/// from the widget, so loading/error state survives independently of
+/// the widget's own build cycle — a SnackBar can react to it via
+/// ref.listen without the widget owning that state itself.
+final indexDirectoriesControllerProvider =
+    AsyncNotifierProvider<IndexDirectoriesController, void>(
+  IndexDirectoriesController.new,
+);
+
+class IndexDirectoriesController extends AsyncNotifier<void> {
+  @override
+  Future<void> build() async {
+    // Idle by default — nothing runs until indexDirectory() is called.
+  }
+
+  Future<void> indexDirectory(String path) async {
+    state = const AsyncLoading();
+    final result =
+        await ref.read(_indexDirectoriesUseCaseProvider).call([path]);
+    state = result.when(
+      ok: (_) {
+        // The DB changed underneath sortedSongsProvider, which has no
+        // way to know that on its own — force it to refetch.
+        ref.invalidate(sortedSongsProvider);
+        return const AsyncData(null);
+      },
+      err: (failure) => AsyncValue<void>.error(failure, StackTrace.current),
+    );
+  }
+}
