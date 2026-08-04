@@ -1,9 +1,11 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexo/domain/entities/repeat_mode.dart';
 
 import '../providers/playback_providers.dart';
+import 'queue_screen.dart';
 
 class NowPlayingScreen extends ConsumerWidget {
   const NowPlayingScreen({super.key});
@@ -18,7 +20,8 @@ class NowPlayingScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final queue = ref.watch(playbackControllerProvider).valueOrNull;
     final isPlaying = ref.watch(playingStreamProvider).valueOrNull ?? false;
-    final position = ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
+    final position =
+        ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
 
     final currentSong = queue?.currentSong;
 
@@ -29,6 +32,7 @@ class NowPlayingScreen extends ConsumerWidget {
     }
 
     final duration = currentSong.duration;
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -40,9 +44,20 @@ class NowPlayingScreen extends ConsumerWidget {
         ),
         title: Text(
           'Now Playing',
-          style: Theme.of(context).textTheme.titleSmall,
+          style: theme.textTheme.titleSmall,
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.queue_music),
+            tooltip: 'Playback Queue',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const QueueScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32.0),
@@ -55,7 +70,7 @@ class NowPlayingScreen extends ConsumerWidget {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  color: theme.colorScheme.surfaceContainerHighest,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.2),
@@ -74,13 +89,13 @@ class NowPlayingScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 48),
-            
+
             // Metadata
             Text(
               currentSong.title,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -88,15 +103,15 @@ class NowPlayingScreen extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               currentSong.trackArtistId.value,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 32),
-            
+
             // Progress Bar
             SliderTheme(
               data: SliderTheme.of(context).copyWith(
@@ -105,7 +120,9 @@ class NowPlayingScreen extends ConsumerWidget {
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
               ),
               child: Slider(
-                value: position.inMilliseconds.toDouble().clamp(0, duration.inMilliseconds.toDouble()),
+                value: position.inMilliseconds
+                    .toDouble()
+                    .clamp(0, duration.inMilliseconds.toDouble()),
                 max: duration.inMilliseconds.toDouble(),
                 onChanged: (value) {
                   ref.read(playbackControllerProvider.notifier).seekTo(
@@ -121,40 +138,71 @@ class NowPlayingScreen extends ConsumerWidget {
                 children: [
                   Text(
                     _formatDuration(position),
-                    style: Theme.of(context).textTheme.labelSmall,
+                    style: theme.textTheme.labelSmall,
                   ),
                   Text(
                     _formatDuration(duration),
-                    style: Theme.of(context).textTheme.labelSmall,
+                    style: theme.textTheme.labelSmall,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Controls
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 IconButton(
+                  icon: const Icon(Icons.shuffle),
+                  color: queue!.shuffleEnabled
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                  onPressed: () {
+                    ref
+                        .read(playbackControllerProvider.notifier)
+                        .toggleShuffle();
+                  },
+                ),
+                IconButton(
                   icon: const Icon(Icons.skip_previous),
                   iconSize: 40,
                   onPressed: () {
-                    ref.read(playbackControllerProvider.notifier).skipPrevious();
+                    ref
+                        .read(playbackControllerProvider.notifier)
+                        .skipPrevious();
                   },
                 ),
                 FloatingActionButton(
                   elevation: 0,
                   onPressed: () {
-                    ref.read(playbackControllerProvider.notifier).togglePlayPause();
+                    ref
+                        .read(playbackControllerProvider.notifier)
+                        .togglePlayPause();
                   },
-                  child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, size: 32),
+                  child: Icon(isPlaying ? Icons.pause : Icons.play_arrow,
+                      size: 32),
                 ),
                 IconButton(
                   icon: const Icon(Icons.skip_next),
                   iconSize: 40,
                   onPressed: () {
                     ref.read(playbackControllerProvider.notifier).skipNext();
+                  },
+                ),
+                IconButton(
+                  icon: Icon(
+                    queue.repeatMode == RepeatMode.one
+                        ? Icons.repeat_one
+                        : Icons.repeat,
+                  ),
+                  color: queue.repeatMode != RepeatMode.off
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                  onPressed: () {
+                    ref
+                        .read(playbackControllerProvider.notifier)
+                        .toggleRepeatMode();
                   },
                 ),
               ],

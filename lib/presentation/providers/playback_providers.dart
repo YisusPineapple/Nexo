@@ -2,9 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/playback_queue.dart';
 import '../../domain/entities/queue_source.dart';
+import '../../domain/entities/repeat_mode.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/usecases/play_queue_usecase.dart';
+import '../../domain/usecases/reorder_queue_usecase.dart';
 import '../../domain/usecases/restore_session_usecase.dart';
+import '../../domain/usecases/shuffle_queue_usecase.dart';
 import '../../domain/usecases/use_case.dart';
 import '../../domain/value_objects/queue_id.dart';
 import 'repository_providers.dart';
@@ -62,7 +65,6 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     }
   }
 
-  /// Helper to create a queue on the fly and play it (e.g. tapping a song in a list)
   Future<void> playSongs({
     required String queueIdStr,
     required List<Song> songs,
@@ -123,7 +125,70 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     }
   }
 
+  Future<void> skipToIndex(int index) async {
+    final currentQueue = state.valueOrNull;
+    if (currentQueue == null) return;
+
+    final updated = currentQueue.withCurrentIndex(index);
+    if (updated.isOk) {
+      await ref.read(playbackRepositoryProvider).saveQueue(updated.valueOrNull!);
+      await playQueue(currentQueue.id);
+    }
+  }
+
   Future<void> seekTo(Duration position) async {
     await ref.read(audioPlayerRepositoryProvider).seekTo(position);
+  }
+
+  Future<void> toggleShuffle() async {
+    final currentQueue = state.valueOrNull;
+    if (currentQueue == null) return;
+
+    final useCase = ShuffleQueueUseCase(ref.read(playbackRepositoryProvider));
+    final result = await useCase.call((
+      queueId: currentQueue.id,
+      enable: !currentQueue.shuffleEnabled,
+    ));
+
+    if (result.isOk) {
+      state = AsyncData(result.valueOrNull);
+    }
+  }
+
+  Future<void> toggleRepeatMode() async {
+    final currentQueue = state.valueOrNull;
+    if (currentQueue == null) return;
+
+    final nextMode = switch (currentQueue.repeatMode) {
+      RepeatMode.off => RepeatMode.all,
+      RepeatMode.all => RepeatMode.one,
+      RepeatMode.one => RepeatMode.off,
+    };
+
+    final updated = currentQueue.withRepeatMode(nextMode);
+    await ref.read(playbackRepositoryProvider).saveQueue(updated);
+    state = AsyncData(updated);
+  }
+
+  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    final currentQueue = state.valueOrNull;
+    if (currentQueue == null) return;
+
+    // Flutter's ReorderableListView reports newIndex offset by 1 if moving downwards.
+    // We adjust it here before passing it to Domain, which expects exact indices.
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+
+    final useCase = ReorderQueueUseCase(ref.read(playbackRepositoryProvider));
+    final result = await useCase.call((
+      queueId: currentQueue.id,
+      oldIndex: oldIndex,
+      newIndex: newIndex,
+    ));
+
+    if (result.isOk) {
+      state = AsyncData(result.valueOrNull);
+    }
   }
 }
