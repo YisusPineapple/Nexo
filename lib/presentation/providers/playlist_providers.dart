@@ -64,4 +64,37 @@ class PlaylistController {
       _ref.invalidate(playlistSongsProvider(playlistId));
     }
   }
+
+  Future<void> renamePlaylist(String id, String newName) async {
+    final useCase = RenamePlaylistUseCase(_ref.read(playlistRepositoryProvider));
+    final result = await useCase.call((
+      id: PlaylistId(id),
+      newName: newName,
+    ));
+    if (result.isOk) {
+      _ref.invalidate(playlistsProvider);
+    }
+  }
+
+  Future<String?> exportPlaylist(String id, String exportDirectory) async {
+    final useCase = ExportPlaylistUseCase(_ref.read(playlistRepositoryProvider));
+    final result = await useCase.call((
+      id: PlaylistId(id),
+      exportDirectory: exportDirectory,
+    ));
+    return result.when(ok: (_) => null, err: (e) => e.message);
+  }
+
+  Future<String?> importPlaylist(String filePath) async {
+    final useCase = ImportPlaylistUseCase(
+      _ref.read(playlistRepositoryProvider),
+      _ref.read(songRepositoryProvider),
+    );
+    final result = await useCase.call(filePath);
+    if (result.isOk) {
+      _ref.invalidate(playlistsProvider);
+      return null;
+    }
+    return result.when(ok: (_) => null, err: (e) => e.message);
+  }
 }
