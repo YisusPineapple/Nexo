@@ -2,13 +2,11 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as reader;
-import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
 /// The subset of a file's tags SongRepositoryImpl actually needs. No
-/// Domain knowledge here on purpose — audio_metadata_reader and image
-/// stay behind this one seam, never imported by the repository
-/// directly.
+/// Domain knowledge here on purpose — audio_metadata_reader stays
+/// behind this one seam, never imported by the repository directly.
 class ExtractedMetadata {
   const ExtractedMetadata({
     required this.title,
@@ -31,15 +29,12 @@ class ExtractedMetadata {
   final List<String> genres;
   final int? year;
 
-  /// Raw bytes of the first embedded picture, if any — NOT resized
-  /// yet. Resizing is [SongMetadataReader.cacheCoverArt]'s job,
-  /// called separately so this class stays a pure "what does the file
-  /// say" reader with no filesystem writes of its own.
+  /// Raw bytes of the first embedded picture, if any.
   final Uint8List? coverArtBytes;
 }
 
-/// Wraps audio_metadata_reader (tags) and the `image` package (cover
-/// resize) so neither third-party API leaks past this file.
+/// Wraps audio_metadata_reader (tags) so the third-party API doesn't
+/// leak past this file.
 ///
 /// KNOWN LIMITATION, deliberate: audio_metadata_reader's condensed
 /// metadata type exposes a single `artist` field, not a separate
@@ -52,8 +47,6 @@ class ExtractedMetadata {
 /// simply not populated yet.
 class SongMetadataReader {
   const SongMetadataReader();
-
-  static const _coverArtSize = 512;
 
   Future<ExtractedMetadata> read(File file) async {
     // `await` here is deliberate even if readMetadata turns out to be
@@ -83,30 +76,19 @@ class SongMetadataReader {
     );
   }
 
-  /// Resizes [coverBytes] to 512x512 and caches it under
-  /// [cacheDirectory] — PARTE A's "redimensionar a 512x512 en Isolate
-  /// al indexar, NUNCA cargar la original en memoria" satisfied at
-  /// the Data layer: the original embedded bytes are decoded once,
-  /// here, and never touched again at playback time — only this
-  /// already-small cached file is.
+  /// Caches the raw bytes under [cacheDirectory].
+  /// HOTFIX: We no longer resize in pure Dart during indexing (which
+  /// took ~2s per song). Instead, we write the raw bytes instantly
+  /// and rely on Flutter's native `cacheWidth` at render time to
+  /// downsample the image before it hits RAM.
   Future<String?> cacheCoverArt({
     required Uint8List coverBytes,
     required String cacheDirectory,
     required String songId,
   }) async {
-    final decoded = img.decodeImage(coverBytes);
-    if (decoded == null) return null; // corrupt/unsupported embedded image
-
-    final resized = img.copyResize(
-      decoded,
-      width: _coverArtSize,
-      height: _coverArtSize,
-      interpolation: img.Interpolation.cubic,
-    );
-
     final outPath = p.join(cacheDirectory, '$songId.jpg');
     await Directory(cacheDirectory).create(recursive: true);
-    await File(outPath).writeAsBytes(img.encodeJpg(resized, quality: 85));
+    await File(outPath).writeAsBytes(coverBytes);
     return outPath;
   }
 }

@@ -60,8 +60,11 @@ class AlbumsScreen extends ConsumerWidget {
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: album.coverArtPath != null
-                            ? Image.file(File(album.coverArtPath!),
-                                fit: BoxFit.cover)
+                            ? Image.file(
+                                File(album.coverArtPath!), 
+                                fit: BoxFit.cover,
+                                cacheWidth: 400,
+                              )
                             : const Icon(Icons.album, size: 48),
                       ),
                     ),

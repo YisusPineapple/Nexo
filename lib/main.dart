@@ -14,6 +14,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   JustAudioMediaKit.ensureInitialized();
 
+  // HOTFIX RAM: Limit Flutter's ImageCache to 40MB (default is 100MB+).
+  // This enforces the strict 120MB/250MB RAM ceiling from the requirements.
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 40 * 1024 * 1024;
+
   final supportDir = await getApplicationSupportDirectory();
   final dbFile = File(p.join(supportDir.path, 'nexo.sqlite'));
   final coverArtDir = p.join(supportDir.path, 'covers');

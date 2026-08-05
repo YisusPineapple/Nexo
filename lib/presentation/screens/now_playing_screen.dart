@@ -84,6 +84,7 @@ class NowPlayingScreen extends ConsumerWidget {
                     ? Image.file(
                         File(currentSong.coverArtPath!),
                         fit: BoxFit.cover,
+                        cacheWidth: 600,
                       )
                     : const Icon(Icons.music_note, size: 100),
               ),

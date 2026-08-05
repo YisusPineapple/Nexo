@@ -58,6 +58,7 @@ class QueueScreen extends ConsumerWidget {
                       width: 48,
                       height: 48,
                       fit: BoxFit.cover,
+                      cacheWidth: 150,
                     )
                   : Container(
                       width: 48,

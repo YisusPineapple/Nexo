@@ -8,6 +8,7 @@ import 'package:nexo/domain/entities/queue_source.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../utils/song_sort.dart';
+import 'package:nexo/core/error/failures.dart';
 
 class SongsScreen extends ConsumerStatefulWidget {
   const SongsScreen({super.key});
@@ -59,8 +60,9 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
 
     ref.listen(indexDirectoriesControllerProvider, (previous, next) {
       if (next case AsyncError(:final error)) {
+        final msg = error is Failure ? error.message : error.toString();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not index folder: $error')),
+          SnackBar(content: Text('Could not index folder: $msg')),
         );
       }
     });

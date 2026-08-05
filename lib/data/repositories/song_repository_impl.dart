@@ -17,41 +17,26 @@ import '../local/mappers/song_mapper.dart';
 import '../sources/audio_file_scanner.dart';
 import '../sources/song_metadata_reader.dart';
 
-/// Messages the spawned indexing isolate sends back over its
-/// [SendPort] — a small closed hierarchy instead of raw dynamic/Map
-/// messages, so the receiving side pattern-matches exhaustively
-/// instead of guessing at a message's shape.
 sealed class _IndexingMessage {
   const _IndexingMessage();
 }
 
-/// Sent after each file finishes processing, found or skipped alike —
-/// [current] always advances even for a file that fails
-/// [Song.create]'s own validation, so the total never stalls on a bad
-/// file (RESILIENCIA).
 final class _IndexingProgress extends _IndexingMessage {
-  const _IndexingProgress({required this.current, required this.total});
+  const _IndexingProgress(this.current, this.total, this.song);
   final int current;
   final int total;
+  final Song? song;
 }
 
 final class _IndexingDone extends _IndexingMessage {
-  const _IndexingDone(this.songs);
-  final List<Song> songs;
+  const _IndexingDone();
 }
 
-/// An UNEXPECTED failure that aborted the whole scan — as opposed to
-/// a single bad file, which is silently skipped and never reaches
-/// this class at all.
 final class _IndexingFailed extends _IndexingMessage {
   const _IndexingFailed(this.message);
   final String message;
 }
 
-/// Bundles everything [_indexingIsolateEntry] needs — [Isolate.spawn]
-/// only accepts a single message argument, so multiple values are
-/// bundled into one small transferable class instead of an
-/// index-based positional List/Map.
 class _IndexingIsolateArgs {
   const _IndexingIsolateArgs({
     required this.directoryPaths,
@@ -64,40 +49,40 @@ class _IndexingIsolateArgs {
   final SendPort sendPort;
 }
 
-/// Runs entirely inside the isolate [Isolate.spawn] creates — a
-/// top-level function, not a class method, since it must not close
-/// over any instance state.
 Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
   const scanner = AudioFileScanner();
   const metadataReader = SongMetadataReader();
 
   try {
-    // Scan every directory FIRST to know the true total up front —
-    // reporting progress against a total that keeps growing mid-scan
-    // would be more confusing than reporting nothing at all.
     final found = <(String, AudioFormat)>[];
     for (final directoryPath in args.directoryPaths) {
       found.addAll(await scanner.scan(directoryPath));
     }
 
     final total = found.length;
-    final songs = <Song>[];
+    
     for (var i = 0; i < total; i++) {
       final (path, format) = found[i];
-      final song = await _buildSong(
-        path,
-        format,
-        metadataReader: metadataReader,
-        coverArtCacheDirectory: args.coverArtCacheDirectory,
-      );
-      // A malformed tag can fail Song.create's own validation (e.g. a
-      // corrupt duration) — skip that ONE file rather than aborting
-      // the whole scan.
-      if (song != null) songs.add(song);
-      args.sendPort.send(_IndexingProgress(current: i + 1, total: total));
+      Song? song;
+      
+      // RESILIENCIA: Si un archivo está corrupto o no tiene permisos,
+      // la excepción se atrapa aquí. El archivo se ignora (song = null)
+      // y el escaneo continúa con el siguiente sin abortar el Isolate.
+      try {
+        song = await _buildSong(
+          path,
+          format,
+          metadataReader: metadataReader,
+          coverArtCacheDirectory: args.coverArtCacheDirectory,
+        );
+      } catch (e) {
+        // Archivo corrupto ignorado silenciosamente.
+      }
+      
+      args.sendPort.send(_IndexingProgress(i + 1, total, song));
     }
 
-    args.sendPort.send(_IndexingDone(songs));
+    args.sendPort.send(const _IndexingDone());
   } catch (e) {
     args.sendPort.send(_IndexingFailed(e.toString()));
   }
@@ -143,17 +128,6 @@ Future<Song?> _buildSong(
   return songResult.valueOrNull;
 }
 
-/// Real [SongRepository] backed by [AppDatabase] (Drift),
-/// [AudioFileScanner] (filesystem), and [SongMetadataReader]
-/// (audio_metadata_reader + image).
-///
-/// Indexing spawns a dedicated isolate ([Isolate.spawn], not the
-/// simpler [Isolate.run]) so it can stream per-file progress back over
-/// a [SendPort] as it works. The extra [onExit] port below exists
-/// because [Isolate.run] handled isolate-crash reporting for us
-/// automatically — dropping to [Isolate.spawn] means re-adding that
-/// safety net ourselves, or a genuinely crashed isolate would leave
-/// this Future waiting forever instead of completing with a Failure.
 class SongRepositoryImpl implements SongRepository {
   SongRepositoryImpl(
     this._db, {
@@ -166,7 +140,7 @@ class SongRepositoryImpl implements SongRepository {
   final String _coverArtCacheDirectory;
   final SongMapper _mapper;
 
-  final List<String> _indexedDirectories = [];
+  final Set<String> _indexedDirectories = {};
 
   @override
   Future<Result<void, Failure>> indexDirectories(
@@ -179,7 +153,7 @@ class SongRepositoryImpl implements SongRepository {
 
   @override
   Future<Result<void, Failure>> refresh() {
-    return _scanAndPersist(_indexedDirectories);
+    return _scanAndPersist(_indexedDirectories.toList());
   }
 
   Future<Result<void, Failure>> _scanAndPersist(
@@ -188,22 +162,51 @@ class SongRepositoryImpl implements SongRepository {
   }) async {
     final receivePort = ReceivePort();
     final exitPort = ReceivePort();
-    final completer = Completer<Result<List<Song>, Failure>>();
+    final completer = Completer<Result<void, Failure>>();
 
-    void finish(Result<List<Song>, Failure> result) {
+    final batchSongs = <Song>[];
+
+    Future<void> flushBatch() async {
+      if (batchSongs.isEmpty) return;
+      final toInsert = List<Song>.of(batchSongs);
+      batchSongs.clear();
+      
+      await _db.batch((batch) {
+        batch.insertAllOnConflictUpdate(
+          _db.songs,
+          toInsert.map((s) => _mapper.toCompanion(s)),
+        );
+      });
+    }
+
+    void finish(Result<void, Failure> result) {
       if (!completer.isCompleted) completer.complete(result);
     }
 
-    receivePort.listen((rawMessage) {
-      switch (rawMessage) {
-        case _IndexingProgress(:final current, :final total):
-          onProgress?.call(current, total);
-        case _IndexingDone(:final songs):
-          finish(Ok(songs));
-        case _IndexingFailed(:final message):
-          finish(Err(UnexpectedFailure(message)));
+    receivePort.listen((rawMessage) async {
+      try {
+        switch (rawMessage) {
+          case _IndexingProgress(:final current, :final total, :final song):
+            if (song != null) {
+              batchSongs.add(song);
+              if (batchSongs.length >= 50) {
+                await flushBatch();
+              }
+            }
+            onProgress?.call(current, total);
+            
+          case _IndexingDone():
+            await flushBatch();
+            finish(const Ok(null));
+            
+          case _IndexingFailed(:final message):
+            finish(Err(UnexpectedFailure(message)));
+        }
+      } catch (e) {
+        finish(Err(UnexpectedFailure('Database error during indexing: $e')));
       }
     });
+    
     exitPort.listen((_) {
       finish(
         const Err(UnexpectedFailure('Indexing isolate exited unexpectedly.')),
@@ -222,18 +225,7 @@ class SongRepositoryImpl implements SongRepository {
         onExit: exitPort.sendPort,
       );
 
-      final result = await completer.future;
-      return await result.when(
-        ok: (songs) async {
-          for (final song in songs) {
-            await _db
-                .into(_db.songs)
-                .insertOnConflictUpdate(_mapper.toCompanion(song));
-          }
-          return const Ok(null);
-        },
-        err: (failure) async => Err(failure),
-      );
+      return await completer.future;
     } catch (e) {
       return Err(UnexpectedFailure('Failed to index directories.', cause: e));
     } finally {

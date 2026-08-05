@@ -58,6 +58,7 @@ class MiniPlayer extends ConsumerWidget {
                         width: 48,
                         height: 48,
                         fit: BoxFit.cover,
+                        cacheWidth: 150,
                       ),
                     )
                   else

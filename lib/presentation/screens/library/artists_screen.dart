@@ -30,7 +30,8 @@ class ArtistsScreen extends ConsumerWidget {
                 backgroundColor:
                     Theme.of(context).colorScheme.surfaceContainerHighest,
                 backgroundImage: artist.coverArtPath != null
-                    ? FileImage(File(artist.coverArtPath!))
+                    ? ResizeImage(FileImage(File(artist.coverArtPath!)),
+                        width: 150)
                     : null,
                 child: artist.coverArtPath == null
                     ? const Icon(Icons.person)
@@ -79,7 +80,10 @@ class ArtistDetailScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(4),
                   child: song.coverArtPath != null
                       ? Image.file(File(song.coverArtPath!),
-                          width: 48, height: 48, fit: BoxFit.cover)
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          cacheWidth: 150)
                       : Container(
                           width: 48,
                           height: 48,
