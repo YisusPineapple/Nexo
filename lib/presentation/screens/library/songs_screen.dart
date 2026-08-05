@@ -8,6 +8,7 @@ import 'package:nexo/domain/entities/queue_source.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../utils/song_sort.dart';
+import '../../widgets/add_to_playlist_dialog.dart';
 import 'package:nexo/core/error/failures.dart';
 
 class SongsScreen extends ConsumerStatefulWidget {
@@ -157,6 +158,17 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                         '${_formatDuration(song.duration)}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: IconButton(
+                        // <--- AÑADIR ESTO
+                        icon: const Icon(Icons.playlist_add),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (_) =>
+                                AddToPlaylistDialog(songId: song.id.value),
+                          );
+                        },
                       ),
                       onTap: () {
                         ref.read(playbackControllerProvider.notifier).playSongs(
