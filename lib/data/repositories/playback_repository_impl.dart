@@ -1,3 +1,5 @@
+import 'package:drift/drift.dart';
+
 import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
 import '../../domain/entities/crossfade_config.dart';
@@ -54,10 +56,6 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
     return Ok(queues);
   }
 
-  /// Loads a queue's song order(s) from [QueueSongs] and resolves
-  /// each referenced [SongId] against [Songs] before handing
-  /// everything to [PlaybackQueueMapper.toEntity] — the mapper itself
-  /// never touches the database.
   Future<Result<PlaybackQueue, Failure>> _hydrateQueue(
     PlaybackQueueRow row,
   ) async {
@@ -85,9 +83,6 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
             .get();
     final songById = {for (final songRow in songRows) songRow.id: songRow};
 
-    // A referenced song missing from Songs (e.g. a queue entry
-    // outliving its source file's removal) surfaces as an honest
-    // Failure rather than silently dropping it from the queue.
     Result<List<Song>, Failure> resolve(List<QueueSongRow> refs) {
       final songs = <Song>[];
       for (final ref in refs) {
@@ -170,8 +165,12 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
 
   @override
   Future<Result<PlaybackSettings, Failure>> getPlaybackSettings() async {
-    final row = await _db.select(_db.playbackSettingsTable).getSingleOrNull();
-    if (row == null) return const Ok(PlaybackSettings.defaults);
+    // FIX: Use .get() and take the last row to avoid 'Too many elements' crash
+    // if the database already has duplicated rows from the previous bug.
+    final rows = await _db.select(_db.playbackSettingsTable).get();
+    if (rows.isEmpty) return const Ok(PlaybackSettings.defaults);
+
+    final row = rows.last;
 
     final crossfadeResult = CrossfadeConfig.create(
       mode: row.crossfadeMode,
@@ -205,14 +204,21 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
   Future<Result<void, Failure>> savePlaybackSettings(
     PlaybackSettings settings,
   ) async {
-    await _db.into(_db.playbackSettingsTable).insertOnConflictUpdate(
-          PlaybackSettingsTableCompanion.insert(
-            crossfadeMode: settings.crossfade.mode,
-            crossfadeDurationMs: settings.crossfade.duration.inMilliseconds,
-            speedHundredths: settings.speed.speedHundredths,
-            pitchCorrectionEnabled: settings.speed.pitchCorrectionEnabled,
-          ),
-        );
+    await _db.transaction(() async {
+      // Clean up any duplicate rows
+      await _db.delete(_db.playbackSettingsTable).go();
+
+      // Explicitly set id to 0 so SQLite doesn't auto-increment
+      await _db.into(_db.playbackSettingsTable).insert(
+            PlaybackSettingsTableCompanion.insert(
+              id: const Value(0),
+              crossfadeMode: settings.crossfade.mode,
+              crossfadeDurationMs: settings.crossfade.duration.inMilliseconds,
+              speedHundredths: settings.speed.speedHundredths,
+              pitchCorrectionEnabled: settings.speed.pitchCorrectionEnabled,
+            ),
+          );
+    });
     return const Ok(null);
   }
 
@@ -220,19 +226,29 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
   Future<Result<void, Failure>> saveActiveSession(
     ActiveSessionSnapshot snapshot,
   ) async {
-    await _db.into(_db.activeSessionTable).insertOnConflictUpdate(
-          ActiveSessionTableCompanion.insert(
-            activeQueueId: snapshot.activeQueueId.value,
-            positionMs: snapshot.position.inMilliseconds,
-          ),
-        );
+    await _db.transaction(() async {
+      // Clean up any duplicate rows
+      await _db.delete(_db.activeSessionTable).go();
+
+      // Explicitly set id to 0
+      await _db.into(_db.activeSessionTable).insert(
+            ActiveSessionTableCompanion.insert(
+              id: const Value(0),
+              activeQueueId: snapshot.activeQueueId.value,
+              positionMs: snapshot.position.inMilliseconds,
+            ),
+          );
+    });
     return const Ok(null);
   }
 
   @override
   Future<Result<ActiveSessionSnapshot?, Failure>> getLastSession() async {
-    final row = await _db.select(_db.activeSessionTable).getSingleOrNull();
-    if (row == null) return const Ok(null);
+    // FIX: Same protection as settings
+    final rows = await _db.select(_db.activeSessionTable).get();
+    if (rows.isEmpty) return const Ok(null);
+
+    final row = rows.last;
     return Ok((
       activeQueueId: QueueId(row.activeQueueId),
       position: Duration(milliseconds: row.positionMs),

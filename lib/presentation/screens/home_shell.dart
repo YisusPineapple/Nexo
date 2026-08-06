@@ -9,6 +9,7 @@ import 'library/folders_screen.dart';
 import 'library/genres_screen.dart';
 import 'library/playlists_screen.dart';
 import 'library/songs_screen.dart';
+import 'settings_screen.dart';
 
 typedef _NavDestination = ({
   String label,
@@ -17,12 +18,29 @@ typedef _NavDestination = ({
 });
 
 const _destinations = <_NavDestination>[
-  (label: 'Songs', icon: Icons.music_note_outlined, selectedIcon: Icons.music_note),
+  (
+    label: 'Songs',
+    icon: Icons.music_note_outlined,
+    selectedIcon: Icons.music_note
+  ),
   (label: 'Albums', icon: Icons.album_outlined, selectedIcon: Icons.album),
   (label: 'Artists', icon: Icons.person_outline, selectedIcon: Icons.person),
-  (label: 'Genres', icon: Icons.category_outlined, selectedIcon: Icons.category),
+  (
+    label: 'Genres',
+    icon: Icons.category_outlined,
+    selectedIcon: Icons.category
+  ),
   (label: 'Folders', icon: Icons.folder_outlined, selectedIcon: Icons.folder),
-  (label: 'Playlists', icon: Icons.playlist_play_outlined, selectedIcon: Icons.playlist_play),
+  (
+    label: 'Playlists',
+    icon: Icons.playlist_play_outlined,
+    selectedIcon: Icons.playlist_play
+  ),
+  (
+    label: 'Settings',
+    icon: Icons.settings_outlined,
+    selectedIcon: Icons.settings
+  ),
 ];
 
 const _screens = <Widget>[
@@ -32,6 +50,7 @@ const _screens = <Widget>[
   GenresScreen(),
   FoldersScreen(),
   PlaylistsScreen(),
+  SettingsScreen(),
 ];
 
 class HomeShell extends ConsumerWidget {
