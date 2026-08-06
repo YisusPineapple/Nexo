@@ -28,7 +28,7 @@ Song _song(String id) {
 void main() {
   group('ShuffleQueueUseCase enable', () {
     test(
-        'shuffles every song and correctly tracks the current song '
+        'shuffles every song and anchors the current song at index 0 '
         'even when it appears twice', () async {
       final dup = _song('dup');
       final other = _song('other');
@@ -50,7 +50,10 @@ void main() {
       final shuffled = result.valueOrNull!;
       expect(shuffled.shuffleEnabled, isTrue);
       expect(shuffled.songs.length, 3);
-      expect(identical(shuffled.currentSong, dup), isTrue);
+      
+      // Spotify-style: The current song should now be anchored at index 0
+      expect(shuffled.currentIndex, 0);
+      expect(identical(shuffled.songs[0], dup), isTrue);
     });
 
     test('is a no-op when shuffle is already enabled', () async {

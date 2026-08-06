@@ -53,17 +53,37 @@ final class ShuffleQueueUseCase
   }
 
   Result<PlaybackQueue, Failure> _shuffle(PlaybackQueue queue) {
+    if (queue.songs.isEmpty) return Ok(queue);
+
     final indices = List<int>.generate(queue.songs.length, (i) => i);
-    // Fisher-Yates over indices, not over Song values.
-    for (var i = indices.length - 1; i > 0; i--) {
-      final j = _random.nextInt(i + 1);
-      final tmp = indices[i];
-      indices[i] = indices[j];
-      indices[j] = tmp;
+    final int newCurrentIndex;
+
+    // Spotify-style shuffle: anchor the currently playing song at index 0,
+    // and shuffle the rest of the queue below it.
+    if (queue.currentIndex >= 0 && queue.currentIndex < queue.songs.length) {
+      indices.remove(queue.currentIndex);
+      
+      for (var i = indices.length - 1; i > 0; i--) {
+        final j = _random.nextInt(i + 1);
+        final tmp = indices[i];
+        indices[i] = indices[j];
+        indices[j] = tmp;
+      }
+      
+      indices.insert(0, queue.currentIndex);
+      newCurrentIndex = 0;
+    } else {
+      // If the queue was already finished (-1), just shuffle everything normally.
+      for (var i = indices.length - 1; i > 0; i--) {
+        final j = _random.nextInt(i + 1);
+        final tmp = indices[i];
+        indices[i] = indices[j];
+        indices[j] = tmp;
+      }
+      newCurrentIndex = -1;
     }
 
     final shuffledSongs = [for (final i in indices) queue.songs[i]];
-    final newCurrentIndex = indices.indexOf(queue.currentIndex);
 
     return queue.withShuffleEnabled(
       shuffled: shuffledSongs,
