@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/audio/audio_player_repository_impl.dart';
+import '../../data/audio/nexo_audio_handler.dart';
 import '../../data/local/app_database.dart';
 import '../../data/repositories/playback_repository_impl.dart';
 import '../../data/repositories/playlist_repository_impl.dart';
@@ -10,8 +11,6 @@ import '../../domain/repositories/playback_repository.dart';
 import '../../domain/repositories/playlist_repository.dart';
 import '../../domain/repositories/song_repository.dart';
 
-/// Both of these MUST be overridden in main() after the async bootstrap
-/// (resolving the support directory, opening [AppDatabase]) completes.
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   throw UnimplementedError('appDatabaseProvider must be overridden in main()');
 });
@@ -20,6 +19,10 @@ final coverArtCacheDirectoryProvider = Provider<String>((ref) {
   throw UnimplementedError(
     'coverArtCacheDirectoryProvider must be overridden in main()',
   );
+});
+
+final audioHandlerProvider = Provider<NexoAudioHandler>((ref) {
+  throw UnimplementedError('audioHandlerProvider must be overridden in main()');
 });
 
 final songRepositoryProvider = Provider<SongRepository>((ref) {
@@ -38,7 +41,7 @@ final playlistRepositoryProvider = Provider<PlaylistRepository>((ref) {
 });
 
 final audioPlayerRepositoryProvider = Provider<AudioPlayerRepository>((ref) {
-  final repo = AudioPlayerRepositoryImpl();
+  final repo = AudioPlayerRepositoryImpl(ref.watch(audioHandlerProvider));
   ref.onDispose(repo.dispose);
   return repo;
 });

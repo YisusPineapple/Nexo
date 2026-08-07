@@ -8,26 +8,17 @@ import '../../domain/entities/crossfade_config.dart';
 import '../../domain/entities/playback_speed.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/audio_player_repository.dart';
+import 'nexo_audio_handler.dart';
 
-/// Real [AudioPlayerRepository] backed by just_audio's [ja.AudioPlayer]
-/// — the actual native decode/output engine.
-///
-/// SCOPE, deliberate (see Sub-fase 2.4's rollout notes): true
-/// crossfade MIXING and the audio_service background/notification/
-/// Android Auto wiring are NOT here — both need orchestration above a
-/// single engine wrapper, which belongs to Presentation (Fase 3).
-/// [setCrossfade] only stores the config for that future code to read.
+/// Real [AudioPlayerRepository] backed by [NexoAudioHandler] (which wraps
+/// just_audio and audio_service).
 final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
-  AudioPlayerRepositoryImpl({ja.AudioPlayer? player})
-      : _player = player ?? ja.AudioPlayer();
+  AudioPlayerRepositoryImpl(this._handler);
 
-  final ja.AudioPlayer _player;
+  final NexoAudioHandler _handler;
 
   CrossfadeConfig _crossfadeConfig = CrossfadeConfig.disabled;
 
-  /// The config last set via [setCrossfade] — read by whatever future
-  /// orchestrates track transitions (see this class's docs on why the
-  /// actual mixing isn't implemented here).
   CrossfadeConfig get crossfadeConfig => _crossfadeConfig;
 
   @override
@@ -36,7 +27,7 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
     Duration startAt = Duration.zero,
   }) async {
     try {
-      await _player.setFilePath(song.filePath, initialPosition: startAt);
+      await _handler.player.setFilePath(song.filePath, initialPosition: startAt);
       return const Ok(null);
     } on ja.PlayerException catch (e) {
       return Err(PlaybackFailure(
@@ -45,8 +36,6 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
         cause: e,
       ));
     } on ja.PlayerInterruptedException catch (e) {
-      // Superseded by a newer load()/dispose() before this one
-      // finished loading — not a decode problem with THIS file.
       return Err(PlaybackFailure(
         'Loading "${song.filePath}" was interrupted.',
         reason: PlaybackFailureReason.engineError,
@@ -64,12 +53,7 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
   @override
   Future<Result<void, Failure>> resume() async {
     try {
-      // Deliberately NOT awaited — see this file's class docs on why
-      // just_audio's play() Future only resolves when the SONG ENDS,
-      // not when it starts. unawaited() satisfies analysis_options'
-      // own unawaited_futures rule explicitly, rather than silently
-      // ignoring it.
-      unawaited(_player.play());
+      unawaited(_handler.play());
       return const Ok(null);
     } catch (e) {
       return Err(PlaybackFailure(
@@ -83,7 +67,7 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
   @override
   Future<Result<void, Failure>> pause() async {
     try {
-      await _player.pause();
+      await _handler.pause();
       return const Ok(null);
     } catch (e) {
       return Err(PlaybackFailure(
@@ -97,7 +81,7 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
   @override
   Future<Result<void, Failure>> seekTo(Duration position) async {
     try {
-      await _player.seek(position);
+      await _handler.seek(position);
       return const Ok(null);
     } catch (e) {
       return Err(PlaybackFailure(
@@ -111,13 +95,8 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
   @override
   Future<Result<void, Failure>> setSpeed(PlaybackSpeed speed) async {
     try {
-      await _player.setSpeed(speed.multiplier);
-      // Speed and pitch are independent knobs on the native engine.
-      // Leaving pitch at 1.0 is what gives "pitchCorrectionEnabled"
-      // its normal-pitch behavior; matching pitch to speed is what
-      // gives the classic tape/vinyl speed-change effect when pitch
-      // correction is turned off.
-      await _player.setPitch(
+      await _handler.player.setSpeed(speed.multiplier);
+      await _handler.player.setPitch(
         speed.pitchCorrectionEnabled ? 1.0 : speed.multiplier,
       );
       return const Ok(null);
@@ -138,27 +117,38 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
 
   @override
   Future<Result<Duration, Failure>> getCurrentPosition() async {
-    return Ok(_player.position);
+    return Ok(_handler.player.position);
   }
 
   @override
-  Stream<Duration> get positionStream => _player.positionStream;
+  Future<Result<void, Failure>> updateQueue(
+    List<Song> songs, {
+    required int currentIndex,
+  }) async {
+    try {
+      await _handler.syncQueue(songs, currentIndex);
+      return const Ok(null);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to sync queue to OS.', cause: e));
+    }
+  }
 
   @override
-  Stream<Duration?> get durationStream => _player.durationStream;
+  Stream<Duration> get positionStream => _handler.player.positionStream;
 
   @override
-  Stream<bool> get playingStream => _player.playingStream;
+  Stream<Duration?> get durationStream => _handler.player.durationStream;
 
   @override
-  Stream<void> get completedStream => _player.processingStateStream
+  Stream<bool> get playingStream => _handler.player.playingStream;
+
+  @override
+  Stream<void> get completedStream => _handler.player.processingStateStream
       .where((state) => state == ja.ProcessingState.completed)
       .map((_) {});
 
-  /// Not part of [AudioPlayerRepository] — the interface has no
-  /// lifecycle method, but a real [ja.AudioPlayer] holds native
-  /// resources that must be released exactly once. Whichever
-  /// composition root constructs this repository owns calling this
-  /// when the app shuts down.
-  Future<void> dispose() => _player.dispose();
+  Future<void> dispose() async {
+    await _handler.stop();
+    await _handler.player.dispose();
+  }
 }

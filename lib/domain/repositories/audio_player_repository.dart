@@ -30,6 +30,13 @@ abstract interface class AudioPlayerRepository {
   Future<Result<void, Failure>> setCrossfade(CrossfadeConfig config);
   Future<Result<Duration, Failure>> getCurrentPosition();
 
+  /// Syncs the current playback queue to the underlying audio engine
+  /// (e.g., for OS-level media notifications and Android Auto).
+  Future<Result<void, Failure>> updateQueue(
+    List<Song> songs, {
+    required int currentIndex,
+  });
+
   /// Reactive streams for the Presentation layer to drive the Now Playing UI.
   Stream<Duration> get positionStream;
   Stream<Duration?> get durationStream;

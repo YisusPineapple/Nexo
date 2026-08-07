@@ -39,7 +39,6 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     
     final result = await restoreUseCase.call(const NoParams());
 
-    // Listen for track completion to auto-advance
     ref.listen(
       StreamProvider((ref) => ref.watch(audioPlayerRepositoryProvider).completedStream),
       (_, next) {
@@ -49,7 +48,25 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
       },
     );
 
-    return result.valueOrNull;
+    final queue = result.valueOrNull;
+    if (queue != null) {
+      // Sync restored session to OS
+      await ref.read(audioPlayerRepositoryProvider).updateQueue(
+        queue.songs,
+        currentIndex: queue.currentIndex,
+      );
+    }
+
+    return queue;
+  }
+
+  /// Helper to update Riverpod state AND sync the queue to the OS
+  Future<void> _setQueueState(PlaybackQueue queue) async {
+    state = AsyncData(queue);
+    await ref.read(audioPlayerRepositoryProvider).updateQueue(
+      queue.songs,
+      currentIndex: queue.currentIndex,
+    );
   }
 
   Future<void> playQueue(QueueId queueId) async {
@@ -61,7 +78,9 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     final result = await useCase.play(queueId);
     if (result.isOk) {
       final queueResult = await ref.read(playbackRepositoryProvider).getQueue(queueId);
-      state = AsyncData(queueResult.valueOrNull);
+      if (queueResult.isOk) {
+        await _setQueueState(queueResult.valueOrNull!);
+      }
     }
   }
 
@@ -106,7 +125,7 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     
     final result = await useCase.skipNext(currentQueue.id);
     if (result.isOk) {
-      state = AsyncData(result.valueOrNull);
+      await _setQueueState(result.valueOrNull!);
     }
   }
 
@@ -121,7 +140,7 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     
     final result = await useCase.skipPrevious(currentQueue.id);
     if (result.isOk) {
-      state = AsyncData(result.valueOrNull);
+      await _setQueueState(result.valueOrNull!);
     }
   }
 
@@ -151,7 +170,7 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     ));
 
     if (result.isOk) {
-      state = AsyncData(result.valueOrNull);
+      await _setQueueState(result.valueOrNull!);
     }
   }
 
@@ -167,15 +186,13 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
 
     final updated = currentQueue.withRepeatMode(nextMode);
     await ref.read(playbackRepositoryProvider).saveQueue(updated);
-    state = AsyncData(updated);
+    await _setQueueState(updated);
   }
 
   Future<void> reorderQueue(int oldIndex, int newIndex) async {
     final currentQueue = state.valueOrNull;
     if (currentQueue == null) return;
 
-    // Flutter's ReorderableListView reports newIndex offset by 1 if moving downwards.
-    // We adjust it here before passing it to Domain, which expects exact indices.
     if (oldIndex < newIndex) {
       newIndex -= 1;
     }
@@ -188,7 +205,7 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     ));
 
     if (result.isOk) {
-      state = AsyncData(result.valueOrNull);
+      await _setQueueState(result.valueOrNull!);
     }
   }
 }

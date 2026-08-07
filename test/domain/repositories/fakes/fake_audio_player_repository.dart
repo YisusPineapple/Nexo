@@ -17,6 +17,8 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
   Duration? seekedTo;
   PlaybackSpeed? appliedSpeed;
   CrossfadeConfig? appliedCrossfade;
+  List<Song>? syncedQueue;
+  int? syncedIndex;
 
   /// Test hook: when set, every method fails with this.
   Failure? failWith;
@@ -74,6 +76,17 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
   Future<Result<Duration, Failure>> getCurrentPosition() async {
     if (failWith != null) return Err(failWith!);
     return Ok(loadedAt ?? Duration.zero);
+  }
+
+  @override
+  Future<Result<void, Failure>> updateQueue(
+    List<Song> songs, {
+    required int currentIndex,
+  }) async {
+    if (failWith != null) return Err(failWith!);
+    syncedQueue = songs;
+    syncedIndex = currentIndex;
+    return const Ok(null);
   }
 
   @override
