@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../../domain/entities/crossfade_config.dart';
 import '../providers/settings_providers.dart';
@@ -22,10 +23,10 @@ class SettingsScreen extends ConsumerWidget {
             children: [
               const _SectionHeader(title: 'Audio Engine'),
               ListTile(
-                leading: const Icon(Icons.tune),
+                leading: const Icon(PhosphorIconsRegular.slidersHorizontal),
                 title: const Text('Equalizer'),
                 subtitle: const Text('10-band EQ and presets'),
-                trailing: const Icon(Icons.chevron_right),
+                trailing: const Icon(PhosphorIconsRegular.caretRight),
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const EqualizerScreen()),
@@ -57,9 +58,9 @@ class SettingsScreen extends ConsumerWidget {
                       Text('Crossfade Duration: ${settings.crossfade.duration.inSeconds}s'),
                       Slider(
                         value: settings.crossfade.duration.inSeconds.toDouble(),
-                        min: 0, // <--- FIX: Ahora permite 0 segundos
+                        min: 0,
                         max: 12,
-                        divisions: 12, // <--- FIX: 12 divisiones para 0 a 12
+                        divisions: 12,
                         label: '${settings.crossfade.duration.inSeconds}s',
                         onChanged: (val) {
                           controller.updateCrossfade(
@@ -105,7 +106,7 @@ class SettingsScreen extends ConsumerWidget {
 
               const _SectionHeader(title: 'Library'),
               ListTile(
-                leading: const Icon(Icons.sync),
+                leading: const Icon(PhosphorIconsRegular.arrowsClockwise),
                 title: const Text('Force Library Rescan'),
                 subtitle: const Text('Check indexed folders for new or deleted files'),
                 onTap: () async {
@@ -124,20 +125,16 @@ class SettingsScreen extends ConsumerWidget {
 
               const _SectionHeader(title: 'Appearance (Preview)'),
               ListTile(
-                leading: const Icon(Icons.dark_mode),
+                leading: const Icon(PhosphorIconsRegular.moon),
                 title: const Text('Theme'),
                 subtitle: const Text('System Default'),
-                onTap: () {
-                  // Scaffolded for 3.10
-                },
+                onTap: () {},
               ),
               ListTile(
-                leading: const Icon(Icons.lens_blur),
+                leading: const Icon(PhosphorIconsRegular.sunDim),
                 title: const Text('Adaptive Warmth'),
                 subtitle: const Text('Vivo (High Performance)'),
-                onTap: () {
-                  // Scaffolded for 3.10
-                },
+                onTap: () {},
               ),
             ],
           );

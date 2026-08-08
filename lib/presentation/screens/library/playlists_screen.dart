@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../../../core/error/failures.dart';
 import '../../../domain/entities/playlist.dart';
@@ -104,7 +105,7 @@ class PlaylistsScreen extends ConsumerWidget {
         title: const Text('Playlists'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.file_download_outlined),
+            icon: const Icon(PhosphorIconsRegular.downloadSimple),
             tooltip: 'Import .m3u8',
             onPressed: () => _handleImport(context, ref),
           ),
@@ -120,10 +121,24 @@ class PlaylistsScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final playlist = playlists[index];
               return ListTile(
-                leading: const Icon(Icons.playlist_play, size: 40),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                leading: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(PhosphorIconsFill.playlist,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer),
+                ),
                 title: Text(playlist.name,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
                 trailing: PopupMenuButton<_PlaylistAction>(
+                  icon: const Icon(PhosphorIconsRegular.dotsThreeVertical),
                   onSelected: (action) {
                     switch (action) {
                       case _PlaylistAction.rename:
@@ -166,7 +181,7 @@ class PlaylistsScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showCreateOrRenameDialog(context, ref),
-        child: const Icon(Icons.add),
+        child: const Icon(PhosphorIconsRegular.plus),
       ),
     );
   }
@@ -199,7 +214,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
                   color: Theme.of(context).colorScheme.error,
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.only(right: 16),
-                  child: Icon(Icons.delete,
+                  child: Icon(PhosphorIconsRegular.trash,
                       color: Theme.of(context).colorScheme.onError),
                 ),
                 onDismissed: (_) {
@@ -222,7 +237,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
                             color: Theme.of(context)
                                 .colorScheme
                                 .surfaceContainerHighest,
-                            child: const Icon(Icons.music_note),
+                            child: const Icon(PhosphorIconsRegular.musicNotes),
                           ),
                   ),
                   title: Text(song.title,

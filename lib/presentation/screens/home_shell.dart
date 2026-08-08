@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../providers/navigation_providers.dart';
 import '../widgets/mini_player.dart';
@@ -18,29 +19,13 @@ typedef _NavDestination = ({
 });
 
 const _destinations = <_NavDestination>[
-  (
-    label: 'Songs',
-    icon: Icons.music_note_outlined,
-    selectedIcon: Icons.music_note
-  ),
-  (label: 'Albums', icon: Icons.album_outlined, selectedIcon: Icons.album),
-  (label: 'Artists', icon: Icons.person_outline, selectedIcon: Icons.person),
-  (
-    label: 'Genres',
-    icon: Icons.category_outlined,
-    selectedIcon: Icons.category
-  ),
-  (label: 'Folders', icon: Icons.folder_outlined, selectedIcon: Icons.folder),
-  (
-    label: 'Playlists',
-    icon: Icons.playlist_play_outlined,
-    selectedIcon: Icons.playlist_play
-  ),
-  (
-    label: 'Settings',
-    icon: Icons.settings_outlined,
-    selectedIcon: Icons.settings
-  ),
+  (label: 'Songs', icon: PhosphorIconsRegular.musicNotes, selectedIcon: PhosphorIconsFill.musicNotes),
+  (label: 'Albums', icon: PhosphorIconsRegular.disc, selectedIcon: PhosphorIconsFill.disc),
+  (label: 'Artists', icon: PhosphorIconsRegular.users, selectedIcon: PhosphorIconsFill.users),
+  (label: 'Genres', icon: PhosphorIconsRegular.books, selectedIcon: PhosphorIconsFill.books),
+  (label: 'Folders', icon: PhosphorIconsRegular.folder, selectedIcon: PhosphorIconsFill.folderOpen),
+  (label: 'Playlists', icon: PhosphorIconsRegular.playlist, selectedIcon: PhosphorIconsFill.playlist),
+  (label: 'Settings', icon: PhosphorIconsRegular.gear, selectedIcon: PhosphorIconsFill.gear),
 ];
 
 const _screens = <Widget>[

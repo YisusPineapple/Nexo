@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
-import 'package:nexo/domain/entities/queue_source.dart';
+import '../../../core/error/failures.dart';
+import '../../../domain/entities/queue_source.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../utils/song_sort.dart';
 import '../../widgets/add_to_playlist_dialog.dart';
-import 'package:nexo/core/error/failures.dart';
 
 class SongsScreen extends ConsumerStatefulWidget {
   const SongsScreen({super.key});
@@ -86,14 +87,14 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.create_new_folder_outlined),
+            icon: const Icon(PhosphorIconsRegular.folderPlus),
             tooltip: 'Add music folder',
             onPressed: isIndexing ? null : _pickAndIndexFolder,
           ),
           PopupMenuButton<SongSortOption>(
             initialValue: sortOption,
             tooltip: 'Sort by',
-            icon: const Icon(Icons.sort),
+            icon: const Icon(PhosphorIconsRegular.arrowsDownUp),
             onSelected: (option) =>
                 ref.read(songSortOptionProvider.notifier).state = option,
             itemBuilder: (context) => [
@@ -135,7 +136,7 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                         const SizedBox(height: 12),
                         FilledButton.icon(
                           onPressed: isIndexing ? null : _pickAndIndexFolder,
-                          icon: const Icon(Icons.create_new_folder_outlined),
+                          icon: const Icon(PhosphorIconsRegular.folderPlus),
                           label: const Text('Add music folder'),
                         ),
                       ],
@@ -160,8 +161,7 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       trailing: IconButton(
-                        // <--- AÑADIR ESTO
-                        icon: const Icon(Icons.playlist_add),
+                        icon: const Icon(PhosphorIconsRegular.listPlus),
                         onPressed: () {
                           showDialog(
                             context: context,

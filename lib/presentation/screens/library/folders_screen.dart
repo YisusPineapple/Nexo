@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../../../domain/entities/queue_source.dart';
 import '../../providers/grouped_library_providers.dart';
@@ -23,12 +24,19 @@ class FoldersScreen extends ConsumerWidget {
           itemBuilder: (context, index) {
             final folder = folders[index];
             return ListTile(
-              leading: const Icon(Icons.folder),
-              title: Text(folder.name,
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text(folder.path,
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: Text('${folder.songCount}'),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              leading: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(PhosphorIconsFill.folder, color: Theme.of(context).colorScheme.primary),
+              ),
+              title: Text(folder.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(folder.path, maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: Text('${folder.songCount}', style: Theme.of(context).textTheme.bodySmall),
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -77,11 +85,9 @@ class FolderDetailScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final song = songs[index];
               return ListTile(
-                leading: const Icon(Icons.audio_file),
-                title: Text(song.title,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(song.trackArtistId.value,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                leading: const Icon(PhosphorIconsRegular.fileAudio),
+                title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(song.trackArtistId.value, maxLines: 1, overflow: TextOverflow.ellipsis),
                 onTap: () {
                   ref.read(playbackControllerProvider.notifier).playSongs(
                         queueIdStr: 'folder_${folder.path}',

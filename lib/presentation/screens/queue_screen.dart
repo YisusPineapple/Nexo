@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../providers/playback_providers.dart';
 
@@ -46,12 +47,11 @@ class QueueScreen extends ConsumerWidget {
           final isCurrent = index == queue.currentIndex;
 
           return ListTile(
-            // Key must be unique even if the same song appears twice in the queue.
             key: ValueKey('${song.id.value}_$index'),
             selected: isCurrent,
             selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
             leading: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(6),
               child: song.coverArtPath != null
                   ? Image.file(
                       File(song.coverArtPath!),
@@ -64,7 +64,7 @@ class QueueScreen extends ConsumerWidget {
                       width: 48,
                       height: 48,
                       color: theme.colorScheme.surfaceContainerHighest,
-                      child: const Icon(Icons.music_note),
+                      child: const Icon(PhosphorIconsRegular.musicNotes),
                     ),
             ),
             title: Text(
@@ -83,7 +83,8 @@ class QueueScreen extends ConsumerWidget {
             ),
             trailing: ReorderableDragStartListener(
               index: index,
-              child: const Icon(Icons.drag_handle),
+              // FIX: Changed to the universal drag handle icon
+              child: const Icon(PhosphorIconsRegular.dotsSixVertical, size: 28),
             ),
             onTap: () {
               ref.read(playbackControllerProvider.notifier).skipToIndex(index);

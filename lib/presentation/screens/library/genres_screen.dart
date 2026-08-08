@@ -18,8 +18,7 @@ class GenresScreen extends ConsumerWidget {
           return const Center(child: Text('No genres found.'));
         }
 
-        final crossAxisCount =
-            (MediaQuery.of(context).size.width / 180).floor().clamp(2, 8);
+        final crossAxisCount = (MediaQuery.of(context).size.width / 180).floor().clamp(2, 8);
 
         return GridView.builder(
           padding: const EdgeInsets.all(16),
@@ -27,13 +26,13 @@ class GenresScreen extends ConsumerWidget {
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            childAspectRatio: 2.0, // Wide cards
+            childAspectRatio: 2.0,
           ),
           itemCount: genres.length,
           itemBuilder: (context, index) {
             final genre = genres[index];
             return InkWell(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -43,8 +42,23 @@ class GenresScreen extends ConsumerWidget {
               },
               child: Container(
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
+                  // FIX: Added a subtle gradient and shadow for a premium look
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.primaryContainer,
+                      Theme.of(context).colorScheme.secondaryContainer,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -56,9 +70,7 @@ class GenresScreen extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSecondaryContainer,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
                             fontWeight: FontWeight.bold,
                           ),
                     ),
@@ -66,9 +78,7 @@ class GenresScreen extends ConsumerWidget {
                     Text(
                       '${genre.songCount} songs',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSecondaryContainer,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
                           ),
                     ),
                   ],
@@ -102,10 +112,8 @@ class GenreDetailScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final song = songs[index];
               return ListTile(
-                title: Text(song.title,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(song.trackArtistId.value,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(song.trackArtistId.value, maxLines: 1, overflow: TextOverflow.ellipsis),
                 onTap: () {
                   ref.read(playbackControllerProvider.notifier).playSongs(
                         queueIdStr: 'genre_${genre.name}',

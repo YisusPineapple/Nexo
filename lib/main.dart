@@ -11,6 +11,7 @@ import 'data/audio/nexo_audio_handler.dart';
 import 'data/local/app_database.dart';
 import 'presentation/providers/repository_providers.dart';
 import 'presentation/screens/home_shell.dart';
+import 'presentation/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +25,6 @@ Future<void> main() async {
 
   final database = AppDatabase(openConnection(dbFile));
 
-  // Platform-conditional AudioService initialization
   final NexoAudioHandler audioHandler;
   if (Platform.isAndroid || Platform.isIOS) {
     audioHandler = await AudioService.init(
@@ -36,7 +36,6 @@ Future<void> main() async {
       ),
     );
   } else {
-    // Linux/Windows: Direct instantiation, bypassing OS-level service registration
     audioHandler = NexoAudioHandler();
   }
 
@@ -60,10 +59,9 @@ class NexoApp extends StatelessWidget {
     return MaterialApp(
       title: 'Nexo',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.deepOrange,
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system, // Adapts to OS settings automatically
       home: const HomeShell(),
     );
   }

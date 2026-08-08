@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../providers/playback_providers.dart';
 import '../screens/now_playing_screen.dart';
@@ -37,8 +38,16 @@ class MiniPlayer extends ConsumerWidget {
         );
       },
       child: Container(
-        height: 64,
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        height: 68,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          border: Border(
+            top: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+              width: 1,
+            ),
+          ),
+        ),
         child: Column(
           children: [
             LinearProgressIndicator(
@@ -49,27 +58,27 @@ class MiniPlayer extends ConsumerWidget {
             Expanded(
               child: Row(
                 children: [
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12),
                   if (currentSong.coverArtPath != null)
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(6),
                       child: Image.file(
                         File(currentSong.coverArtPath!),
-                        width: 48,
-                        height: 48,
+                        width: 44,
+                        height: 44,
                         fit: BoxFit.cover,
                         cacheWidth: 150,
                       ),
                     )
                   else
                     Container(
-                      width: 48,
-                      height: 48,
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.surfaceContainer,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      child: const Icon(Icons.music_note),
+                      child: const Icon(PhosphorIconsRegular.musicNotes),
                     ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -82,26 +91,28 @@ class MiniPlayer extends ConsumerWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w600,
                               ),
                         ),
                         Text(
                           currentSong.trackArtistId.value,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+                    icon: Icon(isPlaying ? PhosphorIconsFill.pause : PhosphorIconsFill.play),
                     onPressed: () {
                       ref.read(playbackControllerProvider.notifier).togglePlayPause();
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.skip_next),
+                    icon: const Icon(PhosphorIconsFill.skipForward),
                     onPressed: () {
                       ref.read(playbackControllerProvider.notifier).skipNext();
                     },
