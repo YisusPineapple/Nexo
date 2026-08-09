@@ -4,6 +4,7 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../providers/navigation_providers.dart';
 import '../widgets/mini_player.dart';
+import 'for_you_screen.dart'; // NEW IMPORT
 import 'library/albums_screen.dart';
 import 'library/artists_screen.dart';
 import 'library/folders_screen.dart';
@@ -19,6 +20,8 @@ typedef _NavDestination = ({
 });
 
 const _destinations = <_NavDestination>[
+  // NEW: For You at index 0
+  (label: 'For You', icon: PhosphorIconsRegular.heart, selectedIcon: PhosphorIconsFill.heart),
   (label: 'Songs', icon: PhosphorIconsRegular.musicNotes, selectedIcon: PhosphorIconsFill.musicNotes),
   (label: 'Albums', icon: PhosphorIconsRegular.disc, selectedIcon: PhosphorIconsFill.disc),
   (label: 'Artists', icon: PhosphorIconsRegular.users, selectedIcon: PhosphorIconsFill.users),
@@ -29,6 +32,7 @@ const _destinations = <_NavDestination>[
 ];
 
 const _screens = <Widget>[
+  ForYouScreen(), // NEW: Index 0
   SongsScreen(),
   AlbumsScreen(),
   ArtistsScreen(),
