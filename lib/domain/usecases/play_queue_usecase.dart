@@ -69,14 +69,21 @@ final class PlayQueueUseCase {
       return advanced.asyncAndThen((newQueue) async {
         final saveResult = await _playbackRepository.saveQueue(newQueue);
         return saveResult.asyncAndThen((_) async {
-          final nextSong = newQueue.currentSong;
-          if (nextSong == null) {
-            // Queue reached its natural end — stopping is the correct
-            // outcome here, not a Failure.
-            return Ok(newQueue);
-          }
-          final loadResult = await _loadAndResume(nextSong);
-          return loadResult.asyncAndThen((_) async => Ok(newQueue));
+          // Sync the updated queue to the audio handler
+          final syncResult = await _audioPlayerRepository.updateQueue(
+            newQueue.songs,
+            currentIndex: newQueue.currentIndex,
+          );
+          return syncResult.asyncAndThen((_) async {
+            final nextSong = newQueue.currentSong;
+            if (nextSong == null) {
+              // Queue reached its natural end — stopping is the correct
+              // outcome here, not a Failure.
+              return Ok(newQueue);
+            }
+            final loadResult = await _loadAndResume(nextSong);
+            return loadResult.asyncAndThen((_) async => Ok(newQueue));
+          });
         });
       });
     });

@@ -2,50 +2,22 @@ import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
 
 enum CrossfadeMode {
-  /// No crossfade; tracks play back-to-back (gapless silence trimming
-  /// from SilenceTrimPoints still applies).
   disabled,
-
-  /// Constant overlap duration for every transition, set by
-  /// [CrossfadeConfig.duration]. The "basic" behavior found in most
-  /// existing music players.
   fixed,
-
-  /// The engine analyzes the outgoing/incoming track's energy (and
-  /// beat grid when available) to choose an overlap duration and
-  /// volume curve that avoids fading over a vocal entrance or a
-  /// dramatic pause, instead of blindly cutting the last N seconds.
   intelligent,
-
-  /// "AutoMix" / DJ-style: same analysis as [intelligent], but the
-  /// engine is free to choose the duration itself (ignoring
-  /// [CrossfadeConfig.duration]) so consecutive songs feel like one
-  /// continuous mix.
   autoMix,
 }
 
-/// Immutable, self-validating configuration for track-to-track
-/// transitions.
-///
-/// Uses [Duration] — a dart:core type, not an external package —
-/// instead of a raw int-seconds field, so a fixed crossfade can be
-/// tuned to sub-second precision (e.g. 2.5s) from a fine slider, and
-/// so the value reaches just_audio's Duration-based APIs without a
-/// lossy seconds-to-ms conversion at the data-layer boundary.
 final class CrossfadeConfig {
   const CrossfadeConfig._({
     required this.mode,
     required this.duration,
+    required this.isAutoDuration,
   });
 
   final CrossfadeMode mode;
-
-  /// Overlap length. Authoritative only for [CrossfadeMode.fixed]; for
-  /// [CrossfadeMode.intelligent] and [CrossfadeMode.autoMix] this is
-  /// kept as the user's last manual value so the UI has something to
-  /// show if they switch back to `fixed`, but the engine computes its
-  /// own duration in those modes.
   final Duration duration;
+  final bool isAutoDuration;
 
   static const Duration minDuration = Duration.zero;
   static const Duration maxDuration = Duration(seconds: 12);
@@ -53,29 +25,58 @@ final class CrossfadeConfig {
   static const CrossfadeConfig disabled = CrossfadeConfig._(
     mode: CrossfadeMode.disabled,
     duration: Duration.zero,
+    isAutoDuration: false,
   );
 
   static Result<CrossfadeConfig, Failure> create({
     required CrossfadeMode mode,
     Duration duration = const Duration(seconds: 4),
+    bool isAutoDuration = false,
   }) {
-    if (duration < minDuration || duration > maxDuration) {
-      return Err(ValidationFailure(
-        'Crossfade duration must be between ${minDuration.inMilliseconds}ms '
-        'and ${maxDuration.inMilliseconds}ms, got '
-        '${duration.inMilliseconds}ms.',
+    if (mode == CrossfadeMode.disabled) {
+      return Ok(CrossfadeConfig._(
+        mode: mode,
+        duration: Duration.zero,
+        isAutoDuration: false,
       ));
     }
-    return Ok(CrossfadeConfig._(mode: mode, duration: duration));
+
+    // Duration validation only if manual
+    if (!isAutoDuration) {
+      if (duration < minDuration || duration > maxDuration) {
+        return Err(ValidationFailure(
+          'Crossfade duration must be between ${minDuration.inMilliseconds}ms '
+          'and ${maxDuration.inMilliseconds}ms, got ${duration.inMilliseconds}ms.',
+        ));
+      }
+    }
+
+    // Auto duration only available in Intelligent or AutoMix
+    if (isAutoDuration &&
+        (mode == CrossfadeMode.fixed || mode == CrossfadeMode.disabled)) {
+      return const Err(ValidationFailure(
+        'Auto duration is only available for Intelligent and AutoMix modes.',
+      ));
+    }
+
+    return Ok(CrossfadeConfig._(
+      mode: mode,
+      duration: isAutoDuration
+          ? duration
+          : duration, // We save the value in case it changes to "manual"
+      isAutoDuration: isAutoDuration,
+    ));
   }
 
   Result<CrossfadeConfig, Failure> copyWith({
     CrossfadeMode? mode,
     Duration? duration,
+    bool? isAutoDuration,
   }) {
     return CrossfadeConfig.create(
       mode: mode ?? this.mode,
       duration: duration ?? this.duration,
+      isAutoDuration: isAutoDuration ?? this.isAutoDuration,
     );
   }
 
@@ -84,8 +85,9 @@ final class CrossfadeConfig {
       identical(this, other) ||
       (other is CrossfadeConfig &&
           other.mode == mode &&
-          other.duration == duration);
+          other.duration == duration &&
+          other.isAutoDuration == isAutoDuration);
 
   @override
-  int get hashCode => Object.hash(mode, duration);
+  int get hashCode => Object.hash(mode, duration, isAutoDuration);
 }

@@ -10,16 +10,10 @@ import '../../domain/entities/song.dart';
 import '../../domain/repositories/audio_player_repository.dart';
 import 'nexo_audio_handler.dart';
 
-/// Real [AudioPlayerRepository] backed by [NexoAudioHandler] (which wraps
-/// just_audio and audio_service).
 final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
   AudioPlayerRepositoryImpl(this._handler);
 
   final NexoAudioHandler _handler;
-
-  CrossfadeConfig _crossfadeConfig = CrossfadeConfig.disabled;
-
-  CrossfadeConfig get crossfadeConfig => _crossfadeConfig;
 
   @override
   Future<Result<void, Failure>> load(
@@ -27,7 +21,8 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
     Duration startAt = Duration.zero,
   }) async {
     try {
-      await _handler.player.setFilePath(song.filePath, initialPosition: startAt);
+      // Use loadDirectly for single songs
+      await _handler.loadDirectly(song, startAt: startAt);
       return const Ok(null);
     } on ja.PlayerException catch (e) {
       return Err(PlaybackFailure(
@@ -95,8 +90,8 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
   @override
   Future<Result<void, Failure>> setSpeed(PlaybackSpeed speed) async {
     try {
-      await _handler.player.setSpeed(speed.multiplier);
-      await _handler.player.setPitch(
+      await _handler.setSpeed(speed.multiplier);
+      await _handler.setPitch(
         speed.pitchCorrectionEnabled ? 1.0 : speed.multiplier,
       );
       return const Ok(null);
@@ -111,7 +106,7 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
 
   @override
   Future<Result<void, Failure>> setCrossfade(CrossfadeConfig config) async {
-    _crossfadeConfig = config;
+    _handler.setCrossfadeConfig(config);
     return const Ok(null);
   }
 
@@ -134,21 +129,26 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
   }
 
   @override
-  Stream<Duration> get positionStream => _handler.player.positionStream;
+  Future<Result<void, Failure>> advanceToNext() async {
+    try {
+      await _handler.advanceToNext();
+      return const Ok(null);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to advance to next song.', cause: e));
+    }
+  }
 
   @override
-  Stream<Duration?> get durationStream => _handler.player.durationStream;
-
+  Stream<Duration> get positionStream => _handler.positionStream;
   @override
-  Stream<bool> get playingStream => _handler.player.playingStream;
-
+  Stream<Duration?> get durationStream => _handler.durationStream;
   @override
-  Stream<void> get completedStream => _handler.player.processingStateStream
-      .where((state) => state == ja.ProcessingState.completed)
-      .map((_) {});
+  Stream<bool> get playingStream => _handler.playingStream;
+  @override
+  Stream<void> get completedStream => _handler.completedStream;
 
   Future<void> dispose() async {
     await _handler.stop();
-    await _handler.player.dispose();
+    await _handler.dispose();
   }
 }

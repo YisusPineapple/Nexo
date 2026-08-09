@@ -44,34 +44,86 @@ class SettingsScreen extends ConsumerWidget {
                   }).toList(),
                   onChanged: (mode) {
                     if (mode != null) {
-                      controller.updateCrossfade(mode, settings.crossfade.duration);
+                      controller.updateCrossfade(
+                        mode,
+                        settings.crossfade.duration,
+                        isAutoDuration: settings.crossfade.isAutoDuration,
+                      );
                     }
                   },
                 ),
               ),
-              if (settings.crossfade.mode != CrossfadeMode.disabled)
+              if (settings.crossfade.mode != CrossfadeMode.disabled) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Crossfade Duration: ${settings.crossfade.duration.inSeconds}s'),
-                      Slider(
-                        value: settings.crossfade.duration.inSeconds.toDouble(),
-                        min: 0,
-                        max: 12,
-                        divisions: 12,
-                        label: '${settings.crossfade.duration.inSeconds}s',
-                        onChanged: (val) {
-                          controller.updateCrossfade(
-                            settings.crossfade.mode,
-                            Duration(seconds: val.toInt()),
-                          );
-                        },
-                      ),
+                      // Toggle Auto/Manual solo para Intelligent y AutoMix
+                      if (settings.crossfade.mode == CrossfadeMode.intelligent ||
+                          settings.crossfade.mode == CrossfadeMode.autoMix) ...[
+                        Row(
+                          children: [
+                            const Text('Duration control: '),
+                            const Spacer(),
+                            ChoiceChip(
+                              label: const Text('Manual'),
+                              selected: !settings.crossfade.isAutoDuration,
+                              onSelected: (_) {
+                                controller.updateCrossfade(
+                                  settings.crossfade.mode,
+                                  settings.crossfade.duration,
+                                  isAutoDuration: false,
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              label: const Text('Auto'),
+                              selected: settings.crossfade.isAutoDuration,
+                              onSelected: (_) {
+                                controller.updateCrossfade(
+                                  settings.crossfade.mode,
+                                  settings.crossfade.duration,
+                                  isAutoDuration: true,
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+
+                      // Mostrar el slider solo si la duración es manual
+                      if (!settings.crossfade.isAutoDuration) ...[
+                        Text('Crossfade Duration: ${settings.crossfade.duration.inSeconds}s'),
+                        Slider(
+                          value: settings.crossfade.duration.inSeconds.toDouble(),
+                          min: 0,
+                          max: 12,
+                          divisions: 12,
+                          label: '${settings.crossfade.duration.inSeconds}s',
+                          onChanged: (val) {
+                            controller.updateCrossfade(
+                              settings.crossfade.mode,
+                              Duration(seconds: val.toInt()),
+                              isAutoDuration: settings.crossfade.isAutoDuration,
+                            );
+                          },
+                        ),
+                      ] else ...[
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8.0, bottom: 16.0),
+                          child: Text(
+                            'The system will automatically choose the optimal duration for each transition based on song silence and energy.',
+                            style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
+              ],
               const Divider(),
               
               const _SectionHeader(title: 'Playback Speed'),

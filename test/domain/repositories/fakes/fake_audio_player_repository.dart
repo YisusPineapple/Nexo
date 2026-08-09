@@ -90,6 +90,13 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
   }
 
   @override
+  Future<Result<void, Failure>> advanceToNext() async {
+    if (failWith != null) return Err(failWith!);
+    // Simulates a simple advance in the fake queue, if one is set. If not, just return Ok.
+    return const Ok(null);
+  }
+
+  @override
   Stream<Duration> get positionStream => Stream.value(Duration.zero);
 
   @override
