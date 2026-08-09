@@ -13,6 +13,8 @@ import 'converters/queue_source_converter.dart';
 import 'converters/repeat_mode_converter.dart';
 import 'converters/string_list_converter.dart';
 import 'tables/active_session_table.dart';
+import 'tables/item_interactions_table.dart';
+import 'tables/playback_history_table.dart';
 import 'tables/playback_queues_table.dart';
 import 'tables/playback_settings_table.dart';
 import 'tables/playlist_songs_table.dart';
@@ -35,22 +37,28 @@ QueryExecutor openConnection(File file) {
     ActiveSessionTable,
     Playlists,
     PlaylistSongs,
+    PlaybackHistory, // NEW
+    ItemInteractions, // NEW
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 2; // <--- INCREMENTADO A 2
+  int get schemaVersion => 3; // <--- BUMPED TO 3
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) => m.createAll(),
         onUpgrade: (Migrator m, int from, int to) async {
           if (from < 2) {
-            // Migración de v1 a v2: Crear las tablas de Playlists
             await m.createTable(playlists);
             await m.createTable(playlistSongs);
+          }
+          if (from < 3) {
+            // Migration from v2 to v3: Add History and Interactions
+            await m.createTable(playbackHistory);
+            await m.createTable(itemInteractions);
           }
         },
       );

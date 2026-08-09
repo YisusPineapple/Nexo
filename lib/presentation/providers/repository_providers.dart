@@ -6,10 +6,12 @@ import '../../data/local/app_database.dart';
 import '../../data/repositories/playback_repository_impl.dart';
 import '../../data/repositories/playlist_repository_impl.dart';
 import '../../data/repositories/song_repository_impl.dart';
+import '../../data/repositories/user_metrics_repository_impl.dart';
 import '../../domain/repositories/audio_player_repository.dart';
 import '../../domain/repositories/playback_repository.dart';
 import '../../domain/repositories/playlist_repository.dart';
 import '../../domain/repositories/song_repository.dart';
+import '../../domain/repositories/user_metrics_repository.dart';
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   throw UnimplementedError('appDatabaseProvider must be overridden in main()');
@@ -38,6 +40,10 @@ final playbackRepositoryProvider = Provider<PlaybackRepository>((ref) {
 
 final playlistRepositoryProvider = Provider<PlaylistRepository>((ref) {
   return PlaylistRepositoryImpl(ref.watch(appDatabaseProvider));
+});
+
+final userMetricsRepositoryProvider = Provider<UserMetricsRepository>((ref) {
+  return UserMetricsRepositoryImpl(ref.watch(appDatabaseProvider));
 });
 
 final audioPlayerRepositoryProvider = Provider<AudioPlayerRepository>((ref) {

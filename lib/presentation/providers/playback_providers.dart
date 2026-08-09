@@ -9,6 +9,7 @@ import '../../domain/usecases/reorder_queue_usecase.dart';
 import '../../domain/usecases/restore_session_usecase.dart';
 import '../../domain/usecases/shuffle_queue_usecase.dart';
 import '../../domain/usecases/use_case.dart';
+import '../../domain/usecases/user_metrics_usecases.dart';
 import '../../domain/value_objects/queue_id.dart';
 import 'repository_providers.dart';
 
@@ -43,6 +44,12 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
       StreamProvider((ref) => ref.watch(audioPlayerRepositoryProvider).completedStream),
       (_, next) {
         if (next.hasValue && state.valueOrNull != null) {
+          // Auto-log the song play to history
+          final currentSong = state.valueOrNull!.currentSong;
+          if (currentSong != null) {
+            final logUseCase = LogSongPlayUseCase(ref.read(userMetricsRepositoryProvider));
+            logUseCase.call(currentSong.id);
+          }
           skipNext();
         }
       },
@@ -50,7 +57,6 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
 
     final queue = result.valueOrNull;
     if (queue != null) {
-      // Sync restored session to OS
       await ref.read(audioPlayerRepositoryProvider).updateQueue(
         queue.songs,
         currentIndex: queue.currentIndex,
@@ -60,7 +66,6 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     return queue;
   }
 
-  /// Helper to update Riverpod state AND sync the queue to the OS
   Future<void> _setQueueState(PlaybackQueue queue) async {
     state = AsyncData(queue);
     await ref.read(audioPlayerRepositoryProvider).updateQueue(

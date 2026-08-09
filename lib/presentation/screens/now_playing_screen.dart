@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:nexo/domain/entities/repeat_mode.dart';
 
+import '../../domain/entities/item_interaction.dart';
 import '../providers/playback_providers.dart';
+import '../providers/user_metrics_providers.dart';
 import 'queue_screen.dart';
 
 class NowPlayingScreen extends ConsumerStatefulWidget {
@@ -26,10 +28,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // FIX: Removed 'WidgetRef ref' from parameters. In ConsumerState, 'ref' is a global property.
     final queue = ref.watch(playbackControllerProvider).valueOrNull;
     final isPlaying = ref.watch(playingStreamProvider).valueOrNull ?? false;
-    final position = ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
+    final position =
+        ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
 
     final currentSong = queue?.currentSong;
 
@@ -42,6 +44,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final duration = currentSong.duration;
     final theme = Theme.of(context);
 
+    final interactionAsync = ref.watch(itemInteractionProvider(
+        (id: currentSong.id.value, type: ItemType.song)));
+    final interaction = interactionAsync.valueOrNull;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -52,12 +58,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         ),
         title: Text(
           'Now Playing',
-          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          style:
+              theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(_showLyrics ? PhosphorIconsRegular.image : PhosphorIconsRegular.microphoneStage),
+            icon: Icon(_showLyrics
+                ? PhosphorIconsRegular.image
+                : PhosphorIconsRegular.microphoneStage),
             tooltip: _showLyrics ? 'Show Cover' : 'Show Lyrics',
             onPressed: () {
               setState(() {
@@ -95,25 +104,78 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             ),
             const SizedBox(height: 32),
 
-            // Metadata
-            Text(
-              currentSong.title,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              currentSong.trackArtistId.value,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            // Metadata with grouped Like/Dislike buttons (YouTube Music style)
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        currentSong.title,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        currentSong.trackArtistId.value,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        interaction == InteractionType.dislike
+                            ? PhosphorIconsFill.heartBreak
+                            : PhosphorIconsRegular.heartBreak,
+                      ),
+                      // FIX: Both use primary color when active for equal visual weight
+                      color: interaction == InteractionType.dislike
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
+                      onPressed: () {
+                        ref
+                            .read(userMetricsControllerProvider)
+                            .toggleInteraction(
+                              currentSong.id.value,
+                              ItemType.song,
+                              InteractionType.dislike,
+                            );
+                      },
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        interaction == InteractionType.like
+                            ? PhosphorIconsFill.heart
+                            : PhosphorIconsRegular.heart,
+                      ),
+                      color: interaction == InteractionType.like
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
+                      onPressed: () {
+                        ref
+                            .read(userMetricsControllerProvider)
+                            .toggleInteraction(
+                              currentSong.id.value,
+                              ItemType.song,
+                              InteractionType.like,
+                            );
+                      },
+                    ),
+                  ],
+                ),
+              ],
             ),
             const SizedBox(height: 32),
 
@@ -164,22 +226,32 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                       ? theme.colorScheme.primary
                       : theme.colorScheme.onSurfaceVariant,
                   onPressed: () {
-                    ref.read(playbackControllerProvider.notifier).toggleShuffle();
+                    ref
+                        .read(playbackControllerProvider.notifier)
+                        .toggleShuffle();
                   },
                 ),
                 IconButton(
                   icon: const Icon(PhosphorIconsFill.skipBack),
                   iconSize: 36,
                   onPressed: () {
-                    ref.read(playbackControllerProvider.notifier).skipPrevious();
+                    ref
+                        .read(playbackControllerProvider.notifier)
+                        .skipPrevious();
                   },
                 ),
                 FloatingActionButton(
                   elevation: 0,
                   onPressed: () {
-                    ref.read(playbackControllerProvider.notifier).togglePlayPause();
+                    ref
+                        .read(playbackControllerProvider.notifier)
+                        .togglePlayPause();
                   },
-                  child: Icon(isPlaying ? PhosphorIconsFill.pause : PhosphorIconsFill.play, size: 32),
+                  child: Icon(
+                      isPlaying
+                          ? PhosphorIconsFill.pause
+                          : PhosphorIconsFill.play,
+                      size: 32),
                 ),
                 IconButton(
                   icon: const Icon(PhosphorIconsFill.skipForward),
@@ -198,7 +270,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                       ? theme.colorScheme.primary
                       : theme.colorScheme.onSurfaceVariant,
                   onPressed: () {
-                    ref.read(playbackControllerProvider.notifier).toggleRepeatMode();
+                    ref
+                        .read(playbackControllerProvider.notifier)
+                        .toggleRepeatMode();
                   },
                 ),
               ],
@@ -253,21 +327,29 @@ class _LyricsView extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.5),
       ),
       padding: const EdgeInsets.all(24),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(PhosphorIconsRegular.microphoneStage, size: 48, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
+            Icon(PhosphorIconsRegular.microphoneStage,
+                size: 48,
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.5)),
             const SizedBox(height: 16),
             Text(
               "Lyrics support coming soon.\n(Sub-phase 3.11)",
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
           ],
         ),
