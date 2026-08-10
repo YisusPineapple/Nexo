@@ -9,6 +9,7 @@ import '../../domain/usecases/reorder_queue_usecase.dart';
 import '../../domain/usecases/restore_session_usecase.dart';
 import '../../domain/usecases/shuffle_queue_usecase.dart';
 import '../../domain/usecases/use_case.dart';
+import '../../domain/usecases/user_metrics_usecases.dart';
 import '../../domain/value_objects/queue_id.dart';
 import 'repository_providers.dart';
 
@@ -60,10 +61,26 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
       state = const AsyncData(null);
     };
 
+    ref.listen(
+      StreamProvider((ref) => ref.watch(audioPlayerRepositoryProvider).completedStream),
+      (_, next) {
+        if (next.hasValue && state.valueOrNull != null) {
+          final currentSong = state.valueOrNull!.currentSong;
+          if (currentSong != null) {
+            // Only log the song play. Do NOT call skipNext() here.
+            // The NexoAudioHandler handles auto-advancing internally now.
+            final logUseCase = LogSongPlayUseCase(ref.read(userMetricsRepositoryProvider));
+            logUseCase.call(currentSong.id);
+          }
+        }
+      },
+    );
+
     if (queue != null) {
       await ref.read(audioPlayerRepositoryProvider).updateQueue(
             queue.songs,
             currentIndex: queue.currentIndex,
+            repeatMode: queue.repeatMode,
           );
     }
 
@@ -75,6 +92,7 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     await ref.read(audioPlayerRepositoryProvider).updateQueue(
           queue.songs,
           currentIndex: queue.currentIndex,
+          repeatMode: queue.repeatMode,
         );
   }
 
@@ -129,7 +147,6 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
   Future<void> skipNext() async {
     final currentQueue = state.valueOrNull;
     if (currentQueue == null) return;
-    // The engine will advance internally. onQueueAdvanced will update the state.
     await ref.read(audioPlayerRepositoryProvider).advanceToNext();
   }
 

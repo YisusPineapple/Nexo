@@ -13,10 +13,6 @@ import '../local/app_database.dart';
 import '../local/mappers/playback_queue_mapper.dart';
 import '../local/mappers/song_mapper.dart';
 
-/// Real [PlaybackRepository] backed by [AppDatabase]. Song identities
-/// referenced by a queue are resolved through the same [Songs] table
-/// SongRepositoryImpl writes to — both repositories share one
-/// [AppDatabase] instance, wired up at the app's composition root.
 class PlaybackRepositoryImpl implements PlaybackRepository {
   PlaybackRepositoryImpl(
     this._db, {
@@ -165,8 +161,6 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
 
   @override
   Future<Result<PlaybackSettings, Failure>> getPlaybackSettings() async {
-    // FIX: Use .get() and take the last row to avoid 'Too many elements' crash
-    // if the database already has duplicated rows from the previous bug.
     final rows = await _db.select(_db.playbackSettingsTable).get();
     if (rows.isEmpty) return const Ok(PlaybackSettings.defaults);
 
@@ -175,6 +169,7 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
     final crossfadeResult = CrossfadeConfig.create(
       mode: row.crossfadeMode,
       duration: Duration(milliseconds: row.crossfadeDurationMs),
+      isAutoDuration: row.isAutoDuration, // FIX: Read from DB
     );
     final speedResult = PlaybackSpeed.create(
       multiplier: row.speedHundredths / 100,
@@ -205,15 +200,15 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
     PlaybackSettings settings,
   ) async {
     await _db.transaction(() async {
-      // Clean up any duplicate rows
       await _db.delete(_db.playbackSettingsTable).go();
 
-      // Explicitly set id to 0 so SQLite doesn't auto-increment
       await _db.into(_db.playbackSettingsTable).insert(
             PlaybackSettingsTableCompanion.insert(
               id: const Value(0),
               crossfadeMode: settings.crossfade.mode,
               crossfadeDurationMs: settings.crossfade.duration.inMilliseconds,
+              isAutoDuration:
+                  Value(settings.crossfade.isAutoDuration), // FIX: Save to DB
               speedHundredths: settings.speed.speedHundredths,
               pitchCorrectionEnabled: settings.speed.pitchCorrectionEnabled,
             ),
@@ -227,10 +222,8 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
     ActiveSessionSnapshot snapshot,
   ) async {
     await _db.transaction(() async {
-      // Clean up any duplicate rows
       await _db.delete(_db.activeSessionTable).go();
 
-      // Explicitly set id to 0
       await _db.into(_db.activeSessionTable).insert(
             ActiveSessionTableCompanion.insert(
               id: const Value(0),
@@ -244,7 +237,6 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
 
   @override
   Future<Result<ActiveSessionSnapshot?, Failure>> getLastSession() async {
-    // FIX: Same protection as settings
     final rows = await _db.select(_db.activeSessionTable).get();
     if (rows.isEmpty) return const Ok(null);
 

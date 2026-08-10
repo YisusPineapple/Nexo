@@ -2,13 +2,10 @@ import 'package:nexo/core/error/failures.dart';
 import 'package:nexo/core/utils/result.dart';
 import 'package:nexo/domain/entities/crossfade_config.dart';
 import 'package:nexo/domain/entities/playback_speed.dart';
+import 'package:nexo/domain/entities/repeat_mode.dart';
 import 'package:nexo/domain/entities/song.dart';
 import 'package:nexo/domain/repositories/audio_player_repository.dart';
 
-/// In-memory stand-in for [AudioPlayerRepository]. Records the calls
-/// it receives so tests can assert on engine interactions (e.g. "did
-/// skipNext actually tell the engine to load the new song") without a
-/// real native audio backend.
 class FakeAudioPlayerRepository implements AudioPlayerRepository {
   Song? loadedSong;
   Duration? loadedAt;
@@ -19,8 +16,8 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
   CrossfadeConfig? appliedCrossfade;
   List<Song>? syncedQueue;
   int? syncedIndex;
+  RepeatMode? syncedRepeatMode;
 
-  /// Test hook: when set, every method fails with this.
   Failure? failWith;
 
   @override
@@ -30,7 +27,7 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
   }) async {
     if (failWith != null) return Err(failWith!);
     loadedSong = song;
-    loadedAt = startAt;
+    loadedAt = startAt + Duration(milliseconds: song.silenceTrim.leadingSilenceMs);
     isResumed = false;
     return const Ok(null);
   }
@@ -82,17 +79,18 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
   Future<Result<void, Failure>> updateQueue(
     List<Song> songs, {
     required int currentIndex,
+    required RepeatMode repeatMode,
   }) async {
     if (failWith != null) return Err(failWith!);
     syncedQueue = songs;
     syncedIndex = currentIndex;
+    syncedRepeatMode = repeatMode;
     return const Ok(null);
   }
 
   @override
   Future<Result<void, Failure>> advanceToNext() async {
     if (failWith != null) return Err(failWith!);
-    // Simulates a simple advance in the fake queue, if one is set. If not, just return Ok.
     return const Ok(null);
   }
 

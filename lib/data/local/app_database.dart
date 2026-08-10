@@ -37,15 +37,15 @@ QueryExecutor openConnection(File file) {
     ActiveSessionTable,
     Playlists,
     PlaylistSongs,
-    PlaybackHistory, // NEW
-    ItemInteractions, // NEW
+    PlaybackHistory,
+    ItemInteractions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 3; // <--- BUMPED TO 3
+  int get schemaVersion => 4; // <--- BUMPED TO 4
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -56,9 +56,13 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(playlistSongs);
           }
           if (from < 3) {
-            // Migration from v2 to v3: Add History and Interactions
             await m.createTable(playbackHistory);
             await m.createTable(itemInteractions);
+          }
+          if (from < 4) {
+            // Migration to v4: Add isAutoDuration column
+            await m.addColumn(
+                playbackSettingsTable, playbackSettingsTable.isAutoDuration);
           }
         },
       );

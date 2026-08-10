@@ -6,6 +6,7 @@ import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
 import '../../domain/entities/crossfade_config.dart';
 import '../../domain/entities/playback_speed.dart';
+import '../../domain/entities/repeat_mode.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/audio_player_repository.dart';
 import 'nexo_audio_handler.dart';
@@ -21,7 +22,6 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
     Duration startAt = Duration.zero,
   }) async {
     try {
-      // Use loadDirectly for single songs
       await _handler.loadDirectly(song, startAt: startAt);
       return const Ok(null);
     } on ja.PlayerException catch (e) {
@@ -119,9 +119,10 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
   Future<Result<void, Failure>> updateQueue(
     List<Song> songs, {
     required int currentIndex,
+    required RepeatMode repeatMode,
   }) async {
     try {
-      await _handler.syncQueue(songs, currentIndex);
+      await _handler.syncQueue(songs, currentIndex, repeatMode);
       return const Ok(null);
     } catch (e) {
       return Err(UnexpectedFailure('Failed to sync queue to OS.', cause: e));

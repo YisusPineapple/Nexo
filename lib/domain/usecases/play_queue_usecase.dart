@@ -73,6 +73,7 @@ final class PlayQueueUseCase {
           final syncResult = await _audioPlayerRepository.updateQueue(
             newQueue.songs,
             currentIndex: newQueue.currentIndex,
+            repeatMode: newQueue.repeatMode, // FIX: Added missing parameter
           );
           return syncResult.asyncAndThen((_) async {
             final nextSong = newQueue.currentSong;

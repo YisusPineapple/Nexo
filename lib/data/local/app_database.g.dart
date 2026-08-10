@@ -1665,6 +1665,16 @@ class $PlaybackSettingsTableTable extends PlaybackSettingsTable
   late final GeneratedColumn<int> crossfadeDurationMs = GeneratedColumn<int>(
       'crossfade_duration_ms', aliasedName, false,
       type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _isAutoDurationMeta =
+      const VerificationMeta('isAutoDuration');
+  @override
+  late final GeneratedColumn<bool> isAutoDuration = GeneratedColumn<bool>(
+      'is_auto_duration', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("is_auto_duration" IN (0, 1))'),
+      defaultValue: const Constant(false));
   static const VerificationMeta _speedHundredthsMeta =
       const VerificationMeta('speedHundredths');
   @override
@@ -1685,6 +1695,7 @@ class $PlaybackSettingsTableTable extends PlaybackSettingsTable
         id,
         crossfadeMode,
         crossfadeDurationMs,
+        isAutoDuration,
         speedHundredths,
         pitchCorrectionEnabled
       ];
@@ -1709,6 +1720,12 @@ class $PlaybackSettingsTableTable extends PlaybackSettingsTable
               data['crossfade_duration_ms']!, _crossfadeDurationMsMeta));
     } else if (isInserting) {
       context.missing(_crossfadeDurationMsMeta);
+    }
+    if (data.containsKey('is_auto_duration')) {
+      context.handle(
+          _isAutoDurationMeta,
+          isAutoDuration.isAcceptableOrUnknown(
+              data['is_auto_duration']!, _isAutoDurationMeta));
     }
     if (data.containsKey('speed_hundredths')) {
       context.handle(
@@ -1742,6 +1759,8 @@ class $PlaybackSettingsTableTable extends PlaybackSettingsTable
               DriftSqlType.string, data['${effectivePrefix}crossfade_mode'])!),
       crossfadeDurationMs: attachedDatabase.typeMapping.read(
           DriftSqlType.int, data['${effectivePrefix}crossfade_duration_ms'])!,
+      isAutoDuration: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_auto_duration'])!,
       speedHundredths: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}speed_hundredths'])!,
       pitchCorrectionEnabled: attachedDatabase.typeMapping.read(
@@ -1761,24 +1780,19 @@ class $PlaybackSettingsTableTable extends PlaybackSettingsTable
 
 class PlaybackSettingsRow extends DataClass
     implements Insertable<PlaybackSettingsRow> {
-  /// Always 0. Not a real identity — just the row-selector that makes
-  /// "there's only ever one settings row" an enforceable invariant
-  /// ([primaryKey]) instead of a convention the repository has to
-  /// remember to honor by itself.
   final int id;
   final CrossfadeMode crossfadeMode;
   final int crossfadeDurationMs;
 
-  /// Mirrors [PlaybackSpeed.speedHundredths] exactly (100 == 1.0x) —
-  /// see that entity's docstring on why speed is stored as int
-  /// hundredths rather than a raw double, to avoid tolerance-based
-  /// equality on floating point.
+  /// NEW: Stores whether the user selected Auto or Manual duration
+  final bool isAutoDuration;
   final int speedHundredths;
   final bool pitchCorrectionEnabled;
   const PlaybackSettingsRow(
       {required this.id,
       required this.crossfadeMode,
       required this.crossfadeDurationMs,
+      required this.isAutoDuration,
       required this.speedHundredths,
       required this.pitchCorrectionEnabled});
   @override
@@ -1791,6 +1805,7 @@ class PlaybackSettingsRow extends DataClass
           .toSql(crossfadeMode));
     }
     map['crossfade_duration_ms'] = Variable<int>(crossfadeDurationMs);
+    map['is_auto_duration'] = Variable<bool>(isAutoDuration);
     map['speed_hundredths'] = Variable<int>(speedHundredths);
     map['pitch_correction_enabled'] = Variable<bool>(pitchCorrectionEnabled);
     return map;
@@ -1801,6 +1816,7 @@ class PlaybackSettingsRow extends DataClass
       id: Value(id),
       crossfadeMode: Value(crossfadeMode),
       crossfadeDurationMs: Value(crossfadeDurationMs),
+      isAutoDuration: Value(isAutoDuration),
       speedHundredths: Value(speedHundredths),
       pitchCorrectionEnabled: Value(pitchCorrectionEnabled),
     );
@@ -1814,6 +1830,7 @@ class PlaybackSettingsRow extends DataClass
       crossfadeMode: serializer.fromJson<CrossfadeMode>(json['crossfadeMode']),
       crossfadeDurationMs:
           serializer.fromJson<int>(json['crossfadeDurationMs']),
+      isAutoDuration: serializer.fromJson<bool>(json['isAutoDuration']),
       speedHundredths: serializer.fromJson<int>(json['speedHundredths']),
       pitchCorrectionEnabled:
           serializer.fromJson<bool>(json['pitchCorrectionEnabled']),
@@ -1826,6 +1843,7 @@ class PlaybackSettingsRow extends DataClass
       'id': serializer.toJson<int>(id),
       'crossfadeMode': serializer.toJson<CrossfadeMode>(crossfadeMode),
       'crossfadeDurationMs': serializer.toJson<int>(crossfadeDurationMs),
+      'isAutoDuration': serializer.toJson<bool>(isAutoDuration),
       'speedHundredths': serializer.toJson<int>(speedHundredths),
       'pitchCorrectionEnabled': serializer.toJson<bool>(pitchCorrectionEnabled),
     };
@@ -1835,12 +1853,14 @@ class PlaybackSettingsRow extends DataClass
           {int? id,
           CrossfadeMode? crossfadeMode,
           int? crossfadeDurationMs,
+          bool? isAutoDuration,
           int? speedHundredths,
           bool? pitchCorrectionEnabled}) =>
       PlaybackSettingsRow(
         id: id ?? this.id,
         crossfadeMode: crossfadeMode ?? this.crossfadeMode,
         crossfadeDurationMs: crossfadeDurationMs ?? this.crossfadeDurationMs,
+        isAutoDuration: isAutoDuration ?? this.isAutoDuration,
         speedHundredths: speedHundredths ?? this.speedHundredths,
         pitchCorrectionEnabled:
             pitchCorrectionEnabled ?? this.pitchCorrectionEnabled,
@@ -1854,6 +1874,9 @@ class PlaybackSettingsRow extends DataClass
       crossfadeDurationMs: data.crossfadeDurationMs.present
           ? data.crossfadeDurationMs.value
           : this.crossfadeDurationMs,
+      isAutoDuration: data.isAutoDuration.present
+          ? data.isAutoDuration.value
+          : this.isAutoDuration,
       speedHundredths: data.speedHundredths.present
           ? data.speedHundredths.value
           : this.speedHundredths,
@@ -1869,6 +1892,7 @@ class PlaybackSettingsRow extends DataClass
           ..write('id: $id, ')
           ..write('crossfadeMode: $crossfadeMode, ')
           ..write('crossfadeDurationMs: $crossfadeDurationMs, ')
+          ..write('isAutoDuration: $isAutoDuration, ')
           ..write('speedHundredths: $speedHundredths, ')
           ..write('pitchCorrectionEnabled: $pitchCorrectionEnabled')
           ..write(')'))
@@ -1877,7 +1901,7 @@ class PlaybackSettingsRow extends DataClass
 
   @override
   int get hashCode => Object.hash(id, crossfadeMode, crossfadeDurationMs,
-      speedHundredths, pitchCorrectionEnabled);
+      isAutoDuration, speedHundredths, pitchCorrectionEnabled);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1885,6 +1909,7 @@ class PlaybackSettingsRow extends DataClass
           other.id == this.id &&
           other.crossfadeMode == this.crossfadeMode &&
           other.crossfadeDurationMs == this.crossfadeDurationMs &&
+          other.isAutoDuration == this.isAutoDuration &&
           other.speedHundredths == this.speedHundredths &&
           other.pitchCorrectionEnabled == this.pitchCorrectionEnabled);
 }
@@ -1894,12 +1919,14 @@ class PlaybackSettingsTableCompanion
   final Value<int> id;
   final Value<CrossfadeMode> crossfadeMode;
   final Value<int> crossfadeDurationMs;
+  final Value<bool> isAutoDuration;
   final Value<int> speedHundredths;
   final Value<bool> pitchCorrectionEnabled;
   const PlaybackSettingsTableCompanion({
     this.id = const Value.absent(),
     this.crossfadeMode = const Value.absent(),
     this.crossfadeDurationMs = const Value.absent(),
+    this.isAutoDuration = const Value.absent(),
     this.speedHundredths = const Value.absent(),
     this.pitchCorrectionEnabled = const Value.absent(),
   });
@@ -1907,6 +1934,7 @@ class PlaybackSettingsTableCompanion
     this.id = const Value.absent(),
     required CrossfadeMode crossfadeMode,
     required int crossfadeDurationMs,
+    this.isAutoDuration = const Value.absent(),
     required int speedHundredths,
     required bool pitchCorrectionEnabled,
   })  : crossfadeMode = Value(crossfadeMode),
@@ -1917,6 +1945,7 @@ class PlaybackSettingsTableCompanion
     Expression<int>? id,
     Expression<String>? crossfadeMode,
     Expression<int>? crossfadeDurationMs,
+    Expression<bool>? isAutoDuration,
     Expression<int>? speedHundredths,
     Expression<bool>? pitchCorrectionEnabled,
   }) {
@@ -1925,6 +1954,7 @@ class PlaybackSettingsTableCompanion
       if (crossfadeMode != null) 'crossfade_mode': crossfadeMode,
       if (crossfadeDurationMs != null)
         'crossfade_duration_ms': crossfadeDurationMs,
+      if (isAutoDuration != null) 'is_auto_duration': isAutoDuration,
       if (speedHundredths != null) 'speed_hundredths': speedHundredths,
       if (pitchCorrectionEnabled != null)
         'pitch_correction_enabled': pitchCorrectionEnabled,
@@ -1935,12 +1965,14 @@ class PlaybackSettingsTableCompanion
       {Value<int>? id,
       Value<CrossfadeMode>? crossfadeMode,
       Value<int>? crossfadeDurationMs,
+      Value<bool>? isAutoDuration,
       Value<int>? speedHundredths,
       Value<bool>? pitchCorrectionEnabled}) {
     return PlaybackSettingsTableCompanion(
       id: id ?? this.id,
       crossfadeMode: crossfadeMode ?? this.crossfadeMode,
       crossfadeDurationMs: crossfadeDurationMs ?? this.crossfadeDurationMs,
+      isAutoDuration: isAutoDuration ?? this.isAutoDuration,
       speedHundredths: speedHundredths ?? this.speedHundredths,
       pitchCorrectionEnabled:
           pitchCorrectionEnabled ?? this.pitchCorrectionEnabled,
@@ -1961,6 +1993,9 @@ class PlaybackSettingsTableCompanion
     if (crossfadeDurationMs.present) {
       map['crossfade_duration_ms'] = Variable<int>(crossfadeDurationMs.value);
     }
+    if (isAutoDuration.present) {
+      map['is_auto_duration'] = Variable<bool>(isAutoDuration.value);
+    }
     if (speedHundredths.present) {
       map['speed_hundredths'] = Variable<int>(speedHundredths.value);
     }
@@ -1977,6 +2012,7 @@ class PlaybackSettingsTableCompanion
           ..write('id: $id, ')
           ..write('crossfadeMode: $crossfadeMode, ')
           ..write('crossfadeDurationMs: $crossfadeDurationMs, ')
+          ..write('isAutoDuration: $isAutoDuration, ')
           ..write('speedHundredths: $speedHundredths, ')
           ..write('pitchCorrectionEnabled: $pitchCorrectionEnabled')
           ..write(')'))
@@ -4494,6 +4530,7 @@ typedef $$PlaybackSettingsTableTableCreateCompanionBuilder
   Value<int> id,
   required CrossfadeMode crossfadeMode,
   required int crossfadeDurationMs,
+  Value<bool> isAutoDuration,
   required int speedHundredths,
   required bool pitchCorrectionEnabled,
 });
@@ -4502,6 +4539,7 @@ typedef $$PlaybackSettingsTableTableUpdateCompanionBuilder
   Value<int> id,
   Value<CrossfadeMode> crossfadeMode,
   Value<int> crossfadeDurationMs,
+  Value<bool> isAutoDuration,
   Value<int> speedHundredths,
   Value<bool> pitchCorrectionEnabled,
 });
@@ -4525,6 +4563,10 @@ class $$PlaybackSettingsTableTableFilterComposer
 
   ColumnFilters<int> get crossfadeDurationMs => $composableBuilder(
       column: $table.crossfadeDurationMs,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isAutoDuration => $composableBuilder(
+      column: $table.isAutoDuration,
       builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get speedHundredths => $composableBuilder(
@@ -4556,6 +4598,10 @@ class $$PlaybackSettingsTableTableOrderingComposer
       column: $table.crossfadeDurationMs,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get isAutoDuration => $composableBuilder(
+      column: $table.isAutoDuration,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get speedHundredths => $composableBuilder(
       column: $table.speedHundredths,
       builder: (column) => ColumnOrderings(column));
@@ -4583,6 +4629,9 @@ class $$PlaybackSettingsTableTableAnnotationComposer
 
   GeneratedColumn<int> get crossfadeDurationMs => $composableBuilder(
       column: $table.crossfadeDurationMs, builder: (column) => column);
+
+  GeneratedColumn<bool> get isAutoDuration => $composableBuilder(
+      column: $table.isAutoDuration, builder: (column) => column);
 
   GeneratedColumn<int> get speedHundredths => $composableBuilder(
       column: $table.speedHundredths, builder: (column) => column);
@@ -4625,6 +4674,7 @@ class $$PlaybackSettingsTableTableTableManager extends RootTableManager<
             Value<int> id = const Value.absent(),
             Value<CrossfadeMode> crossfadeMode = const Value.absent(),
             Value<int> crossfadeDurationMs = const Value.absent(),
+            Value<bool> isAutoDuration = const Value.absent(),
             Value<int> speedHundredths = const Value.absent(),
             Value<bool> pitchCorrectionEnabled = const Value.absent(),
           }) =>
@@ -4632,6 +4682,7 @@ class $$PlaybackSettingsTableTableTableManager extends RootTableManager<
             id: id,
             crossfadeMode: crossfadeMode,
             crossfadeDurationMs: crossfadeDurationMs,
+            isAutoDuration: isAutoDuration,
             speedHundredths: speedHundredths,
             pitchCorrectionEnabled: pitchCorrectionEnabled,
           ),
@@ -4639,6 +4690,7 @@ class $$PlaybackSettingsTableTableTableManager extends RootTableManager<
             Value<int> id = const Value.absent(),
             required CrossfadeMode crossfadeMode,
             required int crossfadeDurationMs,
+            Value<bool> isAutoDuration = const Value.absent(),
             required int speedHundredths,
             required bool pitchCorrectionEnabled,
           }) =>
@@ -4646,6 +4698,7 @@ class $$PlaybackSettingsTableTableTableManager extends RootTableManager<
             id: id,
             crossfadeMode: crossfadeMode,
             crossfadeDurationMs: crossfadeDurationMs,
+            isAutoDuration: isAutoDuration,
             speedHundredths: speedHundredths,
             pitchCorrectionEnabled: pitchCorrectionEnabled,
           ),

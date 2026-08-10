@@ -2,6 +2,7 @@ import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
 import '../entities/crossfade_config.dart';
 import '../entities/playback_speed.dart';
+import '../entities/repeat_mode.dart';
 import '../entities/song.dart';
 
 abstract interface class AudioPlayerRepository {
@@ -12,10 +13,14 @@ abstract interface class AudioPlayerRepository {
   Future<Result<void, Failure>> setSpeed(PlaybackSpeed speed);
   Future<Result<void, Failure>> setCrossfade(CrossfadeConfig config);
   Future<Result<Duration, Failure>> getCurrentPosition();
-  Future<Result<void, Failure>> updateQueue(List<Song> songs, {required int currentIndex});
+  
+  /// Syncs the current playback queue and repeat mode to the underlying audio engine.
+  Future<Result<void, Failure>> updateQueue(
+    List<Song> songs, {
+    required int currentIndex,
+    required RepeatMode repeatMode,
+  });
 
-  /// NEW: Tell the engine to advance to the next song in its internal queue,
-  /// applying crossfade if enabled, without external interference.
   Future<Result<void, Failure>> advanceToNext();
 
   Stream<Duration> get positionStream;
