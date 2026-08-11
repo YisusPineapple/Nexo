@@ -1,11 +1,9 @@
 import 'dart:async';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
-import '../../../core/error/failures.dart';
 import '../../../domain/entities/queue_source.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
@@ -37,43 +35,10 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
     });
   }
 
-  Future<void> _pickAndIndexFolder() async {
-    final String? path;
-    try {
-      path = await FilePicker.getDirectoryPath();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Folder picker unavailable: $e')),
-      );
-      return;
-    }
-    if (path == null || !mounted) return;
-    await ref
-        .read(indexDirectoriesControllerProvider.notifier)
-        .indexDirectory(path);
-  }
-
   @override
   Widget build(BuildContext context) {
     final songsAsync = ref.watch(sortedSongsProvider);
     final sortOption = ref.watch(songSortOptionProvider);
-    final indexState = ref.watch(indexDirectoriesControllerProvider);
-
-    ref.listen(indexDirectoriesControllerProvider, (previous, next) {
-      if (next case AsyncError(:final error)) {
-        final msg = error is Failure ? error.message : error.toString();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not index folder: $msg')),
-        );
-      }
-    });
-
-    IndexingProgress? progress;
-    if (indexState case AsyncData(value: final value?)) {
-      progress = value;
-    }
-    final isIndexing = progress != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -86,11 +51,6 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(PhosphorIconsRegular.folderPlus),
-            tooltip: 'Add music folder',
-            onPressed: isIndexing ? null : _pickAndIndexFolder,
-          ),
           PopupMenuButton<SongSortOption>(
             initialValue: sortOption,
             tooltip: 'Sort by',
@@ -103,98 +63,62 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
             ],
           ),
         ],
-        bottom: isIndexing
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(4),
-                child: LinearProgressIndicator(
-                  value: progress.total == 0
-                      ? null
-                      : progress.current / progress.total,
-                ),
-              )
-            : null,
       ),
-      body: Column(
-        children: [
-          if (isIndexing)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                'Indexing ${progress.current} of ${progress.total}...',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          Expanded(
-            child: songsAsync.when(
-              data: (songs) {
-                if (songs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('No songs found.'),
-                        const SizedBox(height: 12),
-                        FilledButton.icon(
-                          onPressed: isIndexing ? null : _pickAndIndexFolder,
-                          icon: const Icon(PhosphorIconsRegular.folderPlus),
-                          label: const Text('Add music folder'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  itemExtent: 72,
-                  itemCount: songs.length,
-                  itemBuilder: (context, index) {
-                    final song = songs[index];
-                    return ListTile(
-                      title: Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        '${song.trackArtistId.value} • '
-                        '${_formatDuration(song.duration)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(PhosphorIconsRegular.listPlus),
-                        onPressed: () {
-                          showDialog(
-                            context: context,
-                            builder: (_) =>
-                                AddToPlaylistDialog(songId: song.id.value),
-                          );
-                        },
-                      ),
-                      onTap: () {
-                        ref.read(playbackControllerProvider.notifier).playSongs(
-                              queueIdStr: 'library_songs',
-                              songs: songs,
-                              startIndex: index,
-                              source: const ManualQueueSource(),
-                            );
-                      },
+      body: songsAsync.when(
+        data: (songs) {
+          if (songs.isEmpty) {
+            return const Center(
+              child: Text('No songs found. Go to Library to add a folder.'),
+            );
+          }
+          return ListView.builder(
+            itemExtent: 72,
+            itemCount: songs.length,
+            itemBuilder: (context, index) {
+              final song = songs[index];
+              return ListTile(
+                title: Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  '${song.trackArtistId.value} • '
+                  '${_formatDuration(song.duration)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: IconButton(
+                  icon: const Icon(PhosphorIconsRegular.listPlus),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) =>
+                          AddToPlaylistDialog(songId: song.id.value),
                     );
                   },
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stackTrace) =>
-                  Center(child: Text('Error: $error')),
-            ),
-          ),
-        ],
+                ),
+                onTap: () {
+                  ref.read(playbackControllerProvider.notifier).playSongs(
+                        queueIdStr: 'library_songs',
+                        songs: songs,
+                        startIndex: index,
+                        source: const ManualQueueSource(),
+                      );
+                },
+              );
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stackTrace) => Center(child: Text('Error: $error')),
       ),
     );
   }
-}
 
-String _formatDuration(Duration d) {
-  final minutes = d.inMinutes;
-  final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
-  return '$minutes:$seconds';
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes;
+    final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
 }

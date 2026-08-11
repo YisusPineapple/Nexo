@@ -74,6 +74,20 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
   }
 
   @override
+  Future<Result<void, Failure>> stop() async {
+    try {
+      await _handler.stop();
+      return const Ok(null);
+    } catch (e) {
+      return Err(PlaybackFailure(
+        'Engine failed to stop playback.',
+        reason: PlaybackFailureReason.engineError,
+        cause: e,
+      ));
+    }
+  }
+
+  @override
   Future<Result<void, Failure>> seekTo(Duration position) async {
     try {
       await _handler.seek(position);

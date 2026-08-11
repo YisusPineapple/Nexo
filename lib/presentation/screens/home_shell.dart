@@ -2,16 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+import '../../core/error/failures.dart';
+import '../providers/library_providers.dart';
 import '../providers/navigation_providers.dart';
 import '../widgets/mini_player.dart';
-import 'for_you_screen.dart'; // NEW IMPORT
-import 'library/albums_screen.dart';
-import 'library/artists_screen.dart';
-import 'library/folders_screen.dart';
-import 'library/genres_screen.dart';
-import 'library/playlists_screen.dart';
+import 'for_you_screen.dart';
+import 'library/library_hub_screen.dart';
 import 'library/songs_screen.dart';
-import 'settings_screen.dart';
 
 typedef _NavDestination = ({
   String label,
@@ -20,26 +17,15 @@ typedef _NavDestination = ({
 });
 
 const _destinations = <_NavDestination>[
-  // NEW: For You at index 0
   (label: 'For You', icon: PhosphorIconsRegular.heart, selectedIcon: PhosphorIconsFill.heart),
-  (label: 'Songs', icon: PhosphorIconsRegular.musicNotes, selectedIcon: PhosphorIconsFill.musicNotes),
-  (label: 'Albums', icon: PhosphorIconsRegular.disc, selectedIcon: PhosphorIconsFill.disc),
-  (label: 'Artists', icon: PhosphorIconsRegular.users, selectedIcon: PhosphorIconsFill.users),
-  (label: 'Genres', icon: PhosphorIconsRegular.books, selectedIcon: PhosphorIconsFill.books),
-  (label: 'Folders', icon: PhosphorIconsRegular.folder, selectedIcon: PhosphorIconsFill.folderOpen),
-  (label: 'Playlists', icon: PhosphorIconsRegular.playlist, selectedIcon: PhosphorIconsFill.playlist),
-  (label: 'Settings', icon: PhosphorIconsRegular.gear, selectedIcon: PhosphorIconsFill.gear),
+  (label: 'Search', icon: PhosphorIconsRegular.magnifyingGlass, selectedIcon: PhosphorIconsFill.magnifyingGlass),
+  (label: 'Library', icon: PhosphorIconsRegular.books, selectedIcon: PhosphorIconsFill.books),
 ];
 
 const _screens = <Widget>[
-  ForYouScreen(), // NEW: Index 0
+  ForYouScreen(),
   SongsScreen(),
-  AlbumsScreen(),
-  ArtistsScreen(),
-  GenresScreen(),
-  FoldersScreen(),
-  PlaylistsScreen(),
-  SettingsScreen(),
+  LibraryHubScreen(),
 ];
 
 class HomeShell extends ConsumerWidget {
@@ -50,6 +36,21 @@ class HomeShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = ref.watch(selectedNavIndexProvider);
+    final indexState = ref.watch(indexDirectoriesControllerProvider);
+
+    ref.listen(indexDirectoriesControllerProvider, (previous, next) {
+      if (next case AsyncError(:final error)) {
+        final msg = error is Failure ? error.message : error.toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not index folder: $msg')),
+        );
+      }
+    });
+
+    IndexingProgress? progress;
+    if (indexState case AsyncData(value: final value?)) {
+      progress = value;
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -58,6 +59,19 @@ class HomeShell extends ConsumerWidget {
 
         void onSelect(int i) =>
             ref.read(selectedNavIndexProvider.notifier).state = i;
+
+        final miniPlayerWithProgress = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // FIX: Using 'progress != null' directly allows Dart's type promotion to work
+            if (progress != null)
+              LinearProgressIndicator(
+                value: progress.total == 0 ? null : progress.current / progress.total,
+                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+            const MiniPlayer(),
+          ],
+        );
 
         if (isWide) {
           return Scaffold(
@@ -78,10 +92,15 @@ class HomeShell extends ConsumerWidget {
                 ),
                 const VerticalDivider(width: 1),
                 Expanded(
-                  child: Column(
+                  child: Stack(
                     children: [
-                      Expanded(child: body),
-                      const MiniPlayer(),
+                      body,
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: miniPlayerWithProgress,
+                      ),
                     ],
                   ),
                 ),
@@ -91,10 +110,15 @@ class HomeShell extends ConsumerWidget {
         }
 
         return Scaffold(
-          body: Column(
+          body: Stack(
             children: [
-              Expanded(child: body),
-              const MiniPlayer(),
+              body,
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: miniPlayerWithProgress,
+              ),
             ],
           ),
           bottomNavigationBar: NavigationBar(

@@ -28,57 +28,93 @@ class MiniPlayer extends ConsumerWidget {
         ? position.inMilliseconds / duration.inMilliseconds
         : 0.0;
 
-    return GestureDetector(
-      onTap: () {
-        showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          useSafeArea: true,
-          builder: (context) => const NowPlayingScreen(),
+    final theme = Theme.of(context);
+    double dragDistanceX = 0;
+
+    // FIX: Wrapped in Dismissible for native, fluid swipe-down-to-close behavior
+    return Dismissible(
+      key: const Key('nexo_miniplayer'),
+      direction: DismissDirection.down,
+      onDismissed: (_) {
+        ref.read(playbackControllerProvider.notifier).stop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Playback stopped'), duration: Duration(milliseconds: 800)),
         );
       },
-      child: Container(
-        height: 68,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          border: Border(
-            top: BorderSide(
-              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
-              width: 1,
-            ),
+      child: GestureDetector(
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            useSafeArea: true,
+            builder: (context) => const NowPlayingScreen(),
+          );
+        },
+        // Horizontal drag for next/previous (using distance, not velocity, for mouse support)
+        onHorizontalDragStart: (_) => dragDistanceX = 0,
+        onHorizontalDragUpdate: (details) => dragDistanceX += details.delta.dx,
+        onHorizontalDragEnd: (_) {
+          if (dragDistanceX > 40) {
+            ref.read(playbackControllerProvider.notifier).skipPrevious();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Previous track'), duration: Duration(milliseconds: 800)),
+            );
+          } else if (dragDistanceX < -40) {
+            ref.read(playbackControllerProvider.notifier).skipNext();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Next track'), duration: Duration(milliseconds: 800)),
+            );
+          }
+        },
+        child: Container(
+          height: 68,
+          margin: const EdgeInsets.only(left: 12, right: 12, bottom: 12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ),
-        child: Column(
-          children: [
-            LinearProgressIndicator(
-              value: progress.clamp(0.0, 1.0),
-              minHeight: 2,
-              backgroundColor: Colors.transparent,
-            ),
-            Expanded(
-              child: Row(
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0.0, 1.0),
+                  minHeight: 3,
+                  backgroundColor: Colors.transparent,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              Row(
                 children: [
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   if (currentSong.coverArtPath != null)
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(10),
                       child: Image.file(
                         File(currentSong.coverArtPath!),
-                        width: 44,
-                        height: 44,
+                        width: 52,
+                        height: 52,
                         fit: BoxFit.cover,
                         cacheWidth: 150,
                       ),
                     )
                   else
                     Container(
-                      width: 44,
-                      height: 44,
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainer,
-                        borderRadius: BorderRadius.circular(6),
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(PhosphorIconsRegular.musicNotes),
+                      child: Icon(PhosphorIconsRegular.musicNotes, color: theme.colorScheme.onSurfaceVariant),
                     ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -90,16 +126,17 @@ class MiniPlayer extends ConsumerWidget {
                           currentSong.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSecondaryContainer,
                               ),
                         ),
                         Text(
                           currentSong.trackArtistId.value,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.8),
                               ),
                         ),
                       ],
@@ -107,21 +144,23 @@ class MiniPlayer extends ConsumerWidget {
                   ),
                   IconButton(
                     icon: Icon(isPlaying ? PhosphorIconsFill.pause : PhosphorIconsFill.play),
+                    color: theme.colorScheme.onSecondaryContainer,
                     onPressed: () {
                       ref.read(playbackControllerProvider.notifier).togglePlayPause();
                     },
                   ),
                   IconButton(
                     icon: const Icon(PhosphorIconsFill.skipForward),
+                    color: theme.colorScheme.onSecondaryContainer,
                     onPressed: () {
                       ref.read(playbackControllerProvider.notifier).skipNext();
                     },
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

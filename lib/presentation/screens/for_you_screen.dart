@@ -8,6 +8,7 @@ import '../../../domain/entities/song.dart';
 import '../../../domain/entities/queue_source.dart';
 import '../providers/for_you_provider.dart';
 import '../providers/playback_providers.dart';
+import 'settings_screen.dart';
 
 class ForYouScreen extends ConsumerWidget {
   const ForYouScreen({super.key});
@@ -21,7 +22,8 @@ class ForYouScreen extends ConsumerWidget {
         data: (data) {
           if (data.isEmpty) {
             return _EmptyState(
-              onRefresh: () => ref.read(forYouControllerProvider.notifier).refresh(),
+              onRefresh: () =>
+                  ref.read(forYouControllerProvider.notifier).refresh(),
             );
           }
           return _ForYouContent(data: data, ref: ref);
@@ -57,6 +59,21 @@ class _ForYouContent extends StatelessWidget {
 
     return CustomScrollView(
       slivers: [
+        SliverAppBar(
+          floating: true,
+          backgroundColor: Colors.transparent,
+          actions: [
+            IconButton(
+              icon: const Icon(PhosphorIconsRegular.gear),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SettingsScreen(),
+                ),
+              ),
+            ),
+          ],
+        ),
         // Greeting
         SliverToBoxAdapter(
           child: Padding(
@@ -358,7 +375,8 @@ class _VerticalSongTile extends StatelessWidget {
         song.title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+        style:
+            theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
       ),
       subtitle: Text(
         song.trackArtistId.value,
@@ -395,7 +413,8 @@ class _EmptyState extends StatelessWidget {
             Icon(
               PhosphorIconsRegular.heartStraight,
               size: 64,
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -516,7 +535,8 @@ class _ForYouSkeleton extends StatelessWidget {
                   height: 140,
                   margin: const EdgeInsets.only(right: 12),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
                 );

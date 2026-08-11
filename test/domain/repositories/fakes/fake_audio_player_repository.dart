@@ -49,6 +49,15 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
   }
 
   @override
+  Future<Result<void, Failure>> stop() async {
+    if (failWith != null) return Err(failWith!);
+    isPaused = false;
+    isResumed = false;
+    loadedSong = null;
+    return const Ok(null);
+  }
+
+  @override
   Future<Result<void, Failure>> seekTo(Duration position) async {
     if (failWith != null) return Err(failWith!);
     seekedTo = position;

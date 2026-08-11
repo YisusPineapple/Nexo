@@ -231,4 +231,8 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
       await _setQueueState(result.valueOrNull!);
     }
   }
+  Future<void> stop() async {
+    await ref.read(audioPlayerRepositoryProvider).stop(); // FIX: Calls real stop()
+    state = const AsyncData(null);
+  }
 }

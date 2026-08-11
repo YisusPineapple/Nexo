@@ -9,12 +9,15 @@ abstract interface class AudioPlayerRepository {
   Future<Result<void, Failure>> load(Song song, {Duration startAt = Duration.zero});
   Future<Result<void, Failure>> resume();
   Future<Result<void, Failure>> pause();
+  
+  /// NEW: Completely stops playback and clears OS notifications.
+  Future<Result<void, Failure>> stop();
+  
   Future<Result<void, Failure>> seekTo(Duration position);
   Future<Result<void, Failure>> setSpeed(PlaybackSpeed speed);
   Future<Result<void, Failure>> setCrossfade(CrossfadeConfig config);
   Future<Result<Duration, Failure>> getCurrentPosition();
   
-  /// Syncs the current playback queue and repeat mode to the underlying audio engine.
   Future<Result<void, Failure>> updateQueue(
     List<Song> songs, {
     required int currentIndex,
