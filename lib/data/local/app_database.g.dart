@@ -3232,6 +3232,289 @@ class ItemInteractionsCompanion extends UpdateCompanion<ItemInteractionRow> {
   }
 }
 
+class $AppPreferencesTableTable extends AppPreferencesTable
+    with TableInfo<$AppPreferencesTableTable, AppPreferencesRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AppPreferencesTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _isOnboardingCompletedMeta =
+      const VerificationMeta('isOnboardingCompleted');
+  @override
+  late final GeneratedColumn<bool> isOnboardingCompleted =
+      GeneratedColumn<bool>('is_onboarding_completed', aliasedName, false,
+          type: DriftSqlType.bool,
+          requiredDuringInsert: false,
+          defaultConstraints: GeneratedColumn.constraintIsAlways(
+              'CHECK ("is_onboarding_completed" IN (0, 1))'),
+          defaultValue: const Constant(false));
+  @override
+  late final GeneratedColumnWithTypeConverter<PerformanceProfile, String>
+      performanceProfile = GeneratedColumn<String>(
+              'performance_profile', aliasedName, false,
+              type: DriftSqlType.string, requiredDuringInsert: true)
+          .withConverter<PerformanceProfile>(
+              $AppPreferencesTableTable.$converterperformanceProfile);
+  @override
+  late final GeneratedColumnWithTypeConverter<AppThemeMode, String> themeMode =
+      GeneratedColumn<String>('theme_mode', aliasedName, false,
+              type: DriftSqlType.string, requiredDuringInsert: true)
+          .withConverter<AppThemeMode>(
+              $AppPreferencesTableTable.$converterthemeMode);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, isOnboardingCompleted, performanceProfile, themeMode];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'app_preferences_table';
+  @override
+  VerificationContext validateIntegrity(Insertable<AppPreferencesRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('is_onboarding_completed')) {
+      context.handle(
+          _isOnboardingCompletedMeta,
+          isOnboardingCompleted.isAcceptableOrUnknown(
+              data['is_onboarding_completed']!, _isOnboardingCompletedMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AppPreferencesRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AppPreferencesRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      isOnboardingCompleted: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool,
+          data['${effectivePrefix}is_onboarding_completed'])!,
+      performanceProfile: $AppPreferencesTableTable.$converterperformanceProfile
+          .fromSql(attachedDatabase.typeMapping.read(DriftSqlType.string,
+              data['${effectivePrefix}performance_profile'])!),
+      themeMode: $AppPreferencesTableTable.$converterthemeMode.fromSql(
+          attachedDatabase.typeMapping.read(
+              DriftSqlType.string, data['${effectivePrefix}theme_mode'])!),
+    );
+  }
+
+  @override
+  $AppPreferencesTableTable createAlias(String alias) {
+    return $AppPreferencesTableTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<PerformanceProfile, String>
+      $converterperformanceProfile = const PerformanceProfileConverter();
+  static TypeConverter<AppThemeMode, String> $converterthemeMode =
+      const AppThemeModeConverter();
+}
+
+class AppPreferencesRow extends DataClass
+    implements Insertable<AppPreferencesRow> {
+  final int id;
+  final bool isOnboardingCompleted;
+  final PerformanceProfile performanceProfile;
+  final AppThemeMode themeMode;
+  const AppPreferencesRow(
+      {required this.id,
+      required this.isOnboardingCompleted,
+      required this.performanceProfile,
+      required this.themeMode});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['is_onboarding_completed'] = Variable<bool>(isOnboardingCompleted);
+    {
+      map['performance_profile'] = Variable<String>($AppPreferencesTableTable
+          .$converterperformanceProfile
+          .toSql(performanceProfile));
+    }
+    {
+      map['theme_mode'] = Variable<String>(
+          $AppPreferencesTableTable.$converterthemeMode.toSql(themeMode));
+    }
+    return map;
+  }
+
+  AppPreferencesTableCompanion toCompanion(bool nullToAbsent) {
+    return AppPreferencesTableCompanion(
+      id: Value(id),
+      isOnboardingCompleted: Value(isOnboardingCompleted),
+      performanceProfile: Value(performanceProfile),
+      themeMode: Value(themeMode),
+    );
+  }
+
+  factory AppPreferencesRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AppPreferencesRow(
+      id: serializer.fromJson<int>(json['id']),
+      isOnboardingCompleted:
+          serializer.fromJson<bool>(json['isOnboardingCompleted']),
+      performanceProfile:
+          serializer.fromJson<PerformanceProfile>(json['performanceProfile']),
+      themeMode: serializer.fromJson<AppThemeMode>(json['themeMode']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'isOnboardingCompleted': serializer.toJson<bool>(isOnboardingCompleted),
+      'performanceProfile':
+          serializer.toJson<PerformanceProfile>(performanceProfile),
+      'themeMode': serializer.toJson<AppThemeMode>(themeMode),
+    };
+  }
+
+  AppPreferencesRow copyWith(
+          {int? id,
+          bool? isOnboardingCompleted,
+          PerformanceProfile? performanceProfile,
+          AppThemeMode? themeMode}) =>
+      AppPreferencesRow(
+        id: id ?? this.id,
+        isOnboardingCompleted:
+            isOnboardingCompleted ?? this.isOnboardingCompleted,
+        performanceProfile: performanceProfile ?? this.performanceProfile,
+        themeMode: themeMode ?? this.themeMode,
+      );
+  AppPreferencesRow copyWithCompanion(AppPreferencesTableCompanion data) {
+    return AppPreferencesRow(
+      id: data.id.present ? data.id.value : this.id,
+      isOnboardingCompleted: data.isOnboardingCompleted.present
+          ? data.isOnboardingCompleted.value
+          : this.isOnboardingCompleted,
+      performanceProfile: data.performanceProfile.present
+          ? data.performanceProfile.value
+          : this.performanceProfile,
+      themeMode: data.themeMode.present ? data.themeMode.value : this.themeMode,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AppPreferencesRow(')
+          ..write('id: $id, ')
+          ..write('isOnboardingCompleted: $isOnboardingCompleted, ')
+          ..write('performanceProfile: $performanceProfile, ')
+          ..write('themeMode: $themeMode')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, isOnboardingCompleted, performanceProfile, themeMode);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AppPreferencesRow &&
+          other.id == this.id &&
+          other.isOnboardingCompleted == this.isOnboardingCompleted &&
+          other.performanceProfile == this.performanceProfile &&
+          other.themeMode == this.themeMode);
+}
+
+class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
+  final Value<int> id;
+  final Value<bool> isOnboardingCompleted;
+  final Value<PerformanceProfile> performanceProfile;
+  final Value<AppThemeMode> themeMode;
+  const AppPreferencesTableCompanion({
+    this.id = const Value.absent(),
+    this.isOnboardingCompleted = const Value.absent(),
+    this.performanceProfile = const Value.absent(),
+    this.themeMode = const Value.absent(),
+  });
+  AppPreferencesTableCompanion.insert({
+    this.id = const Value.absent(),
+    this.isOnboardingCompleted = const Value.absent(),
+    required PerformanceProfile performanceProfile,
+    required AppThemeMode themeMode,
+  })  : performanceProfile = Value(performanceProfile),
+        themeMode = Value(themeMode);
+  static Insertable<AppPreferencesRow> custom({
+    Expression<int>? id,
+    Expression<bool>? isOnboardingCompleted,
+    Expression<String>? performanceProfile,
+    Expression<String>? themeMode,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (isOnboardingCompleted != null)
+        'is_onboarding_completed': isOnboardingCompleted,
+      if (performanceProfile != null) 'performance_profile': performanceProfile,
+      if (themeMode != null) 'theme_mode': themeMode,
+    });
+  }
+
+  AppPreferencesTableCompanion copyWith(
+      {Value<int>? id,
+      Value<bool>? isOnboardingCompleted,
+      Value<PerformanceProfile>? performanceProfile,
+      Value<AppThemeMode>? themeMode}) {
+    return AppPreferencesTableCompanion(
+      id: id ?? this.id,
+      isOnboardingCompleted:
+          isOnboardingCompleted ?? this.isOnboardingCompleted,
+      performanceProfile: performanceProfile ?? this.performanceProfile,
+      themeMode: themeMode ?? this.themeMode,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (isOnboardingCompleted.present) {
+      map['is_onboarding_completed'] =
+          Variable<bool>(isOnboardingCompleted.value);
+    }
+    if (performanceProfile.present) {
+      map['performance_profile'] = Variable<String>($AppPreferencesTableTable
+          .$converterperformanceProfile
+          .toSql(performanceProfile.value));
+    }
+    if (themeMode.present) {
+      map['theme_mode'] = Variable<String>(
+          $AppPreferencesTableTable.$converterthemeMode.toSql(themeMode.value));
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AppPreferencesTableCompanion(')
+          ..write('id: $id, ')
+          ..write('isOnboardingCompleted: $isOnboardingCompleted, ')
+          ..write('performanceProfile: $performanceProfile, ')
+          ..write('themeMode: $themeMode')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3248,6 +3531,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $PlaybackHistoryTable(this);
   late final $ItemInteractionsTable itemInteractions =
       $ItemInteractionsTable(this);
+  late final $AppPreferencesTableTable appPreferencesTable =
+      $AppPreferencesTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3261,7 +3546,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         playlists,
         playlistSongs,
         playbackHistory,
-        itemInteractions
+        itemInteractions,
+        appPreferencesTable
       ];
 }
 
@@ -5815,6 +6101,171 @@ typedef $$ItemInteractionsTableProcessedTableManager = ProcessedTableManager<
     ),
     ItemInteractionRow,
     PrefetchHooks Function()>;
+typedef $$AppPreferencesTableTableCreateCompanionBuilder
+    = AppPreferencesTableCompanion Function({
+  Value<int> id,
+  Value<bool> isOnboardingCompleted,
+  required PerformanceProfile performanceProfile,
+  required AppThemeMode themeMode,
+});
+typedef $$AppPreferencesTableTableUpdateCompanionBuilder
+    = AppPreferencesTableCompanion Function({
+  Value<int> id,
+  Value<bool> isOnboardingCompleted,
+  Value<PerformanceProfile> performanceProfile,
+  Value<AppThemeMode> themeMode,
+});
+
+class $$AppPreferencesTableTableFilterComposer
+    extends Composer<_$AppDatabase, $AppPreferencesTableTable> {
+  $$AppPreferencesTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isOnboardingCompleted => $composableBuilder(
+      column: $table.isOnboardingCompleted,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<PerformanceProfile, PerformanceProfile, String>
+      get performanceProfile => $composableBuilder(
+          column: $table.performanceProfile,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnWithTypeConverterFilters<AppThemeMode, AppThemeMode, String>
+      get themeMode => $composableBuilder(
+          column: $table.themeMode,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+}
+
+class $$AppPreferencesTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $AppPreferencesTableTable> {
+  $$AppPreferencesTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isOnboardingCompleted => $composableBuilder(
+      column: $table.isOnboardingCompleted,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get performanceProfile => $composableBuilder(
+      column: $table.performanceProfile,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get themeMode => $composableBuilder(
+      column: $table.themeMode, builder: (column) => ColumnOrderings(column));
+}
+
+class $$AppPreferencesTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AppPreferencesTableTable> {
+  $$AppPreferencesTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<bool> get isOnboardingCompleted => $composableBuilder(
+      column: $table.isOnboardingCompleted, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<PerformanceProfile, String>
+      get performanceProfile => $composableBuilder(
+          column: $table.performanceProfile, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<AppThemeMode, String> get themeMode =>
+      $composableBuilder(column: $table.themeMode, builder: (column) => column);
+}
+
+class $$AppPreferencesTableTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $AppPreferencesTableTable,
+    AppPreferencesRow,
+    $$AppPreferencesTableTableFilterComposer,
+    $$AppPreferencesTableTableOrderingComposer,
+    $$AppPreferencesTableTableAnnotationComposer,
+    $$AppPreferencesTableTableCreateCompanionBuilder,
+    $$AppPreferencesTableTableUpdateCompanionBuilder,
+    (
+      AppPreferencesRow,
+      BaseReferences<_$AppDatabase, $AppPreferencesTableTable,
+          AppPreferencesRow>
+    ),
+    AppPreferencesRow,
+    PrefetchHooks Function()> {
+  $$AppPreferencesTableTableTableManager(
+      _$AppDatabase db, $AppPreferencesTableTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AppPreferencesTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AppPreferencesTableTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AppPreferencesTableTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<bool> isOnboardingCompleted = const Value.absent(),
+            Value<PerformanceProfile> performanceProfile = const Value.absent(),
+            Value<AppThemeMode> themeMode = const Value.absent(),
+          }) =>
+              AppPreferencesTableCompanion(
+            id: id,
+            isOnboardingCompleted: isOnboardingCompleted,
+            performanceProfile: performanceProfile,
+            themeMode: themeMode,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<bool> isOnboardingCompleted = const Value.absent(),
+            required PerformanceProfile performanceProfile,
+            required AppThemeMode themeMode,
+          }) =>
+              AppPreferencesTableCompanion.insert(
+            id: id,
+            isOnboardingCompleted: isOnboardingCompleted,
+            performanceProfile: performanceProfile,
+            themeMode: themeMode,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$AppPreferencesTableTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $AppPreferencesTableTable,
+    AppPreferencesRow,
+    $$AppPreferencesTableTableFilterComposer,
+    $$AppPreferencesTableTableOrderingComposer,
+    $$AppPreferencesTableTableAnnotationComposer,
+    $$AppPreferencesTableTableCreateCompanionBuilder,
+    $$AppPreferencesTableTableUpdateCompanionBuilder,
+    (
+      AppPreferencesRow,
+      BaseReferences<_$AppDatabase, $AppPreferencesTableTable,
+          AppPreferencesRow>
+    ),
+    AppPreferencesRow,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5837,4 +6288,6 @@ class $AppDatabaseManager {
       $$PlaybackHistoryTableTableManager(_db, _db.playbackHistory);
   $$ItemInteractionsTableTableManager get itemInteractions =>
       $$ItemInteractionsTableTableManager(_db, _db.itemInteractions);
+  $$AppPreferencesTableTableTableManager get appPreferencesTable =>
+      $$AppPreferencesTableTableTableManager(_db, _db.appPreferencesTable);
 }

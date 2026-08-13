@@ -9,21 +9,35 @@ import 'package:path_provider/path_provider.dart';
 
 import 'data/audio/nexo_audio_handler.dart';
 import 'data/local/app_database.dart';
+import 'data/repositories/app_preferences_repository_impl.dart';
+import 'domain/entities/app_preferences.dart';
+import 'presentation/providers/app_preferences_provider.dart';
 import 'presentation/providers/repository_providers.dart';
 import 'presentation/screens/home_shell.dart';
+import 'presentation/screens/onboarding_screen.dart';
 import 'presentation/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   JustAudioMediaKit.ensureInitialized();
 
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 40 * 1024 * 1024;
-
   final supportDir = await getApplicationSupportDirectory();
   final dbFile = File(p.join(supportDir.path, 'nexo.sqlite'));
   final coverArtDir = p.join(supportDir.path, 'covers');
 
   final database = AppDatabase(openConnection(dbFile));
+
+  // Fetch preferences synchronously before runApp to avoid UI flicker
+  final prefsRepo = AppPreferencesRepositoryImpl(database);
+  final prefsResult = await prefsRepo.getPreferences();
+  final initialPrefs = prefsResult.valueOrNull ?? AppPreferences.defaults;
+
+  // Apply ECO profile impact on ImageCache
+  if (initialPrefs.performanceProfile == PerformanceProfile.eco) {
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 15 * 1024 * 1024;
+  } else {
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 40 * 1024 * 1024;
+  }
 
   final NexoAudioHandler audioHandler;
   if (Platform.isAndroid || Platform.isIOS) {
@@ -45,24 +59,35 @@ Future<void> main() async {
         appDatabaseProvider.overrideWithValue(database),
         coverArtCacheDirectoryProvider.overrideWithValue(coverArtDir),
         audioHandlerProvider.overrideWithValue(audioHandler),
+        appPreferencesProvider.overrideWith(() => AppPreferencesNotifier(initialPrefs)),
       ],
       child: const NexoApp(),
     ),
   );
 }
 
-class NexoApp extends StatelessWidget {
+class NexoApp extends ConsumerWidget {
   const NexoApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prefs = ref.watch(appPreferencesProvider);
+
+    final themeMode = switch (prefs.themeMode) {
+      AppThemeMode.light => ThemeMode.light,
+      AppThemeMode.dark => ThemeMode.dark,
+      AppThemeMode.system => ThemeMode.system,
+    };
+
     return MaterialApp(
       title: 'Nexo',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system, // Adapts to OS settings automatically
-      home: const HomeShell(),
+      themeMode: themeMode,
+      home: prefs.isOnboardingCompleted
+          ? const HomeShell()
+          : const OnboardingScreen(),
     );
   }
 }

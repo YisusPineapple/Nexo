@@ -7,11 +7,14 @@ import '../../domain/entities/audio_format.dart';
 import '../../domain/entities/crossfade_config.dart';
 import '../../domain/entities/queue_source.dart';
 import '../../domain/entities/repeat_mode.dart';
+import '../../domain/entities/app_preferences.dart';
 import 'converters/audio_format_converter.dart';
 import 'converters/crossfade_mode_converter.dart';
 import 'converters/queue_source_converter.dart';
 import 'converters/repeat_mode_converter.dart';
 import 'converters/string_list_converter.dart';
+import 'converters/performance_profile_converter.dart'; 
+import 'converters/app_theme_mode_converter.dart';
 import 'tables/active_session_table.dart';
 import 'tables/item_interactions_table.dart';
 import 'tables/playback_history_table.dart';
@@ -21,6 +24,7 @@ import 'tables/playlist_songs_table.dart';
 import 'tables/playlists_table.dart';
 import 'tables/queue_songs_table.dart';
 import 'tables/songs_table.dart';
+import 'tables/app_preferences_table.dart';
 
 part 'app_database.g.dart';
 
@@ -39,17 +43,29 @@ QueryExecutor openConnection(File file) {
     PlaylistSongs,
     PlaybackHistory,
     ItemInteractions,
+    AppPreferencesTable, 
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 4; // <--- BUMPED TO 4
+  int get schemaVersion => 5; // <--- BUMPED TO 5
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (Migrator m) => m.createAll(),
+        onCreate: (Migrator m) async {
+          await m.createAll();
+          // Set default values when creating the database for the first time
+          await into(appPreferencesTable).insert(
+            AppPreferencesTableCompanion.insert(
+              id: const Value(0),
+              isOnboardingCompleted: const Value(false),
+              performanceProfile: PerformanceProfile.balanced,
+              themeMode: AppThemeMode.system,
+            ),
+          );
+        },
         onUpgrade: (Migrator m, int from, int to) async {
           if (from < 2) {
             await m.createTable(playlists);
@@ -60,9 +76,20 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(itemInteractions);
           }
           if (from < 4) {
-            // Migration to v4: Add isAutoDuration column
             await m.addColumn(
                 playbackSettingsTable, playbackSettingsTable.isAutoDuration);
+          }
+          if (from < 5) {
+            // Migration to v5: Create preferences table and insert default row
+            await m.createTable(appPreferencesTable);
+            await into(appPreferencesTable).insert(
+              AppPreferencesTableCompanion.insert(
+                id: const Value(0),
+                isOnboardingCompleted: const Value(false),
+                performanceProfile: PerformanceProfile.balanced,
+                themeMode: AppThemeMode.system,
+              ),
+            );
           }
         },
       );

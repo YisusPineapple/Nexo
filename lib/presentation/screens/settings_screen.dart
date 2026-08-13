@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+import '../../domain/entities/app_preferences.dart';
 import '../../domain/entities/crossfade_config.dart';
+import '../providers/app_preferences_provider.dart';
 import '../providers/settings_providers.dart';
 import 'equalizer_screen.dart';
 
@@ -12,6 +14,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(playbackSettingsProvider);
+    final prefs = ref.watch(appPreferencesProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -59,7 +62,6 @@ class SettingsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Toggle Auto/Manual solo para Intelligent y AutoMix
                       if (settings.crossfade.mode == CrossfadeMode.intelligent ||
                           settings.crossfade.mode == CrossfadeMode.autoMix) ...[
                         Row(
@@ -93,8 +95,6 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 8),
                       ],
-
-                      // Mostrar el slider solo si la duración es manual
                       if (!settings.crossfade.isAutoDuration) ...[
                         Text('Crossfade Duration: ${settings.crossfade.duration.inSeconds}s'),
                         Slider(
@@ -175,19 +175,48 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const Divider(),
 
-              const _SectionHeader(title: 'Appearance (Preview)'),
+              const _SectionHeader(title: 'Appearance & Performance'),
               ListTile(
-                leading: const Icon(PhosphorIconsRegular.moon),
+                leading: const Icon(PhosphorIconsRegular.palette),
                 title: const Text('Theme'),
-                subtitle: const Text('System Default'),
-                onTap: () {},
+                subtitle: Text(prefs.themeMode.name.toUpperCase()),
+                trailing: DropdownButton<AppThemeMode>(
+                  value: prefs.themeMode,
+                  underline: const SizedBox(),
+                  items: AppThemeMode.values.map((mode) {
+                    return DropdownMenuItem(value: mode, child: Text(mode.name));
+                  }).toList(),
+                  onChanged: (mode) {
+                    if (mode != null) {
+                      ref.read(appPreferencesProvider.notifier).updateTheme(mode);
+                    }
+                  },
+                ),
               ),
               ListTile(
-                leading: const Icon(PhosphorIconsRegular.sunDim),
-                title: const Text('Adaptive Warmth'),
-                subtitle: const Text('Vivo (High Performance)'),
-                onTap: () {},
+                leading: const Icon(PhosphorIconsRegular.gauge),
+                title: const Text('Performance Profile'),
+                subtitle: Text(prefs.performanceProfile.name.toUpperCase()),
+                trailing: DropdownButton<PerformanceProfile>(
+                  value: prefs.performanceProfile,
+                  underline: const SizedBox(),
+                  items: PerformanceProfile.values.map((profile) {
+                    return DropdownMenuItem(value: profile, child: Text(profile.name));
+                  }).toList(),
+                  onChanged: (profile) {
+                    if (profile != null) {
+                      ref.read(appPreferencesProvider.notifier).updateProfile(profile);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Restart the app to fully apply RAM limits.'),
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  },
+                ),
               ),
+              const SizedBox(height: 32),
             ],
           );
         },
