@@ -31,7 +31,6 @@ class MiniPlayer extends ConsumerWidget {
     final theme = Theme.of(context);
     double dragDistanceX = 0;
 
-    // FIX: Wrapped in Dismissible for native, fluid swipe-down-to-close behavior
     return Dismissible(
       key: const Key('nexo_miniplayer'),
       direction: DismissDirection.down,
@@ -47,23 +46,17 @@ class MiniPlayer extends ConsumerWidget {
             context: context,
             isScrollControlled: true,
             useSafeArea: true,
+            backgroundColor: theme.colorScheme.surface,
             builder: (context) => const NowPlayingScreen(),
           );
         },
-        // Horizontal drag for next/previous (using distance, not velocity, for mouse support)
         onHorizontalDragStart: (_) => dragDistanceX = 0,
         onHorizontalDragUpdate: (details) => dragDistanceX += details.delta.dx,
         onHorizontalDragEnd: (_) {
           if (dragDistanceX > 40) {
             ref.read(playbackControllerProvider.notifier).skipPrevious();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Previous track'), duration: Duration(milliseconds: 800)),
-            );
           } else if (dragDistanceX < -40) {
             ref.read(playbackControllerProvider.notifier).skipNext();
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Next track'), duration: Duration(milliseconds: 800)),
-            );
           }
         },
         child: Container(
@@ -74,8 +67,8 @@ class MiniPlayer extends ConsumerWidget {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 10,
+                color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -95,27 +88,29 @@ class MiniPlayer extends ConsumerWidget {
               Row(
                 children: [
                   const SizedBox(width: 8),
-                  if (currentSong.coverArtPath != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.file(
-                        File(currentSong.coverArtPath!),
-                        width: 52,
-                        height: 52,
-                        fit: BoxFit.cover,
-                        cacheWidth: 150,
-                      ),
-                    )
-                  else
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(PhosphorIconsRegular.musicNotes, color: theme.colorScheme.onSurfaceVariant),
-                    ),
+                  Hero(
+                    tag: 'cover_${currentSong.id.value}',
+                    child: currentSong.coverArtPath != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.file(
+                              File(currentSong.coverArtPath!),
+                              width: 52,
+                              height: 52,
+                              fit: BoxFit.cover,
+                              cacheWidth: 150,
+                            ),
+                          )
+                        : Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(PhosphorIconsRegular.musicNotes, color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -142,12 +137,17 @@ class MiniPlayer extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(isPlaying ? PhosphorIconsFill.pause : PhosphorIconsFill.play),
-                    color: theme.colorScheme.onSecondaryContainer,
-                    onPressed: () {
-                      ref.read(playbackControllerProvider.notifier).togglePlayPause();
-                    },
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
+                    child: IconButton(
+                      key: ValueKey(isPlaying),
+                      icon: Icon(isPlaying ? PhosphorIconsFill.pause : PhosphorIconsFill.play),
+                      color: theme.colorScheme.onSecondaryContainer,
+                      onPressed: () {
+                        ref.read(playbackControllerProvider.notifier).togglePlayPause();
+                      },
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(PhosphorIconsFill.skipForward),

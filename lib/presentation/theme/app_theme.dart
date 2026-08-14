@@ -9,7 +9,17 @@ class AppTheme {
   // Core brand colors
   static const Color _seedColor = Color(0xFFD95D39); // Warm Terracotta
   static const Color _surfaceLight = Color(0xFFFDFBF7); // Creamy off-white
-  static const Color _surfaceDark = Color(0xFF1A1614); // Deep warm gray/brown
+  static const Color _surfaceDark = Color(0xFF201511); // Espresso dark
+
+  // Smooth page transitions for a premium feel without heavy GPU cost
+  static const _pageTransitions = PageTransitionsTheme(
+    builders: <TargetPlatform, PageTransitionsBuilder>{
+      TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+      TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+      TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+      TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+    },
+  );
 
   static ThemeData get lightTheme {
     return ThemeData(
@@ -20,10 +30,12 @@ class AppTheme {
         surface: _surfaceLight,
         surfaceContainerHighest: const Color(0xFFF0EBE1),
       ),
-      fontFamily: 'Outfit', // Will use the OS default, but styled warmly
+      fontFamily: 'Outfit',
+      pageTransitionsTheme: _pageTransitions,
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         scrolledUnderElevation: 0,
+        backgroundColor: Colors.transparent,
       ),
       navigationBarTheme: const NavigationBarThemeData(
         elevation: 0,
@@ -43,11 +55,14 @@ class AppTheme {
         seedColor: _seedColor,
         brightness: Brightness.dark,
         surface: _surfaceDark,
-        surfaceContainerHighest: const Color(0xFF2A2421),
+        surfaceContainerHighest: const Color(0xFF2A1F1A),
       ),
+      fontFamily: 'Outfit',
+      pageTransitionsTheme: _pageTransitions,
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         scrolledUnderElevation: 0,
+        backgroundColor: Colors.transparent,
       ),
       navigationBarTheme: const NavigationBarThemeData(
         elevation: 0,

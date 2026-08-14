@@ -30,8 +30,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   Widget build(BuildContext context) {
     final queue = ref.watch(playbackControllerProvider).valueOrNull;
     final isPlaying = ref.watch(playingStreamProvider).valueOrNull ?? false;
-    final position =
-        ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
+    final position = ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
 
     final currentSong = queue?.currentSong;
 
@@ -49,236 +48,283 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final interaction = interactionAsync.valueOrNull;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(PhosphorIconsRegular.caretDown),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'Now Playing',
-          style:
-              theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(_showLyrics
-                ? PhosphorIconsRegular.image
-                : PhosphorIconsRegular.microphoneStage),
-            tooltip: _showLyrics ? 'Show Cover' : 'Show Lyrics',
-            onPressed: () {
-              setState(() {
-                _showLyrics = !_showLyrics;
-              });
-            },
+      body: Container(
+        // Subtle gradient background for depth
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              theme.colorScheme.surface,
+            ],
           ),
-          IconButton(
-            icon: const Icon(PhosphorIconsRegular.listDashes),
-            tooltip: 'Playback Queue',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const QueueScreen()),
-              );
-            },
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Cover Art OR Lyrics View
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: _showLyrics
-                    ? const _LyricsView(key: ValueKey('lyrics'))
-                    : _CoverArtView(
-                        key: const ValueKey('cover'),
-                        coverArtPath: currentSong.coverArtPath,
-                      ),
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Metadata with grouped Like/Dislike buttons (YouTube Music style)
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        currentSong.title,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        currentSong.trackArtistId.value,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                leading: IconButton(
+                  icon: const Icon(PhosphorIconsRegular.caretDown),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                title: Text(
+                  'Now Playing',
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                centerTitle: true,
+                actions: [
+                  IconButton(
+                    icon: Icon(_showLyrics
+                        ? PhosphorIconsRegular.image
+                        : PhosphorIconsRegular.microphoneStage),
+                    tooltip: _showLyrics ? 'Show Cover' : 'Show Lyrics',
+                    onPressed: () {
+                      setState(() {
+                        _showLyrics = !_showLyrics;
+                      });
+                    },
                   ),
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        interaction == InteractionType.dislike
-                            ? PhosphorIconsFill.heartBreak
-                            : PhosphorIconsRegular.heartBreak,
-                      ),
-                      // FIX: Both use primary color when active for equal visual weight
-                      color: interaction == InteractionType.dislike
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                      onPressed: () {
-                        ref
-                            .read(userMetricsControllerProvider)
-                            .toggleInteraction(
-                              currentSong.id.value,
-                              ItemType.song,
-                              InteractionType.dislike,
-                            );
-                      },
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        interaction == InteractionType.like
-                            ? PhosphorIconsFill.heart
-                            : PhosphorIconsRegular.heart,
-                      ),
-                      color: interaction == InteractionType.like
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                      onPressed: () {
-                        ref
-                            .read(userMetricsControllerProvider)
-                            .toggleInteraction(
-                              currentSong.id.value,
-                              ItemType.song,
-                              InteractionType.like,
-                            );
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-
-            // Progress Bar
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 4,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-              ),
-              child: Slider(
-                value: position.inMilliseconds
-                    .toDouble()
-                    .clamp(0, duration.inMilliseconds.toDouble()),
-                max: duration.inMilliseconds.toDouble(),
-                onChanged: (value) {
-                  ref.read(playbackControllerProvider.notifier).seekTo(
-                        Duration(milliseconds: value.toInt()),
+                  IconButton(
+                    icon: const Icon(PhosphorIconsRegular.listDashes),
+                    tooltip: 'Playback Queue',
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const QueueScreen()),
                       );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _formatDuration(position),
-                    style: theme.textTheme.labelSmall,
-                  ),
-                  Text(
-                    _formatDuration(duration),
-                    style: theme.textTheme.labelSmall,
+                    },
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Cover Art OR Lyrics View
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          child: _showLyrics
+                              ? const _LyricsView(key: ValueKey('lyrics'))
+                              : Hero(
+                                  tag: 'cover_${currentSong.id.value}',
+                                  child: _CoverArtView(
+                                    key: const ValueKey('cover'),
+                                    coverArtPath: currentSong.coverArtPath,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 40),
 
-            // Controls
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                IconButton(
-                  icon: const Icon(PhosphorIconsRegular.shuffle),
-                  color: queue!.shuffleEnabled
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant,
-                  onPressed: () {
-                    ref
-                        .read(playbackControllerProvider.notifier)
-                        .toggleShuffle();
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(PhosphorIconsFill.skipBack),
-                  iconSize: 36,
-                  onPressed: () {
-                    ref
-                        .read(playbackControllerProvider.notifier)
-                        .skipPrevious();
-                  },
-                ),
-                FloatingActionButton(
-                  elevation: 0,
-                  onPressed: () {
-                    ref
-                        .read(playbackControllerProvider.notifier)
-                        .togglePlayPause();
-                  },
-                  child: Icon(
-                      isPlaying
-                          ? PhosphorIconsFill.pause
-                          : PhosphorIconsFill.play,
-                      size: 32),
-                ),
-                IconButton(
-                  icon: const Icon(PhosphorIconsFill.skipForward),
-                  iconSize: 36,
-                  onPressed: () {
-                    ref.read(playbackControllerProvider.notifier).skipNext();
-                  },
-                ),
-                IconButton(
-                  icon: Icon(
-                    queue.repeatMode == RepeatMode.one
-                        ? PhosphorIconsRegular.repeatOnce
-                        : PhosphorIconsRegular.repeat,
+                      // Metadata with grouped Like/Dislike buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  currentSong.title,
+                                  style: theme.textTheme.headlineSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  currentSong.trackArtistId.value,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  interaction == InteractionType.dislike
+                                      ? PhosphorIconsFill.heartBreak
+                                      : PhosphorIconsRegular.heartBreak,
+                                ),
+                                color: interaction == InteractionType.dislike
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurfaceVariant,
+                                onPressed: () {
+                                  ref.read(userMetricsControllerProvider).toggleInteraction(
+                                        currentSong.id.value,
+                                        ItemType.song,
+                                        InteractionType.dislike,
+                                      );
+                                },
+                              ),
+                              IconButton(
+                                icon: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 200),
+                                  transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                                  child: Icon(
+                                    interaction == InteractionType.like
+                                        ? PhosphorIconsFill.heart
+                                        : PhosphorIconsRegular.heart,
+                                    key: ValueKey(interaction == InteractionType.like),
+                                  ),
+                                ),
+                                color: interaction == InteractionType.like
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurfaceVariant,
+                                onPressed: () {
+                                  ref.read(userMetricsControllerProvider).toggleInteraction(
+                                        currentSong.id.value,
+                                        ItemType.song,
+                                        InteractionType.like,
+                                      );
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Progress Bar
+                      SliderTheme(
+                        data: SliderTheme.of(context).copyWith(
+                          trackHeight: 6,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+                          activeTrackColor: theme.colorScheme.primary,
+                          inactiveTrackColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+                          thumbColor: theme.colorScheme.primary,
+                        ),
+                        child: Slider(
+                          value: position.inMilliseconds.toDouble().clamp(0, duration.inMilliseconds.toDouble()),
+                          max: duration.inMilliseconds.toDouble(),
+                          onChanged: (value) {
+                            ref.read(playbackControllerProvider.notifier).seekTo(
+                                  Duration(milliseconds: value.toInt()),
+                                );
+                          },
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _formatDuration(position),
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              _formatDuration(duration),
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Controls
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          IconButton(
+                            icon: const Icon(PhosphorIconsRegular.shuffle),
+                            color: queue!.shuffleEnabled
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurfaceVariant,
+                            onPressed: () {
+                              ref.read(playbackControllerProvider.notifier).toggleShuffle();
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(PhosphorIconsFill.skipBack),
+                            iconSize: 40,
+                            color: theme.colorScheme.onSurface,
+                            onPressed: () {
+                              ref.read(playbackControllerProvider.notifier).skipPrevious();
+                            },
+                          ),
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: theme.colorScheme.primaryContainer,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: IconButton(
+                              padding: const EdgeInsets.all(20),
+                              iconSize: 40,
+                              color: theme.colorScheme.onPrimaryContainer,
+                              onPressed: () {
+                                ref.read(playbackControllerProvider.notifier).togglePlayPause();
+                              },
+                              icon: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 250),
+                                transitionBuilder: (child, anim) => RotationTransition(
+                                  turns: Tween<double>(begin: 0.8, end: 1.0).animate(anim),
+                                  child: ScaleTransition(scale: anim, child: child),
+                                ),
+                                child: Icon(
+                                  isPlaying ? PhosphorIconsFill.pause : PhosphorIconsFill.play,
+                                  key: ValueKey(isPlaying),
+                                ),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(PhosphorIconsFill.skipForward),
+                            iconSize: 40,
+                            color: theme.colorScheme.onSurface,
+                            onPressed: () {
+                              ref.read(playbackControllerProvider.notifier).skipNext();
+                            },
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              queue.repeatMode == RepeatMode.one
+                                  ? PhosphorIconsRegular.repeatOnce
+                                  : PhosphorIconsRegular.repeat,
+                            ),
+                            color: queue.repeatMode != RepeatMode.off
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurfaceVariant,
+                            onPressed: () {
+                              ref.read(playbackControllerProvider.notifier).toggleRepeatMode();
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+                    ],
                   ),
-                  color: queue.repeatMode != RepeatMode.off
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant,
-                  onPressed: () {
-                    ref
-                        .read(playbackControllerProvider.notifier)
-                        .toggleRepeatMode();
-                  },
                 ),
-              ],
-            ),
-            const SizedBox(height: 32),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -291,17 +337,20 @@ class _CoverArtView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return AspectRatio(
       aspectRatio: 1,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(24), // More rounded corners
+          color: theme.colorScheme.surfaceContainerHighest,
           boxShadow: [
+            // Organic Colored Shadow
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
+              color: theme.colorScheme.primary.withValues(alpha: 0.25),
+              blurRadius: 30,
+              spreadRadius: 5,
+              offset: const Offset(0, 15),
             ),
           ],
         ),
@@ -312,7 +361,7 @@ class _CoverArtView extends StatelessWidget {
                 fit: BoxFit.cover,
                 cacheWidth: 600,
               )
-            : const Icon(PhosphorIconsRegular.musicNotes, size: 100),
+            : Icon(PhosphorIconsRegular.musicNotes, size: 100, color: theme.colorScheme.onSurfaceVariant),
       ),
     );
   }
@@ -326,11 +375,8 @@ class _LyricsView extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(24),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
       ),
       padding: const EdgeInsets.all(24),
       child: Center(
@@ -339,13 +385,10 @@ class _LyricsView extends StatelessWidget {
           children: [
             Icon(PhosphorIconsRegular.microphoneStage,
                 size: 48,
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.5)),
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
             Text(
-              "Lyrics support coming soon.\n(Sub-phase 3.11)",
+              "Lyrics support coming soon.\n(Sub-phase 3.17)",
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,

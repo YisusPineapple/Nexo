@@ -15,6 +15,7 @@ dev_dependencies:
   lints: ^5.0.0
   drift_dev: ^2.34.5
   build_runner: ^2.4.9
+  flutter_launcher_icons: ^0.14.4
 
 dependencies:
   flutter:
@@ -42,3 +43,15 @@ flutter:
     - family: Outfit
       fonts:
         - asset: assets/fonts/Outfit-VariableFont_wght.ttf
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: false
+  image_path: "assets/icon.png"
+  min_sdk_android: 21
+  windows:
+    generate: true
+    image_path: "assets/icon.png"
+    icon_size: 256
+  linux:
+    generate: true
+    image_path: "assets/icon.png"
