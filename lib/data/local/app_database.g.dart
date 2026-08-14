@@ -3515,30 +3515,222 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
   }
 }
 
+class $IndexedFoldersTable extends IndexedFolders
+    with TableInfo<$IndexedFoldersTable, IndexedFolderRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $IndexedFoldersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _pathMeta = const VerificationMeta('path');
+  @override
+  late final GeneratedColumn<String> path = GeneratedColumn<String>(
+      'path', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _dateAddedUtcMsMeta =
+      const VerificationMeta('dateAddedUtcMs');
+  @override
+  late final GeneratedColumn<int> dateAddedUtcMs = GeneratedColumn<int>(
+      'date_added_utc_ms', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [path, dateAddedUtcMs];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'indexed_folders';
+  @override
+  VerificationContext validateIntegrity(Insertable<IndexedFolderRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('path')) {
+      context.handle(
+          _pathMeta, path.isAcceptableOrUnknown(data['path']!, _pathMeta));
+    } else if (isInserting) {
+      context.missing(_pathMeta);
+    }
+    if (data.containsKey('date_added_utc_ms')) {
+      context.handle(
+          _dateAddedUtcMsMeta,
+          dateAddedUtcMs.isAcceptableOrUnknown(
+              data['date_added_utc_ms']!, _dateAddedUtcMsMeta));
+    } else if (isInserting) {
+      context.missing(_dateAddedUtcMsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {path};
+  @override
+  IndexedFolderRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return IndexedFolderRow(
+      path: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}path'])!,
+      dateAddedUtcMs: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}date_added_utc_ms'])!,
+    );
+  }
+
+  @override
+  $IndexedFoldersTable createAlias(String alias) {
+    return $IndexedFoldersTable(attachedDatabase, alias);
+  }
+}
+
+class IndexedFolderRow extends DataClass
+    implements Insertable<IndexedFolderRow> {
+  final String path;
+  final int dateAddedUtcMs;
+  const IndexedFolderRow({required this.path, required this.dateAddedUtcMs});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['path'] = Variable<String>(path);
+    map['date_added_utc_ms'] = Variable<int>(dateAddedUtcMs);
+    return map;
+  }
+
+  IndexedFoldersCompanion toCompanion(bool nullToAbsent) {
+    return IndexedFoldersCompanion(
+      path: Value(path),
+      dateAddedUtcMs: Value(dateAddedUtcMs),
+    );
+  }
+
+  factory IndexedFolderRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return IndexedFolderRow(
+      path: serializer.fromJson<String>(json['path']),
+      dateAddedUtcMs: serializer.fromJson<int>(json['dateAddedUtcMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'path': serializer.toJson<String>(path),
+      'dateAddedUtcMs': serializer.toJson<int>(dateAddedUtcMs),
+    };
+  }
+
+  IndexedFolderRow copyWith({String? path, int? dateAddedUtcMs}) =>
+      IndexedFolderRow(
+        path: path ?? this.path,
+        dateAddedUtcMs: dateAddedUtcMs ?? this.dateAddedUtcMs,
+      );
+  IndexedFolderRow copyWithCompanion(IndexedFoldersCompanion data) {
+    return IndexedFolderRow(
+      path: data.path.present ? data.path.value : this.path,
+      dateAddedUtcMs: data.dateAddedUtcMs.present
+          ? data.dateAddedUtcMs.value
+          : this.dateAddedUtcMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IndexedFolderRow(')
+          ..write('path: $path, ')
+          ..write('dateAddedUtcMs: $dateAddedUtcMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(path, dateAddedUtcMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is IndexedFolderRow &&
+          other.path == this.path &&
+          other.dateAddedUtcMs == this.dateAddedUtcMs);
+}
+
+class IndexedFoldersCompanion extends UpdateCompanion<IndexedFolderRow> {
+  final Value<String> path;
+  final Value<int> dateAddedUtcMs;
+  final Value<int> rowid;
+  const IndexedFoldersCompanion({
+    this.path = const Value.absent(),
+    this.dateAddedUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  IndexedFoldersCompanion.insert({
+    required String path,
+    required int dateAddedUtcMs,
+    this.rowid = const Value.absent(),
+  })  : path = Value(path),
+        dateAddedUtcMs = Value(dateAddedUtcMs);
+  static Insertable<IndexedFolderRow> custom({
+    Expression<String>? path,
+    Expression<int>? dateAddedUtcMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (path != null) 'path': path,
+      if (dateAddedUtcMs != null) 'date_added_utc_ms': dateAddedUtcMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  IndexedFoldersCompanion copyWith(
+      {Value<String>? path, Value<int>? dateAddedUtcMs, Value<int>? rowid}) {
+    return IndexedFoldersCompanion(
+      path: path ?? this.path,
+      dateAddedUtcMs: dateAddedUtcMs ?? this.dateAddedUtcMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (path.present) {
+      map['path'] = Variable<String>(path.value);
+    }
+    if (dateAddedUtcMs.present) {
+      map['date_added_utc_ms'] = Variable<int>(dateAddedUtcMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('IndexedFoldersCompanion(')
+          ..write('path: $path, ')
+          ..write('dateAddedUtcMs: $dateAddedUtcMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ExcludedFoldersTable extends ExcludedFolders
     with TableInfo<$ExcludedFoldersTable, ExcludedFolderRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $ExcludedFoldersTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-      'id', aliasedName, false,
-      hasAutoIncrement: true,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultConstraints:
-          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
   static const VerificationMeta _pathMeta = const VerificationMeta('path');
   @override
   late final GeneratedColumn<String> path = GeneratedColumn<String>(
       'path', aliasedName, false,
-      type: DriftSqlType.string,
-      requiredDuringInsert: true,
-      defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'));
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _dateAddedUtcMsMeta =
+      const VerificationMeta('dateAddedUtcMs');
   @override
-  List<GeneratedColumn> get $columns => [id, path];
+  late final GeneratedColumn<int> dateAddedUtcMs = GeneratedColumn<int>(
+      'date_added_utc_ms', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [path, dateAddedUtcMs];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -3549,28 +3741,33 @@ class $ExcludedFoldersTable extends ExcludedFolders
       {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    }
     if (data.containsKey('path')) {
       context.handle(
           _pathMeta, path.isAcceptableOrUnknown(data['path']!, _pathMeta));
     } else if (isInserting) {
       context.missing(_pathMeta);
     }
+    if (data.containsKey('date_added_utc_ms')) {
+      context.handle(
+          _dateAddedUtcMsMeta,
+          dateAddedUtcMs.isAcceptableOrUnknown(
+              data['date_added_utc_ms']!, _dateAddedUtcMsMeta));
+    } else if (isInserting) {
+      context.missing(_dateAddedUtcMsMeta);
+    }
     return context;
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {id};
+  Set<GeneratedColumn> get $primaryKey => {path};
   @override
   ExcludedFolderRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return ExcludedFolderRow(
-      id: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
       path: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}path'])!,
+      dateAddedUtcMs: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}date_added_utc_ms'])!,
     );
   }
 
@@ -3582,24 +3779,21 @@ class $ExcludedFoldersTable extends ExcludedFolders
 
 class ExcludedFolderRow extends DataClass
     implements Insertable<ExcludedFolderRow> {
-  final int id;
-
-  /// The absolute path of the directory to ignore.
-  /// Unique constraint prevents duplicate entries for the same folder.
   final String path;
-  const ExcludedFolderRow({required this.id, required this.path});
+  final int dateAddedUtcMs;
+  const ExcludedFolderRow({required this.path, required this.dateAddedUtcMs});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
     map['path'] = Variable<String>(path);
+    map['date_added_utc_ms'] = Variable<int>(dateAddedUtcMs);
     return map;
   }
 
   ExcludedFoldersCompanion toCompanion(bool nullToAbsent) {
     return ExcludedFoldersCompanion(
-      id: Value(id),
       path: Value(path),
+      dateAddedUtcMs: Value(dateAddedUtcMs),
     );
   }
 
@@ -3607,85 +3801,99 @@ class ExcludedFolderRow extends DataClass
       {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return ExcludedFolderRow(
-      id: serializer.fromJson<int>(json['id']),
       path: serializer.fromJson<String>(json['path']),
+      dateAddedUtcMs: serializer.fromJson<int>(json['dateAddedUtcMs']),
     );
   }
   @override
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
       'path': serializer.toJson<String>(path),
+      'dateAddedUtcMs': serializer.toJson<int>(dateAddedUtcMs),
     };
   }
 
-  ExcludedFolderRow copyWith({int? id, String? path}) => ExcludedFolderRow(
-        id: id ?? this.id,
+  ExcludedFolderRow copyWith({String? path, int? dateAddedUtcMs}) =>
+      ExcludedFolderRow(
         path: path ?? this.path,
+        dateAddedUtcMs: dateAddedUtcMs ?? this.dateAddedUtcMs,
       );
   ExcludedFolderRow copyWithCompanion(ExcludedFoldersCompanion data) {
     return ExcludedFolderRow(
-      id: data.id.present ? data.id.value : this.id,
       path: data.path.present ? data.path.value : this.path,
+      dateAddedUtcMs: data.dateAddedUtcMs.present
+          ? data.dateAddedUtcMs.value
+          : this.dateAddedUtcMs,
     );
   }
 
   @override
   String toString() {
     return (StringBuffer('ExcludedFolderRow(')
-          ..write('id: $id, ')
-          ..write('path: $path')
+          ..write('path: $path, ')
+          ..write('dateAddedUtcMs: $dateAddedUtcMs')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, path);
+  int get hashCode => Object.hash(path, dateAddedUtcMs);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is ExcludedFolderRow &&
-          other.id == this.id &&
-          other.path == this.path);
+          other.path == this.path &&
+          other.dateAddedUtcMs == this.dateAddedUtcMs);
 }
 
 class ExcludedFoldersCompanion extends UpdateCompanion<ExcludedFolderRow> {
-  final Value<int> id;
   final Value<String> path;
+  final Value<int> dateAddedUtcMs;
+  final Value<int> rowid;
   const ExcludedFoldersCompanion({
-    this.id = const Value.absent(),
     this.path = const Value.absent(),
+    this.dateAddedUtcMs = const Value.absent(),
+    this.rowid = const Value.absent(),
   });
   ExcludedFoldersCompanion.insert({
-    this.id = const Value.absent(),
     required String path,
-  }) : path = Value(path);
+    required int dateAddedUtcMs,
+    this.rowid = const Value.absent(),
+  })  : path = Value(path),
+        dateAddedUtcMs = Value(dateAddedUtcMs);
   static Insertable<ExcludedFolderRow> custom({
-    Expression<int>? id,
     Expression<String>? path,
+    Expression<int>? dateAddedUtcMs,
+    Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
-      if (id != null) 'id': id,
       if (path != null) 'path': path,
+      if (dateAddedUtcMs != null) 'date_added_utc_ms': dateAddedUtcMs,
+      if (rowid != null) 'rowid': rowid,
     });
   }
 
-  ExcludedFoldersCompanion copyWith({Value<int>? id, Value<String>? path}) {
+  ExcludedFoldersCompanion copyWith(
+      {Value<String>? path, Value<int>? dateAddedUtcMs, Value<int>? rowid}) {
     return ExcludedFoldersCompanion(
-      id: id ?? this.id,
       path: path ?? this.path,
+      dateAddedUtcMs: dateAddedUtcMs ?? this.dateAddedUtcMs,
+      rowid: rowid ?? this.rowid,
     );
   }
 
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<int>(id.value);
-    }
     if (path.present) {
       map['path'] = Variable<String>(path.value);
+    }
+    if (dateAddedUtcMs.present) {
+      map['date_added_utc_ms'] = Variable<int>(dateAddedUtcMs.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
     }
     return map;
   }
@@ -3693,8 +3901,9 @@ class ExcludedFoldersCompanion extends UpdateCompanion<ExcludedFolderRow> {
   @override
   String toString() {
     return (StringBuffer('ExcludedFoldersCompanion(')
-          ..write('id: $id, ')
-          ..write('path: $path')
+          ..write('path: $path, ')
+          ..write('dateAddedUtcMs: $dateAddedUtcMs, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -3718,6 +3927,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ItemInteractionsTable(this);
   late final $AppPreferencesTableTable appPreferencesTable =
       $AppPreferencesTableTable(this);
+  late final $IndexedFoldersTable indexedFolders = $IndexedFoldersTable(this);
   late final $ExcludedFoldersTable excludedFolders =
       $ExcludedFoldersTable(this);
   @override
@@ -3735,6 +3945,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         playbackHistory,
         itemInteractions,
         appPreferencesTable,
+        indexedFolders,
         excludedFolders
       ];
 }
@@ -6454,15 +6665,148 @@ typedef $$AppPreferencesTableTableProcessedTableManager = ProcessedTableManager<
     ),
     AppPreferencesRow,
     PrefetchHooks Function()>;
+typedef $$IndexedFoldersTableCreateCompanionBuilder = IndexedFoldersCompanion
+    Function({
+  required String path,
+  required int dateAddedUtcMs,
+  Value<int> rowid,
+});
+typedef $$IndexedFoldersTableUpdateCompanionBuilder = IndexedFoldersCompanion
+    Function({
+  Value<String> path,
+  Value<int> dateAddedUtcMs,
+  Value<int> rowid,
+});
+
+class $$IndexedFoldersTableFilterComposer
+    extends Composer<_$AppDatabase, $IndexedFoldersTable> {
+  $$IndexedFoldersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get path => $composableBuilder(
+      column: $table.path, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get dateAddedUtcMs => $composableBuilder(
+      column: $table.dateAddedUtcMs,
+      builder: (column) => ColumnFilters(column));
+}
+
+class $$IndexedFoldersTableOrderingComposer
+    extends Composer<_$AppDatabase, $IndexedFoldersTable> {
+  $$IndexedFoldersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get path => $composableBuilder(
+      column: $table.path, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get dateAddedUtcMs => $composableBuilder(
+      column: $table.dateAddedUtcMs,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$IndexedFoldersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $IndexedFoldersTable> {
+  $$IndexedFoldersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get path =>
+      $composableBuilder(column: $table.path, builder: (column) => column);
+
+  GeneratedColumn<int> get dateAddedUtcMs => $composableBuilder(
+      column: $table.dateAddedUtcMs, builder: (column) => column);
+}
+
+class $$IndexedFoldersTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $IndexedFoldersTable,
+    IndexedFolderRow,
+    $$IndexedFoldersTableFilterComposer,
+    $$IndexedFoldersTableOrderingComposer,
+    $$IndexedFoldersTableAnnotationComposer,
+    $$IndexedFoldersTableCreateCompanionBuilder,
+    $$IndexedFoldersTableUpdateCompanionBuilder,
+    (
+      IndexedFolderRow,
+      BaseReferences<_$AppDatabase, $IndexedFoldersTable, IndexedFolderRow>
+    ),
+    IndexedFolderRow,
+    PrefetchHooks Function()> {
+  $$IndexedFoldersTableTableManager(
+      _$AppDatabase db, $IndexedFoldersTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$IndexedFoldersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$IndexedFoldersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$IndexedFoldersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> path = const Value.absent(),
+            Value<int> dateAddedUtcMs = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              IndexedFoldersCompanion(
+            path: path,
+            dateAddedUtcMs: dateAddedUtcMs,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String path,
+            required int dateAddedUtcMs,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              IndexedFoldersCompanion.insert(
+            path: path,
+            dateAddedUtcMs: dateAddedUtcMs,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$IndexedFoldersTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $IndexedFoldersTable,
+    IndexedFolderRow,
+    $$IndexedFoldersTableFilterComposer,
+    $$IndexedFoldersTableOrderingComposer,
+    $$IndexedFoldersTableAnnotationComposer,
+    $$IndexedFoldersTableCreateCompanionBuilder,
+    $$IndexedFoldersTableUpdateCompanionBuilder,
+    (
+      IndexedFolderRow,
+      BaseReferences<_$AppDatabase, $IndexedFoldersTable, IndexedFolderRow>
+    ),
+    IndexedFolderRow,
+    PrefetchHooks Function()>;
 typedef $$ExcludedFoldersTableCreateCompanionBuilder = ExcludedFoldersCompanion
     Function({
-  Value<int> id,
   required String path,
+  required int dateAddedUtcMs,
+  Value<int> rowid,
 });
 typedef $$ExcludedFoldersTableUpdateCompanionBuilder = ExcludedFoldersCompanion
     Function({
-  Value<int> id,
   Value<String> path,
+  Value<int> dateAddedUtcMs,
+  Value<int> rowid,
 });
 
 class $$ExcludedFoldersTableFilterComposer
@@ -6474,11 +6818,12 @@ class $$ExcludedFoldersTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnFilters<int> get id => $composableBuilder(
-      column: $table.id, builder: (column) => ColumnFilters(column));
-
   ColumnFilters<String> get path => $composableBuilder(
       column: $table.path, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get dateAddedUtcMs => $composableBuilder(
+      column: $table.dateAddedUtcMs,
+      builder: (column) => ColumnFilters(column));
 }
 
 class $$ExcludedFoldersTableOrderingComposer
@@ -6490,11 +6835,12 @@ class $$ExcludedFoldersTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  ColumnOrderings<int> get id => $composableBuilder(
-      column: $table.id, builder: (column) => ColumnOrderings(column));
-
   ColumnOrderings<String> get path => $composableBuilder(
       column: $table.path, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get dateAddedUtcMs => $composableBuilder(
+      column: $table.dateAddedUtcMs,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$ExcludedFoldersTableAnnotationComposer
@@ -6506,11 +6852,11 @@ class $$ExcludedFoldersTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
-  GeneratedColumn<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
   GeneratedColumn<String> get path =>
       $composableBuilder(column: $table.path, builder: (column) => column);
+
+  GeneratedColumn<int> get dateAddedUtcMs => $composableBuilder(
+      column: $table.dateAddedUtcMs, builder: (column) => column);
 }
 
 class $$ExcludedFoldersTableTableManager extends RootTableManager<
@@ -6540,20 +6886,24 @@ class $$ExcludedFoldersTableTableManager extends RootTableManager<
           createComputedFieldComposer: () =>
               $$ExcludedFoldersTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback: ({
-            Value<int> id = const Value.absent(),
             Value<String> path = const Value.absent(),
+            Value<int> dateAddedUtcMs = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
           }) =>
               ExcludedFoldersCompanion(
-            id: id,
             path: path,
+            dateAddedUtcMs: dateAddedUtcMs,
+            rowid: rowid,
           ),
           createCompanionCallback: ({
-            Value<int> id = const Value.absent(),
             required String path,
+            required int dateAddedUtcMs,
+            Value<int> rowid = const Value.absent(),
           }) =>
               ExcludedFoldersCompanion.insert(
-            id: id,
             path: path,
+            dateAddedUtcMs: dateAddedUtcMs,
+            rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -6601,6 +6951,8 @@ class $AppDatabaseManager {
       $$ItemInteractionsTableTableManager(_db, _db.itemInteractions);
   $$AppPreferencesTableTableTableManager get appPreferencesTable =>
       $$AppPreferencesTableTableTableManager(_db, _db.appPreferencesTable);
+  $$IndexedFoldersTableTableManager get indexedFolders =>
+      $$IndexedFoldersTableTableManager(_db, _db.indexedFolders);
   $$ExcludedFoldersTableTableManager get excludedFolders =>
       $$ExcludedFoldersTableTableManager(_db, _db.excludedFolders);
 }

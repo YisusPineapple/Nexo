@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart';
 
-@DataClassName('ExcludedFolderRow')
-class ExcludedFolders extends Table {
+@DataClassName('IndexedFolderRow')
+class IndexedFolders extends Table {
   TextColumn get path => text()();
   IntColumn get dateAddedUtcMs => integer()();
 

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+
 import '../../domain/entities/audio_format.dart';
 import '../../domain/entities/crossfade_config.dart';
 import '../../domain/entities/queue_source.dart';
@@ -23,7 +24,8 @@ import 'tables/playlists_table.dart';
 import 'tables/queue_songs_table.dart';
 import 'tables/songs_table.dart';
 import 'tables/app_preferences_table.dart';
-import 'tables/excluded_folders_table.dart'; // NEW
+import 'tables/indexed_folders_table.dart';
+import 'tables/excluded_folders_table.dart';
 
 part 'app_database.g.dart';
 
@@ -43,14 +45,15 @@ QueryExecutor openConnection(File file) {
     PlaybackHistory,
     ItemInteractions,
     AppPreferencesTable,
-    ExcludedFolders, // NEW
+    IndexedFolders,
+    ExcludedFolders,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 6; // <--- BUMPED TO 6
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -75,8 +78,7 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(itemInteractions);
           }
           if (from < 4) {
-            await m.addColumn(
-                playbackSettingsTable, playbackSettingsTable.isAutoDuration);
+            await m.addColumn(playbackSettingsTable, playbackSettingsTable.isAutoDuration);
           }
           if (from < 5) {
             await m.createTable(appPreferencesTable);
@@ -90,6 +92,7 @@ class AppDatabase extends _$AppDatabase {
             );
           }
           if (from < 6) {
+            await m.createTable(indexedFolders);
             await m.createTable(excludedFolders);
           }
         },

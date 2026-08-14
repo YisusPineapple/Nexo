@@ -11,7 +11,7 @@ import 'package:nexo/domain/value_objects/artist_id.dart';
 import 'package:nexo/domain/entities/song.dart';
 import 'package:nexo/domain/value_objects/song_id.dart';
 
-import '../../domain/repositories/fakes/fake_excluded_folder_repository.dart';
+import '../../domain/repositories/fakes/fake_library_folder_repository.dart';
 
 void main() {
   late AppDatabase db;
@@ -22,7 +22,7 @@ void main() {
     repo = SongRepositoryImpl(
       db,
       coverArtCacheDirectory: '/tmp/nexo_covers',
-      excludedFolderRepository: FakeExcludedFolderRepository(),
+      libraryFolderRepository: FakeLibraryFolderRepository(),
     );
   });
 
@@ -100,16 +100,4 @@ void main() {
       expect(result.valueOrNull?.length, 2);
     });
   });
-
-  // Uncomment and point this at a real audio file on your machine to
-  // exercise the actual scan + tag-reading path — this is the one
-  // part of Sub-fase 2.2 that genuinely needs real audio content, not
-  // just a real filename, to prove anything.
-  //
-  // test('indexDirectories reads real tags from disk', () async {
-  //   final result = await repo.indexDirectories(['TU_CARPETA_DE_PRUEBA_AQUI']);
-  //   expect(result.isOk, isTrue);
-  //   final songs = await repo.getAllSongs();
-  //   expect(songs.valueOrNull, isNotEmpty);
-  // });
 }
