@@ -1,13 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
-
 import 'package:path/path.dart' as p;
-
 import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
 import '../../domain/entities/audio_format.dart';
 import '../../domain/entities/song.dart';
+import '../../domain/repositories/excluded_folder_repository.dart';
 import '../../domain/repositories/song_repository.dart';
 import '../../domain/value_objects/album_id.dart';
 import '../../domain/value_objects/artist_id.dart';
@@ -42,11 +41,13 @@ class _IndexingIsolateArgs {
     required this.directoryPaths,
     required this.coverArtCacheDirectory,
     required this.sendPort,
+    required this.excludedPaths, // NEW
   });
 
   final List<String> directoryPaths;
   final String coverArtCacheDirectory;
   final SendPort sendPort;
+  final Set<String> excludedPaths; // NEW
 }
 
 Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
@@ -56,18 +57,17 @@ Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
   try {
     final found = <(String, AudioFormat)>[];
     for (final directoryPath in args.directoryPaths) {
-      found.addAll(await scanner.scan(directoryPath));
+      // Pass excluded paths to the scanner to avoid I/O
+      found.addAll(await scanner.scan(
+        directoryPath, 
+        excludedPaths: args.excludedPaths,
+      ));
     }
 
     final total = found.length;
-    
     for (var i = 0; i < total; i++) {
       final (path, format) = found[i];
       Song? song;
-      
-      // RESILIENCIA: Si un archivo está corrupto o no tiene permisos,
-      // la excepción se atrapa aquí. El archivo se ignora (song = null)
-      // y el escaneo continúa con el siguiente sin abortar el Isolate.
       try {
         song = await _buildSong(
           path,
@@ -76,12 +76,10 @@ Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
           coverArtCacheDirectory: args.coverArtCacheDirectory,
         );
       } catch (e) {
-        // Archivo corrupto ignorado silenciosamente.
+        // Corrupt file ignored
       }
-      
       args.sendPort.send(_IndexingProgress(i + 1, total, song));
     }
-
     args.sendPort.send(const _IndexingDone());
   } catch (e) {
     args.sendPort.send(_IndexingFailed(e.toString()));
@@ -97,8 +95,8 @@ Future<Song?> _buildSong(
   final file = File(path);
   final stat = await file.stat();
   final extracted = await metadataReader.read(file);
-
   final id = SongId(path);
+
   String? coverArtPath;
   if (extracted.coverArtBytes != null) {
     coverArtPath = await metadataReader.cacheCoverArt(
@@ -132,14 +130,16 @@ class SongRepositoryImpl implements SongRepository {
   SongRepositoryImpl(
     this._db, {
     required String coverArtCacheDirectory,
+    required ExcludedFolderRepository excludedFolderRepository, // NEW
     SongMapper mapper = const SongMapper(),
   })  : _coverArtCacheDirectory = coverArtCacheDirectory,
+        _excludedFolderRepository = excludedFolderRepository, // NEW
         _mapper = mapper;
 
   final AppDatabase _db;
   final String _coverArtCacheDirectory;
+  final ExcludedFolderRepository _excludedFolderRepository; // NEW
   final SongMapper _mapper;
-
   final Set<String> _indexedDirectories = {};
 
   @override
@@ -160,17 +160,22 @@ class SongRepositoryImpl implements SongRepository {
     List<String> directoryPaths, {
     void Function(int current, int total)? onProgress,
   }) async {
+    // Fetch excluded folders BEFORE spawning the isolate
+    final excludedResult = await _excludedFolderRepository.getAll();
+    final excludedPaths = excludedResult.valueOrNull
+            ?.map((e) => e.path)
+            .toSet() ??
+        {};
+
     final receivePort = ReceivePort();
     final exitPort = ReceivePort();
     final completer = Completer<Result<void, Failure>>();
-
     final batchSongs = <Song>[];
 
     Future<void> flushBatch() async {
       if (batchSongs.isEmpty) return;
       final toInsert = List<Song>.of(batchSongs);
       batchSongs.clear();
-      
       await _db.batch((batch) {
         batch.insertAllOnConflictUpdate(
           _db.songs,
@@ -194,11 +199,9 @@ class SongRepositoryImpl implements SongRepository {
               }
             }
             onProgress?.call(current, total);
-            
           case _IndexingDone():
             await flushBatch();
             finish(const Ok(null));
-            
           case _IndexingFailed(:final message):
             finish(Err(UnexpectedFailure(message)));
         }
@@ -206,7 +209,7 @@ class SongRepositoryImpl implements SongRepository {
         finish(Err(UnexpectedFailure('Database error during indexing: $e')));
       }
     });
-    
+
     exitPort.listen((_) {
       finish(
         const Err(UnexpectedFailure('Indexing isolate exited unexpectedly.')),
@@ -221,10 +224,10 @@ class SongRepositoryImpl implements SongRepository {
           directoryPaths: directoryPaths,
           coverArtCacheDirectory: coverArtCacheDirectory,
           sendPort: receivePort.sendPort,
+          excludedPaths: excludedPaths, // Pass to isolate
         ),
         onExit: exitPort.sendPort,
       );
-
       return await completer.future;
     } catch (e) {
       return Err(UnexpectedFailure('Failed to index directories.', cause: e));

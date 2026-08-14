@@ -3515,6 +3515,191 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
   }
 }
 
+class $ExcludedFoldersTable extends ExcludedFolders
+    with TableInfo<$ExcludedFoldersTable, ExcludedFolderRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ExcludedFoldersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _pathMeta = const VerificationMeta('path');
+  @override
+  late final GeneratedColumn<String> path = GeneratedColumn<String>(
+      'path', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'));
+  @override
+  List<GeneratedColumn> get $columns => [id, path];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'excluded_folders';
+  @override
+  VerificationContext validateIntegrity(Insertable<ExcludedFolderRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('path')) {
+      context.handle(
+          _pathMeta, path.isAcceptableOrUnknown(data['path']!, _pathMeta));
+    } else if (isInserting) {
+      context.missing(_pathMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ExcludedFolderRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ExcludedFolderRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      path: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}path'])!,
+    );
+  }
+
+  @override
+  $ExcludedFoldersTable createAlias(String alias) {
+    return $ExcludedFoldersTable(attachedDatabase, alias);
+  }
+}
+
+class ExcludedFolderRow extends DataClass
+    implements Insertable<ExcludedFolderRow> {
+  final int id;
+
+  /// The absolute path of the directory to ignore.
+  /// Unique constraint prevents duplicate entries for the same folder.
+  final String path;
+  const ExcludedFolderRow({required this.id, required this.path});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['path'] = Variable<String>(path);
+    return map;
+  }
+
+  ExcludedFoldersCompanion toCompanion(bool nullToAbsent) {
+    return ExcludedFoldersCompanion(
+      id: Value(id),
+      path: Value(path),
+    );
+  }
+
+  factory ExcludedFolderRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ExcludedFolderRow(
+      id: serializer.fromJson<int>(json['id']),
+      path: serializer.fromJson<String>(json['path']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'path': serializer.toJson<String>(path),
+    };
+  }
+
+  ExcludedFolderRow copyWith({int? id, String? path}) => ExcludedFolderRow(
+        id: id ?? this.id,
+        path: path ?? this.path,
+      );
+  ExcludedFolderRow copyWithCompanion(ExcludedFoldersCompanion data) {
+    return ExcludedFolderRow(
+      id: data.id.present ? data.id.value : this.id,
+      path: data.path.present ? data.path.value : this.path,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExcludedFolderRow(')
+          ..write('id: $id, ')
+          ..write('path: $path')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, path);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ExcludedFolderRow &&
+          other.id == this.id &&
+          other.path == this.path);
+}
+
+class ExcludedFoldersCompanion extends UpdateCompanion<ExcludedFolderRow> {
+  final Value<int> id;
+  final Value<String> path;
+  const ExcludedFoldersCompanion({
+    this.id = const Value.absent(),
+    this.path = const Value.absent(),
+  });
+  ExcludedFoldersCompanion.insert({
+    this.id = const Value.absent(),
+    required String path,
+  }) : path = Value(path);
+  static Insertable<ExcludedFolderRow> custom({
+    Expression<int>? id,
+    Expression<String>? path,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (path != null) 'path': path,
+    });
+  }
+
+  ExcludedFoldersCompanion copyWith({Value<int>? id, Value<String>? path}) {
+    return ExcludedFoldersCompanion(
+      id: id ?? this.id,
+      path: path ?? this.path,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (path.present) {
+      map['path'] = Variable<String>(path.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExcludedFoldersCompanion(')
+          ..write('id: $id, ')
+          ..write('path: $path')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3533,6 +3718,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $ItemInteractionsTable(this);
   late final $AppPreferencesTableTable appPreferencesTable =
       $AppPreferencesTableTable(this);
+  late final $ExcludedFoldersTable excludedFolders =
+      $ExcludedFoldersTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3547,7 +3734,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         playlistSongs,
         playbackHistory,
         itemInteractions,
-        appPreferencesTable
+        appPreferencesTable,
+        excludedFolders
       ];
 }
 
@@ -6266,6 +6454,129 @@ typedef $$AppPreferencesTableTableProcessedTableManager = ProcessedTableManager<
     ),
     AppPreferencesRow,
     PrefetchHooks Function()>;
+typedef $$ExcludedFoldersTableCreateCompanionBuilder = ExcludedFoldersCompanion
+    Function({
+  Value<int> id,
+  required String path,
+});
+typedef $$ExcludedFoldersTableUpdateCompanionBuilder = ExcludedFoldersCompanion
+    Function({
+  Value<int> id,
+  Value<String> path,
+});
+
+class $$ExcludedFoldersTableFilterComposer
+    extends Composer<_$AppDatabase, $ExcludedFoldersTable> {
+  $$ExcludedFoldersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get path => $composableBuilder(
+      column: $table.path, builder: (column) => ColumnFilters(column));
+}
+
+class $$ExcludedFoldersTableOrderingComposer
+    extends Composer<_$AppDatabase, $ExcludedFoldersTable> {
+  $$ExcludedFoldersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get path => $composableBuilder(
+      column: $table.path, builder: (column) => ColumnOrderings(column));
+}
+
+class $$ExcludedFoldersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ExcludedFoldersTable> {
+  $$ExcludedFoldersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get path =>
+      $composableBuilder(column: $table.path, builder: (column) => column);
+}
+
+class $$ExcludedFoldersTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $ExcludedFoldersTable,
+    ExcludedFolderRow,
+    $$ExcludedFoldersTableFilterComposer,
+    $$ExcludedFoldersTableOrderingComposer,
+    $$ExcludedFoldersTableAnnotationComposer,
+    $$ExcludedFoldersTableCreateCompanionBuilder,
+    $$ExcludedFoldersTableUpdateCompanionBuilder,
+    (
+      ExcludedFolderRow,
+      BaseReferences<_$AppDatabase, $ExcludedFoldersTable, ExcludedFolderRow>
+    ),
+    ExcludedFolderRow,
+    PrefetchHooks Function()> {
+  $$ExcludedFoldersTableTableManager(
+      _$AppDatabase db, $ExcludedFoldersTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ExcludedFoldersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ExcludedFoldersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ExcludedFoldersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> path = const Value.absent(),
+          }) =>
+              ExcludedFoldersCompanion(
+            id: id,
+            path: path,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String path,
+          }) =>
+              ExcludedFoldersCompanion.insert(
+            id: id,
+            path: path,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$ExcludedFoldersTableProcessedTableManager = ProcessedTableManager<
+    _$AppDatabase,
+    $ExcludedFoldersTable,
+    ExcludedFolderRow,
+    $$ExcludedFoldersTableFilterComposer,
+    $$ExcludedFoldersTableOrderingComposer,
+    $$ExcludedFoldersTableAnnotationComposer,
+    $$ExcludedFoldersTableCreateCompanionBuilder,
+    $$ExcludedFoldersTableUpdateCompanionBuilder,
+    (
+      ExcludedFolderRow,
+      BaseReferences<_$AppDatabase, $ExcludedFoldersTable, ExcludedFolderRow>
+    ),
+    ExcludedFolderRow,
+    PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6290,4 +6601,6 @@ class $AppDatabaseManager {
       $$ItemInteractionsTableTableManager(_db, _db.itemInteractions);
   $$AppPreferencesTableTableTableManager get appPreferencesTable =>
       $$AppPreferencesTableTableTableManager(_db, _db.appPreferencesTable);
+  $$ExcludedFoldersTableTableManager get excludedFolders =>
+      $$ExcludedFoldersTableTableManager(_db, _db.excludedFolders);
 }

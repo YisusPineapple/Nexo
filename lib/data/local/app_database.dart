@@ -1,8 +1,6 @@
 import 'dart:io';
-
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-
 import '../../domain/entities/audio_format.dart';
 import '../../domain/entities/crossfade_config.dart';
 import '../../domain/entities/queue_source.dart';
@@ -13,7 +11,7 @@ import 'converters/crossfade_mode_converter.dart';
 import 'converters/queue_source_converter.dart';
 import 'converters/repeat_mode_converter.dart';
 import 'converters/string_list_converter.dart';
-import 'converters/performance_profile_converter.dart'; 
+import 'converters/performance_profile_converter.dart';
 import 'converters/app_theme_mode_converter.dart';
 import 'tables/active_session_table.dart';
 import 'tables/item_interactions_table.dart';
@@ -25,6 +23,7 @@ import 'tables/playlists_table.dart';
 import 'tables/queue_songs_table.dart';
 import 'tables/songs_table.dart';
 import 'tables/app_preferences_table.dart';
+import 'tables/excluded_folders_table.dart'; // NEW
 
 part 'app_database.g.dart';
 
@@ -43,20 +42,20 @@ QueryExecutor openConnection(File file) {
     PlaylistSongs,
     PlaybackHistory,
     ItemInteractions,
-    AppPreferencesTable, 
+    AppPreferencesTable,
+    ExcludedFolders, // NEW
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 5; // <--- BUMPED TO 5
+  int get schemaVersion => 6; // <--- BUMPED TO 6
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await m.createAll();
-          // Set default values when creating the database for the first time
           await into(appPreferencesTable).insert(
             AppPreferencesTableCompanion.insert(
               id: const Value(0),
@@ -80,7 +79,6 @@ class AppDatabase extends _$AppDatabase {
                 playbackSettingsTable, playbackSettingsTable.isAutoDuration);
           }
           if (from < 5) {
-            // Migration to v5: Create preferences table and insert default row
             await m.createTable(appPreferencesTable);
             await into(appPreferencesTable).insert(
               AppPreferencesTableCompanion.insert(
@@ -90,6 +88,9 @@ class AppDatabase extends _$AppDatabase {
                 themeMode: AppThemeMode.system,
               ),
             );
+          }
+          if (from < 6) {
+            await m.createTable(excludedFolders);
           }
         },
       );

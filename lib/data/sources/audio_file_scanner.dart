@@ -1,12 +1,9 @@
 import 'dart:io';
-
 import 'package:path/path.dart' as p;
-
 import '../../domain/entities/audio_format.dart';
 
 /// Recursive directory scanner mapping file extensions to
-/// [AudioFormat] — the "which files does Nexo even know how to play"
-/// gate, run BEFORE any metadata parsing is attempted.
+/// [AudioFormat].
 class AudioFileScanner {
   const AudioFileScanner();
 
@@ -29,28 +26,42 @@ class AudioFileScanner {
   };
 
   /// Recursively lists every file under [directoryPath] whose
-  /// extension maps to a supported [AudioFormat]. Unsupported files
-  /// (playlists, images, anything else) are silently skipped.
-  /// Returns an empty list — not a [Failure] — for a directory that
-  /// doesn't exist, matching this app's general resilience posture
-  /// (a stale/removed watched folder is a normal state, not an error).
+  /// extension maps to a supported [AudioFormat].
+  /// 
+  /// PERFORMANCE: Uses manual recursion instead of `dir.list(recursive: true)`
+  /// to check [excludedPaths] BEFORE entering a subdirectory. This prevents
+  /// the OS from doing expensive `stat()` calls and disk reads on ignored
+  /// folders (e.g., Podcasts, Audiobooks), which is critical for HDDs.
   Future<List<(String path, AudioFormat format)>> scan(
-    String directoryPath,
-  ) async {
+    String directoryPath, {
+    Set<String> excludedPaths = const {},
+  }) async {
     final dir = Directory(directoryPath);
     if (!await dir.exists()) return const [];
-
+    
     final results = <(String, AudioFormat)>[];
-    await for (final entity in dir.list(recursive: true, followLinks: false)) {
-      if (entity is! File) continue;
-      final format = formatForPath(entity.path);
-      if (format != null) results.add((entity.path, format));
-    }
+    await _scanRecursive(dir, excludedPaths, results);
     return results;
   }
 
-  /// Exposed separately from [scan] so a single path can be checked
-  /// (and tested) without touching the filesystem at all.
+  Future<void> _scanRecursive(
+    Directory dir,
+    Set<String> excludedPaths,
+    List<(String, AudioFormat)> results,
+  ) async {
+    // Check if current directory is explicitly excluded
+    if (excludedPaths.contains(dir.path)) return;
+
+    await for (final entity in dir.list(recursive: false, followLinks: false)) {
+      if (entity is Directory) {
+        await _scanRecursive(entity, excludedPaths, results);
+      } else if (entity is File) {
+        final format = formatForPath(entity.path);
+        if (format != null) results.add((entity.path, format));
+      }
+    }
+  }
+
   AudioFormat? formatForPath(String path) {
     return _extensionToFormat[p.extension(path).toLowerCase()];
   }

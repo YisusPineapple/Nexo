@@ -11,13 +11,19 @@ import 'package:nexo/domain/value_objects/artist_id.dart';
 import 'package:nexo/domain/entities/song.dart';
 import 'package:nexo/domain/value_objects/song_id.dart';
 
+import '../../domain/repositories/fakes/fake_excluded_folder_repository.dart';
+
 void main() {
   late AppDatabase db;
   late SongRepositoryImpl repo;
 
   setUp(() {
     db = AppDatabase(NativeDatabase.memory());
-    repo = SongRepositoryImpl(db, coverArtCacheDirectory: '/tmp/nexo_covers');
+    repo = SongRepositoryImpl(
+      db,
+      coverArtCacheDirectory: '/tmp/nexo_covers',
+      excludedFolderRepository: FakeExcludedFolderRepository(),
+    );
   });
 
   tearDown(() async {

@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
-
-import '../../domain/entities/app_preferences.dart';
 import '../../domain/entities/crossfade_config.dart';
-import '../providers/app_preferences_provider.dart';
 import '../providers/settings_providers.dart';
 import 'equalizer_screen.dart';
+import 'excluded_folders_screen.dart'; // NEW
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -14,14 +12,12 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(playbackSettingsProvider);
-    final prefs = ref.watch(appPreferencesProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: settingsAsync.when(
         data: (settings) {
           final controller = ref.read(settingsControllerProvider);
-
           return ListView(
             children: [
               const _SectionHeader(title: 'Audio Engine'),
@@ -125,7 +121,6 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ],
               const Divider(),
-              
               const _SectionHeader(title: 'Playback Speed'),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -155,7 +150,6 @@ class SettingsScreen extends ConsumerWidget {
                 },
               ),
               const Divider(),
-
               const _SectionHeader(title: 'Library'),
               ListTile(
                 leading: const Icon(PhosphorIconsRegular.arrowsClockwise),
@@ -173,50 +167,32 @@ class SettingsScreen extends ConsumerWidget {
                   }
                 },
               ),
+              // NEW: Excluded Folders Entry Point
+              ListTile(
+                leading: const Icon(PhosphorIconsRegular.folderNotchMinus),
+                title: const Text('Excluded Folders'),
+                subtitle: const Text('Prevent scanning of podcasts, audiobooks, etc.'),
+                trailing: const Icon(PhosphorIconsRegular.caretRight),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const ExcludedFoldersScreen()),
+                  );
+                },
+              ),
               const Divider(),
-
-              const _SectionHeader(title: 'Appearance & Performance'),
+              const _SectionHeader(title: 'Appearance (Preview)'),
               ListTile(
-                leading: const Icon(PhosphorIconsRegular.palette),
+                leading: const Icon(PhosphorIconsRegular.moon),
                 title: const Text('Theme'),
-                subtitle: Text(prefs.themeMode.name.toUpperCase()),
-                trailing: DropdownButton<AppThemeMode>(
-                  value: prefs.themeMode,
-                  underline: const SizedBox(),
-                  items: AppThemeMode.values.map((mode) {
-                    return DropdownMenuItem(value: mode, child: Text(mode.name));
-                  }).toList(),
-                  onChanged: (mode) {
-                    if (mode != null) {
-                      ref.read(appPreferencesProvider.notifier).updateTheme(mode);
-                    }
-                  },
-                ),
+                subtitle: const Text('System Default'),
+                onTap: () {},
               ),
               ListTile(
-                leading: const Icon(PhosphorIconsRegular.gauge),
-                title: const Text('Performance Profile'),
-                subtitle: Text(prefs.performanceProfile.name.toUpperCase()),
-                trailing: DropdownButton<PerformanceProfile>(
-                  value: prefs.performanceProfile,
-                  underline: const SizedBox(),
-                  items: PerformanceProfile.values.map((profile) {
-                    return DropdownMenuItem(value: profile, child: Text(profile.name));
-                  }).toList(),
-                  onChanged: (profile) {
-                    if (profile != null) {
-                      ref.read(appPreferencesProvider.notifier).updateProfile(profile);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Restart the app to fully apply RAM limits.'),
-                          duration: Duration(seconds: 3),
-                        ),
-                      );
-                    }
-                  },
-                ),
+                leading: const Icon(PhosphorIconsRegular.sunDim),
+                title: const Text('Adaptive Warmth'),
+                subtitle: const Text('Vivo (High Performance)'),
+                onTap: () {},
               ),
-              const SizedBox(height: 32),
             ],
           );
         },
