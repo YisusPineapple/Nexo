@@ -19,7 +19,7 @@ class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   Future<void> _handleExportBackup(BuildContext context, WidgetRef ref) async {
-    final String? dirPath = await FilePicker.getDirectoryPath();
+    final String? dirPath = await FilePicker.platform.getDirectoryPath();
     if (dirPath == null || !context.mounted) return;
 
     final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first;
@@ -38,7 +38,7 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _handleImportBackup(BuildContext context, WidgetRef ref) async {
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['zip'],
     );

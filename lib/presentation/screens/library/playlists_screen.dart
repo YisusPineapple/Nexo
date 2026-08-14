@@ -59,7 +59,7 @@ class PlaylistsScreen extends ConsumerWidget {
   }
 
   Future<void> _handleExport(BuildContext context, WidgetRef ref, Playlist playlist) async {
-    final String? path = await FilePicker.getDirectoryPath();
+    final String? path = await FilePicker.platform.getDirectoryPath();
     if (path == null || !context.mounted) return;
 
     final error = await ref.read(playlistControllerProvider).exportPlaylist(playlist.id.value, path);
@@ -71,8 +71,7 @@ class PlaylistsScreen extends ConsumerWidget {
   }
 
   Future<void> _handleImport(BuildContext context, WidgetRef ref) async {
-    // FIX: Using FilePicker.pickFiles directly as required by the current package version
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['m3u', 'm3u8'],
     );

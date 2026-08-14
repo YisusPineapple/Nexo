@@ -15,7 +15,7 @@ class FolderManagementScreen extends ConsumerWidget {
   }) async {
     final String? path;
     try {
-      path = await FilePicker.getDirectoryPath();
+      path = await FilePicker.platform.getDirectoryPath();
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -55,7 +55,6 @@ class FolderManagementScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // --- Indexed Folders Section ---
           Text(
             'Music Folders',
             style: theme.textTheme.titleMedium?.copyWith(
@@ -136,10 +135,7 @@ class FolderManagementScreen extends ConsumerWidget {
             icon: const Icon(PhosphorIconsRegular.folderPlus),
             label: const Text('Add Music Folder'),
           ),
-
           const Divider(height: 40),
-
-          // --- Excluded Folders Section ---
           Text(
             'Excluded Folders',
             style: theme.textTheme.titleMedium?.copyWith(
@@ -149,9 +145,7 @@ class FolderManagementScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'These folders are skipped during scanning. Useful for '
-            'podcasts, audiobooks, or ringtones inside your music '
-            'directory.',
+            'These folders are skipped during scanning. Useful for podcasts, audiobooks, or ringtones inside your music directory.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -229,7 +223,6 @@ class FolderManagementScreen extends ConsumerWidget {
   }
 
   String _formatDate(DateTime dt) {
-    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-'
-        '${dt.day.toString().padLeft(2, '0')}';
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
 }
