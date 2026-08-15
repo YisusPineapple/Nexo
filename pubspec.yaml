@@ -31,6 +31,7 @@ dependencies:
   just_audio_media_kit: ^2.1.0
   media_kit_libs_linux: ^1.2.1
   media_kit_libs_windows_audio: ^1.0.9
+  media_kit_libs_android_audio: ^1.2.1 
   file_picker: 10.3.8
   phosphoricons_flutter: ^1.0.0
   permission_handler: ^11.3.1
@@ -46,10 +47,13 @@ flutter:
         - asset: assets/fonts/Outfit-VariableFont_wght.ttf
 
 flutter_launcher_icons:
-  android: "ic_launcher"
+  android: true
   ios: false
   image_path: "assets/icon.png"
   min_sdk_android: 21
+  adaptive_icon_background: "#FDFBF7"
+  adaptive_icon_foreground: "assets/icon.png"
+  monochrome_icon_path: "assets/icon_mono.png"
   windows:
     generate: true
     image_path: "assets/icon.png"

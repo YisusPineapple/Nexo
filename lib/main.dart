@@ -18,52 +18,81 @@ import 'presentation/screens/onboarding_screen.dart';
 import 'presentation/theme/app_theme.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  JustAudioMediaKit.ensureInitialized();
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  final supportDir = await getApplicationSupportDirectory();
-  final dbFile = File(p.join(supportDir.path, 'nexo.sqlite'));
-  final coverArtDir = p.join(supportDir.path, 'covers');
+    // Force MPV engine on Android to support E-AC-3, AC-4, etc.
+    JustAudioMediaKit.ensureInitialized(
+      linux: true,
+      windows: true,
+      android: true, 
+      iOS: false,
+      macOS: false,
+    );
 
-  final database = AppDatabase(openConnection(dbFile));
+    final supportDir = await getApplicationSupportDirectory();
+    final dbFile = File(p.join(supportDir.path, 'nexo.sqlite'));
+    final coverArtDir = p.join(supportDir.path, 'covers');
 
-  // Fetch preferences synchronously before runApp to avoid UI flicker
-  final prefsRepo = AppPreferencesRepositoryImpl(database);
-  final prefsResult = await prefsRepo.getPreferences();
-  final initialPrefs = prefsResult.valueOrNull ?? AppPreferences.defaults;
+    final database = AppDatabase(openConnection(dbFile));
 
-  // Apply ECO profile impact on ImageCache
-  if (initialPrefs.performanceProfile == PerformanceProfile.eco) {
-    PaintingBinding.instance.imageCache.maximumSizeBytes = 15 * 1024 * 1024;
-  } else {
-    PaintingBinding.instance.imageCache.maximumSizeBytes = 40 * 1024 * 1024;
-  }
+    // Fetch preferences synchronously before runApp to avoid UI flicker
+    final prefsRepo = AppPreferencesRepositoryImpl(database);
+    final prefsResult = await prefsRepo.getPreferences();
+    final initialPrefs = prefsResult.valueOrNull ?? AppPreferences.defaults;
 
-  final NexoAudioHandler audioHandler;
-  if (Platform.isAndroid || Platform.isIOS) {
-    audioHandler = await AudioService.init(
-      builder: () => NexoAudioHandler(),
-      config: const AudioServiceConfig(
-        androidNotificationChannelId: 'com.example.nexo.channel.audio',
-        androidNotificationChannelName: 'Nexo Music Playback',
-        androidNotificationOngoing: true,
+    // Apply ECO profile impact on ImageCache
+    if (initialPrefs.performanceProfile == PerformanceProfile.eco) {
+      PaintingBinding.instance.imageCache.maximumSizeBytes = 15 * 1024 * 1024;
+    } else {
+      PaintingBinding.instance.imageCache.maximumSizeBytes = 40 * 1024 * 1024;
+    }
+
+    final NexoAudioHandler audioHandler;
+    if (Platform.isAndroid || Platform.isIOS) {
+      audioHandler = await AudioService.init(
+        builder: () => NexoAudioHandler(),
+        config: const AudioServiceConfig(
+          androidNotificationChannelId: 'com.example.nexo.channel.audio',
+          androidNotificationChannelName: 'Nexo Music Playback',
+          androidNotificationOngoing: true,
+        ),
+      );
+    } else {
+      audioHandler = NexoAudioHandler();
+    }
+
+    runApp(
+      ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(database),
+          coverArtCacheDirectoryProvider.overrideWithValue(coverArtDir),
+          audioHandlerProvider.overrideWithValue(audioHandler),
+          appPreferencesProvider.overrideWith(() => AppPreferencesNotifier(initialPrefs)),
+        ],
+        child: const NexoApp(),
       ),
     );
-  } else {
-    audioHandler = NexoAudioHandler();
+  } catch (e, stackTrace) {
+    // FATAL ERROR FALLBACK UI
+    // If anything crashes before runApp, show the error instead of a frozen splash screen.
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          backgroundColor: Colors.black,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'FATAL INITIALIZATION ERROR:\n\n$e\n\n$stackTrace',
+                style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontFamily: 'monospace'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
-
-  runApp(
-    ProviderScope(
-      overrides: [
-        appDatabaseProvider.overrideWithValue(database),
-        coverArtCacheDirectoryProvider.overrideWithValue(coverArtDir),
-        audioHandlerProvider.overrideWithValue(audioHandler),
-        appPreferencesProvider.overrideWith(() => AppPreferencesNotifier(initialPrefs)),
-      ],
-      child: const NexoApp(),
-    ),
-  );
 }
 
 class NexoApp extends ConsumerWidget {
