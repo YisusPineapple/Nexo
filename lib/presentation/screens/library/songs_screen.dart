@@ -71,43 +71,48 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
               child: Text('No songs found. Go to Library to add a folder.'),
             );
           }
-          return ListView.builder(
-            itemExtent: 72,
-            itemCount: songs.length,
-            itemBuilder: (context, index) {
-              final song = songs[index];
-              return ListTile(
-                title: Text(
-                  song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  '${song.trackArtistId.value} • '
-                  '${_formatDuration(song.duration)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: IconButton(
-                  icon: const Icon(PhosphorIconsRegular.listPlus),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) =>
-                          AddToPlaylistDialog(songId: song.id.value),
-                    );
-                  },
-                ),
-                onTap: () {
-                  ref.read(playbackControllerProvider.notifier).playSongs(
-                        queueIdStr: 'library_songs',
-                        songs: songs,
-                        startIndex: index,
-                        source: const ManualQueueSource(),
+          return Scrollbar(
+            interactive: true,
+            thickness: 8,
+            radius: const Radius.circular(4),
+            child: ListView.builder(
+              itemExtent: 72,
+              itemCount: songs.length,
+              itemBuilder: (context, index) {
+                final song = songs[index];
+                return ListTile(
+                  title: Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    '${song.trackArtistId.value} • '
+                    '${_formatDuration(song.duration)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(PhosphorIconsRegular.listPlus),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) =>
+                            AddToPlaylistDialog(songId: song.id.value),
                       );
-                },
-              );
-            },
+                    },
+                  ),
+                  onTap: () {
+                    ref.read(playbackControllerProvider.notifier).playSongs(
+                          queueIdStr: 'library_songs',
+                          songs: songs,
+                          startIndex: index,
+                          source: const ManualQueueSource(),
+                        );
+                  },
+                );
+              },
+            ),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),

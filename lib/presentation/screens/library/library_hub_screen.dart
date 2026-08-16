@@ -18,34 +18,28 @@ class LibraryHubScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final indexState = ref.watch(indexDirectoriesControllerProvider);
     final isIndexing = indexState is AsyncData && indexState.value != null;
+    final progress = indexState.valueOrNull;
+    final theme = Theme.of(context);
 
     return DefaultTabController(
       length: 5,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Library',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text('Library', style: TextStyle(fontWeight: FontWeight.bold)),
           centerTitle: false,
           actions: [
             IconButton(
               icon: const Icon(PhosphorIconsRegular.folderPlus),
               tooltip: 'Manage folders',
-              onPressed: isIndexing
-                  ? null
-                  : () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => const FolderManagementScreen()),
-                      );
-                    },
+              onPressed: isIndexing ? null : () {
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FolderManagementScreen()));
+              },
             ),
             IconButton(
               icon: const Icon(PhosphorIconsRegular.gear),
               tooltip: 'Settings',
               onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                );
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
               },
             ),
           ],
@@ -61,13 +55,39 @@ class LibraryHubScreen extends ConsumerWidget {
             ],
           ),
         ),
-        body: const TabBarView(
+        body: Column(
           children: [
-            PlaylistsScreen(),
-            AlbumsScreen(),
-            ArtistsScreen(),
-            FoldersScreen(),
-            GenresScreen(),
+            if (isIndexing && progress != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                color: theme.colorScheme.primaryContainer,
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.onPrimaryContainer),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'Scanning library... ${progress.current} / ${progress.total}',
+                        style: TextStyle(color: theme.colorScheme.onPrimaryContainer, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const Expanded(
+              child: TabBarView(
+                children: [
+                  PlaylistsScreen(),
+                  AlbumsScreen(),
+                  ArtistsScreen(),
+                  FoldersScreen(),
+                  GenresScreen(),
+                ],
+              ),
+            ),
           ],
         ),
       ),

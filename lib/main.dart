@@ -21,11 +21,11 @@ Future<void> main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
 
-    // Force MPV engine on Android to support E-AC-3, AC-4, etc.
+    // MPV is used for Desktop. Android uses ExoPlayer natively to avoid AudioService deadlocks.
     JustAudioMediaKit.ensureInitialized(
       linux: true,
       windows: true,
-      android: true, 
+      android: false, // <-- CORRECCIÓN: ExoPlayer recupera el control en Android
       iOS: false,
       macOS: false,
     );
@@ -36,12 +36,10 @@ Future<void> main() async {
 
     final database = AppDatabase(openConnection(dbFile));
 
-    // Fetch preferences synchronously before runApp to avoid UI flicker
     final prefsRepo = AppPreferencesRepositoryImpl(database);
     final prefsResult = await prefsRepo.getPreferences();
     final initialPrefs = prefsResult.valueOrNull ?? AppPreferences.defaults;
 
-    // Apply ECO profile impact on ImageCache
     if (initialPrefs.performanceProfile == PerformanceProfile.eco) {
       PaintingBinding.instance.imageCache.maximumSizeBytes = 15 * 1024 * 1024;
     } else {
@@ -74,8 +72,6 @@ Future<void> main() async {
       ),
     );
   } catch (e, stackTrace) {
-    // FATAL ERROR FALLBACK UI
-    // If anything crashes before runApp, show the error instead of a frozen splash screen.
     runApp(
       MaterialApp(
         home: Scaffold(
