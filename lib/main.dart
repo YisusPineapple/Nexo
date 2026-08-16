@@ -21,11 +21,12 @@ Future<void> main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
 
-    // MPV is used for Desktop. Android uses ExoPlayer natively to avoid AudioService deadlocks.
+    // Force MPV engine on Android to support E-AC-3, AC-4, Opus multicanal, etc.
+    // The previous deadlock was fixed by AudioServiceActivity in the manifest.
     JustAudioMediaKit.ensureInitialized(
       linux: true,
       windows: true,
-      android: false, // <-- CORRECCIÓN: ExoPlayer recupera el control en Android
+      android: true, 
       iOS: false,
       macOS: false,
     );
@@ -54,6 +55,7 @@ Future<void> main() async {
           androidNotificationChannelId: 'com.example.nexo.channel.audio',
           androidNotificationChannelName: 'Nexo Music Playback',
           androidNotificationOngoing: true,
+          androidNotificationIcon: 'mipmap/ic_launcher', // FIX: Added notification icon
         ),
       );
     } else {

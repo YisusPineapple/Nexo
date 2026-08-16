@@ -50,6 +50,18 @@ class MiniPlayer extends ConsumerWidget {
             builder: (context) => const NowPlayingScreen(),
           );
         },
+        // FIX: Added swipe up gesture to maximize
+        onVerticalDragEnd: (details) {
+          if (details.primaryVelocity != null && details.primaryVelocity! < -100) {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              backgroundColor: theme.colorScheme.surface,
+              builder: (context) => const NowPlayingScreen(),
+            );
+          }
+        },
         onHorizontalDragStart: (_) => dragDistanceX = 0,
         onHorizontalDragUpdate: (details) => dragDistanceX += details.delta.dx,
         onHorizontalDragEnd: (_) {

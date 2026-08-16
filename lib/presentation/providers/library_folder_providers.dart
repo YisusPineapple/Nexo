@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/library_folder.dart';
-import '../../domain/usecases/index_directories_usecase.dart';
 import 'library_providers.dart';
 import 'repository_providers.dart';
 
@@ -31,11 +30,10 @@ class FolderManagementController {
       return addResult.when(ok: (_) => null, err: (e) => e.message);
     }
 
-    final indexUseCase = IndexDirectoriesUseCase(_ref.read(songRepositoryProvider));
-    final indexResult = await indexUseCase.call([path]);
+    // FIX: Use the controller so the UI banner shows progress
+    await _ref.read(indexDirectoriesControllerProvider.notifier).indexDirectory(path);
     _ref.invalidate(indexedFoldersProvider);
-    _ref.invalidate(sortedSongsProvider);
-    return indexResult.when(ok: (_) => null, err: (e) => e.message);
+    return null;
   }
 
   Future<String?> removeIndexedFolder(String path) async {
