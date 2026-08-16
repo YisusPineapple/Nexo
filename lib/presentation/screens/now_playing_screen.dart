@@ -11,7 +11,16 @@ import '../providers/user_metrics_providers.dart';
 import 'queue_screen.dart';
 
 class NowPlayingScreen extends ConsumerStatefulWidget {
-  const NowPlayingScreen({super.key});
+  const NowPlayingScreen({
+    super.key,
+    this.onClose,
+    this.onVerticalDragUpdate,
+    this.onVerticalDragEnd,
+  });
+
+  final VoidCallback? onClose;
+  final GestureDragUpdateCallback? onVerticalDragUpdate;
+  final GestureDragEndCallback? onVerticalDragEnd;
 
   @override
   ConsumerState<NowPlayingScreen> createState() => _NowPlayingScreenState();
@@ -43,39 +52,50 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final interactionAsync = ref.watch(itemInteractionProvider((id: currentSong.id.value, type: ItemType.song)));
     final interaction = interactionAsync.valueOrNull;
 
-    final appBar = AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      leading: IconButton(
-        icon: const Icon(PhosphorIconsRegular.caretDown),
-        onPressed: () => Navigator.of(context).pop(),
+    // FIX: Wrap AppBar in GestureDetector to allow swipe-down to close
+    final appBar = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragUpdate: widget.onVerticalDragUpdate,
+      onVerticalDragEnd: widget.onVerticalDragEnd,
+      child: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(PhosphorIconsRegular.caretDown),
+          onPressed: widget.onClose ?? () => Navigator.of(context).pop(),
+        ),
+        title: Text('Now Playing', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(_showLyrics ? PhosphorIconsRegular.image : PhosphorIconsRegular.microphoneStage),
+            tooltip: _showLyrics ? 'Show Cover' : 'Show Lyrics',
+            onPressed: () => setState(() => _showLyrics = !_showLyrics),
+          ),
+          IconButton(
+            icon: const Icon(PhosphorIconsRegular.listDashes),
+            tooltip: 'Playback Queue',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const QueueScreen())),
+          ),
+        ],
       ),
-      title: Text('Now Playing', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-      centerTitle: true,
-      actions: [
-        IconButton(
-          icon: Icon(_showLyrics ? PhosphorIconsRegular.image : PhosphorIconsRegular.microphoneStage),
-          tooltip: _showLyrics ? 'Show Cover' : 'Show Lyrics',
-          onPressed: () => setState(() => _showLyrics = !_showLyrics),
-        ),
-        IconButton(
-          icon: const Icon(PhosphorIconsRegular.listDashes),
-          tooltip: 'Playback Queue',
-          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const QueueScreen())),
-        ),
-      ],
     );
 
-    final coverWidget = AnimatedSwitcher(
-      duration: const Duration(milliseconds: 400),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      child: _showLyrics
-          ? const _LyricsView(key: ValueKey('lyrics'))
-          : Hero(
-              tag: 'cover_${currentSong.id.value}',
-              child: _CoverArtView(key: const ValueKey('cover'), coverArtPath: currentSong.coverArtPath),
-            ),
+    // FIX: Wrap CoverArt in GestureDetector to allow swipe-down to close
+    final coverWidget = GestureDetector(
+      onVerticalDragUpdate: widget.onVerticalDragUpdate,
+      onVerticalDragEnd: widget.onVerticalDragEnd,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 400),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        child: _showLyrics
+            ? const _LyricsView(key: ValueKey('lyrics'))
+            : Hero(
+                tag: 'cover_${currentSong.id.value}',
+                child: _CoverArtView(key: const ValueKey('cover'), coverArtPath: currentSong.coverArtPath),
+              ),
+      ),
     );
 
     final controlsWidget = Column(

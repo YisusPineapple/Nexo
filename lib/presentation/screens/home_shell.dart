@@ -9,6 +9,7 @@ import '../widgets/mini_player.dart';
 import 'for_you_screen.dart';
 import 'library/library_hub_screen.dart';
 import 'library/songs_screen.dart';
+import 'now_playing_screen.dart';
 
 typedef _NavDestination = ({
   String label,
@@ -28,13 +29,63 @@ const _screens = <Widget>[
   LibraryHubScreen(),
 ];
 
-class HomeShell extends ConsumerWidget {
+class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
   static const _wideBreakpoint = 600.0;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProviderStateMixin {
+  late AnimationController _playerAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _playerAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+  }
+
+  @override
+  void dispose() {
+    _playerAnim.dispose();
+    super.dispose();
+  }
+
+  void _togglePlayer() {
+    if (_playerAnim.isDismissed) {
+      _playerAnim.forward();
+    } else {
+      _playerAnim.reverse();
+    }
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    // delta.dy is negative when dragging up (opening), positive when dragging down (closing)
+    final delta = -details.primaryDelta! / MediaQuery.of(context).size.height;
+    _playerAnim.value += delta;
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    if (_playerAnim.isDismissed || _playerAnim.isCompleted) return;
+    
+    if (details.primaryVelocity! < -300) {
+      _playerAnim.forward();
+    } else if (details.primaryVelocity! > 300) {
+      _playerAnim.reverse();
+    } else if (_playerAnim.value > 0.5) {
+      _playerAnim.forward();
+    } else {
+      _playerAnim.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final selectedIndex = ref.watch(selectedNavIndexProvider);
     final indexState = ref.watch(indexDirectoriesControllerProvider);
 
@@ -54,7 +105,7 @@ class HomeShell extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= _wideBreakpoint;
+        final isWide = constraints.maxWidth >= HomeShell._wideBreakpoint;
         final body = IndexedStack(index: selectedIndex, children: _screens);
 
         void onSelect(int i) =>
@@ -63,18 +114,35 @@ class HomeShell extends ConsumerWidget {
         final miniPlayerWithProgress = Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // FIX: Using 'progress != null' directly allows Dart's type promotion to work
             if (progress != null)
               LinearProgressIndicator(
                 value: progress.total == 0 ? null : progress.current / progress.total,
                 backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
               ),
-            const MiniPlayer(),
+            AnimatedBuilder(
+              animation: _playerAnim,
+              builder: (context, child) {
+                // Fade out the MiniPlayer as the NowPlayingScreen slides up
+                return Opacity(
+                  opacity: (1.0 - (_playerAnim.value * 2)).clamp(0.0, 1.0),
+                  child: IgnorePointer(
+                    ignoring: _playerAnim.value > 0.5,
+                    child: child,
+                  ),
+                );
+              },
+              child: MiniPlayer(
+                onTap: _togglePlayer,
+                onVerticalDragUpdate: _handleDragUpdate,
+                onVerticalDragEnd: _handleDragEnd,
+              ),
+            ),
           ],
         );
 
+        Widget scaffold;
         if (isWide) {
-          return Scaffold(
+          scaffold = Scaffold(
             body: Row(
               children: [
                 NavigationRail(
@@ -96,9 +164,7 @@ class HomeShell extends ConsumerWidget {
                     children: [
                       body,
                       Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
+                        bottom: 0, left: 0, right: 0,
                         child: miniPlayerWithProgress,
                       ),
                     ],
@@ -107,32 +173,62 @@ class HomeShell extends ConsumerWidget {
               ],
             ),
           );
+        } else {
+          scaffold = Scaffold(
+            body: Stack(
+              children: [
+                body,
+                Positioned(
+                  bottom: 0, left: 0, right: 0,
+                  child: miniPlayerWithProgress,
+                ),
+              ],
+            ),
+            bottomNavigationBar: NavigationBar(
+              selectedIndex: selectedIndex,
+              onDestinationSelected: onSelect,
+              destinations: [
+                for (final d in _destinations)
+                  NavigationDestination(
+                    icon: Icon(d.icon),
+                    selectedIcon: Icon(d.selectedIcon),
+                    label: d.label,
+                  ),
+              ],
+            ),
+          );
         }
 
-        return Scaffold(
-          body: Stack(
-            children: [
-              body,
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: miniPlayerWithProgress,
+        // FIX: Render NowPlayingScreen in a Stack for fluid 60fps interactive swipe.
+        // We use PopScope to intercept the Android back button when the player is open.
+        // The 'scaffold' is passed as 'child' so it doesn't rebuild on every animation frame.
+        return AnimatedBuilder(
+          animation: _playerAnim,
+          child: scaffold,
+          builder: (context, child) {
+            return PopScope(
+              canPop: _playerAnim.isDismissed,
+              onPopInvokedWithResult: (didPop, result) {
+                if (!didPop && !_playerAnim.isDismissed) {
+                  _playerAnim.reverse();
+                }
+              },
+              child: Stack(
+                children: [
+                  child!,
+                  if (_playerAnim.value > 0)
+                    Transform.translate(
+                      offset: Offset(0, constraints.maxHeight * (1 - _playerAnim.value)),
+                      child: NowPlayingScreen(
+                        onClose: _togglePlayer,
+                        onVerticalDragUpdate: _handleDragUpdate,
+                        onVerticalDragEnd: _handleDragEnd,
+                      ),
+                    ),
+                ],
               ),
-            ],
-          ),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: selectedIndex,
-            onDestinationSelected: onSelect,
-            destinations: [
-              for (final d in _destinations)
-                NavigationDestination(
-                  icon: Icon(d.icon),
-                  selectedIcon: Icon(d.selectedIcon),
-                  label: d.label,
-                ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

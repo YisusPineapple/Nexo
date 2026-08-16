@@ -21,12 +21,12 @@ Future<void> main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
 
-    // Force MPV engine on Android to support E-AC-3, AC-4, Opus multicanal, etc.
-    // The previous deadlock was fixed by AudioServiceActivity in the manifest.
+    // FIX: Set android to false. This forces just_audio to use the native ExoPlayer 
+    // on Android, preventing deadlocks with AudioService. MPV remains active on Desktop.
     JustAudioMediaKit.ensureInitialized(
       linux: true,
       windows: true,
-      android: true, 
+      android: false, 
       iOS: false,
       macOS: false,
     );
@@ -55,7 +55,8 @@ Future<void> main() async {
           androidNotificationChannelId: 'com.example.nexo.channel.audio',
           androidNotificationChannelName: 'Nexo Music Playback',
           androidNotificationOngoing: true,
-          androidNotificationIcon: 'mipmap/ic_launcher', // FIX: Added notification icon
+          // FIX: Use the new monochrome drawable instead of the app icon
+          androidNotificationIcon: 'drawable/ic_notification', 
         ),
       );
     } else {

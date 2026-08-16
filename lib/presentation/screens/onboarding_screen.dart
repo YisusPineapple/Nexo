@@ -54,6 +54,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Future<void> _requestPermissions() async {
     if (Platform.isAndroid) {
+      // FIX: Request notification permission for Android 13+ foreground service
+      await Permission.notification.request();
+
       // Android 13+ uses Permission.audio, older versions use Permission.storage
       final audioStatus = await Permission.audio.request();
       if (audioStatus.isGranted) {
@@ -361,7 +364,6 @@ class _ThemePage extends ConsumerWidget {
           ),
           const SizedBox(height: 32),
           
-          // CORRECCIÓN: Usamos groupValue en lugar de value
           RadioGroup<AppThemeMode>(
             groupValue: prefs.themeMode, 
             onChanged: (val) {

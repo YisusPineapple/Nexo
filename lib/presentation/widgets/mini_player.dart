@@ -8,7 +8,16 @@ import '../providers/playback_providers.dart';
 import '../screens/now_playing_screen.dart';
 
 class MiniPlayer extends ConsumerWidget {
-  const MiniPlayer({super.key});
+  const MiniPlayer({
+    super.key,
+    this.onTap,
+    this.onVerticalDragUpdate,
+    this.onVerticalDragEnd,
+  });
+
+  final VoidCallback? onTap;
+  final GestureDragUpdateCallback? onVerticalDragUpdate;
+  final GestureDragEndCallback? onVerticalDragEnd;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,7 +50,8 @@ class MiniPlayer extends ConsumerWidget {
         );
       },
       child: GestureDetector(
-        onTap: () {
+        // FIX: Delegate gestures to parent if provided, otherwise fallback to modal
+        onTap: onTap ?? () {
           showModalBottomSheet(
             context: context,
             isScrollControlled: true,
@@ -50,8 +60,8 @@ class MiniPlayer extends ConsumerWidget {
             builder: (context) => const NowPlayingScreen(),
           );
         },
-        // FIX: Added swipe up gesture to maximize
-        onVerticalDragEnd: (details) {
+        onVerticalDragUpdate: onVerticalDragUpdate,
+        onVerticalDragEnd: onVerticalDragEnd ?? (details) {
           if (details.primaryVelocity != null && details.primaryVelocity! < -100) {
             showModalBottomSheet(
               context: context,
