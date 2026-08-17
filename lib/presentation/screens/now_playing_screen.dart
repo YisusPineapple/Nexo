@@ -4,6 +4,8 @@ import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:nexo/domain/entities/repeat_mode.dart';
+import '../providers/lyrics_provider.dart';
+import '../../domain/entities/lyric_line.dart';
 
 import '../../domain/entities/item_interaction.dart';
 import '../providers/playback_providers.dart';
@@ -28,6 +30,13 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
 
 class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   bool _showLyrics = false;
+  final ScrollController _lyricsScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _lyricsScrollController.dispose();
+    super.dispose();
+  }
 
   String _formatDuration(Duration d) {
     final minutes = d.inMinutes;
@@ -82,6 +91,25 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     );
 
     // FIX: Wrap CoverArt in GestureDetector to allow swipe-down to close
+    final lyricsList = ref.watch(lyricsProvider).valueOrNull ?? const [];
+    final currentLyricIndex = ref.watch(currentLyricIndexProvider);
+
+    // Auto-scroll cuando cambia la línea actual.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (currentLyricIndex >= 0 &&
+          currentLyricIndex < lyricsList.length &&
+          _lyricsScrollController.hasClients) {
+        final targetOffset = currentLyricIndex * 72.0; // ajustar según altura de cada item
+        final maxOffset = _lyricsScrollController.position.maxScrollExtent;
+        final offset = targetOffset.clamp(0.0, maxOffset);
+        _lyricsScrollController.animateTo(
+          offset,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+
     final coverWidget = GestureDetector(
       onVerticalDragUpdate: widget.onVerticalDragUpdate,
       onVerticalDragEnd: widget.onVerticalDragEnd,
@@ -90,7 +118,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         switchInCurve: Curves.easeOutCubic,
         switchOutCurve: Curves.easeInCubic,
         child: _showLyrics
-            ? const _LyricsView(key: ValueKey('lyrics'))
+            ? _LyricsView(
+                key: const ValueKey('lyrics'),
+                lines: lyricsList,
+                currentIndex: currentLyricIndex,
+                scrollController: _lyricsScrollController,
+              )
             : Hero(
                 tag: 'cover_${currentSong.id.value}',
                 child: _CoverArtView(key: const ValueKey('cover'), coverArtPath: currentSong.coverArtPath),
@@ -285,26 +318,88 @@ class _CoverArtView extends StatelessWidget {
 }
 
 class _LyricsView extends StatelessWidget {
-  const _LyricsView({super.key});
+  const _LyricsView({
+    super.key,
+    required this.lines,
+    required this.currentIndex,
+    required this.scrollController,
+  });
+
+  final List<LyricLine> lines;
+  final int currentIndex;
+  final ScrollController scrollController;
 
   @override
   Widget build(BuildContext context) {
+    if (lines.isEmpty) {
+      return Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                PhosphorIconsRegular.microphoneStage,
+                size: 48,
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No synchronized lyrics found.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
       ),
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(PhosphorIconsRegular.microphoneStage, size: 48, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
-            const SizedBox(height: 16),
-            Text("Lyrics support coming soon.\n(Sub-phase 3.17)", textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          ],
-        ),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+      child: ListView.builder(
+        controller: scrollController,
+        itemCount: lines.length,
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        itemBuilder: (context, index) {
+          final line = lines[index];
+          final isActive = index == currentIndex;
+          final theme = Theme.of(context);
+
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            decoration: BoxDecoration(
+              color: isActive
+                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              line.text,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                color: isActive
+                    ? theme.colorScheme.onPrimaryContainer
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                fontSize: isActive ? 18 : 16,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          );
+        },
       ),
     );
   }

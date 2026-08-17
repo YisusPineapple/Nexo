@@ -9,6 +9,7 @@ import '../../data/repositories/playback_repository_impl.dart';
 import '../../data/repositories/playlist_repository_impl.dart';
 import '../../data/repositories/song_repository_impl.dart';
 import '../../data/repositories/user_metrics_repository_impl.dart';
+import '../../data/repositories/lyrics_repository_impl.dart';
 import '../../domain/repositories/app_preferences_repository.dart';
 import '../../domain/repositories/audio_player_repository.dart';
 import '../../domain/repositories/backup_repository.dart';
@@ -17,6 +18,7 @@ import '../../domain/repositories/playback_repository.dart';
 import '../../domain/repositories/playlist_repository.dart';
 import '../../domain/repositories/song_repository.dart';
 import '../../domain/repositories/user_metrics_repository.dart';
+import '../../domain/repositories/lyrics_repository.dart';
 
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -67,4 +69,8 @@ final audioPlayerRepositoryProvider = Provider<AudioPlayerRepository>((ref) {
 
 final backupRepositoryProvider = Provider<BackupRepository>((ref) {
   return BackupRepositoryImpl(ref.watch(appDatabaseProvider));
+});
+
+final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
+  return LyricsRepositoryImpl(ref.watch(songRepositoryProvider));
 });
