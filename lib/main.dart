@@ -22,12 +22,12 @@ Future<void> main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
 
-    // FIX: Set android to false. This forces just_audio to use the native ExoPlayer 
+    // FIX: Set android to false. This forces just_audio to use the native ExoPlayer
     // on Android, preventing deadlocks with AudioService. MPV remains active on Desktop.
     JustAudioMediaKit.ensureInitialized(
       linux: true,
       windows: true,
-      android: false, 
+      android: false,
       iOS: false,
       macOS: false,
     );
@@ -82,7 +82,7 @@ Future<void> main() async {
           androidNotificationChannelName: 'Nexo Music Playback',
           androidNotificationOngoing: true,
           // FIX: Use the new monochrome drawable instead of the app icon
-          androidNotificationIcon: 'drawable/ic_notification', 
+          androidNotificationIcon: 'drawable/ic_notification',
         ),
       );
     } else {
@@ -95,7 +95,8 @@ Future<void> main() async {
           appDatabaseProvider.overrideWithValue(database),
           coverArtCacheDirectoryProvider.overrideWithValue(coverArtDir),
           audioHandlerProvider.overrideWithValue(audioHandler),
-          appPreferencesProvider.overrideWith(() => AppPreferencesNotifier(initialPrefs)),
+          appPreferencesProvider
+              .overrideWith(() => AppPreferencesNotifier(initialPrefs)),
         ],
         child: const NexoApp(),
       ),
@@ -110,7 +111,10 @@ Future<void> main() async {
               padding: const EdgeInsets.all(24),
               child: Text(
                 'FATAL INITIALIZATION ERROR:\n\n$e\n\n$stackTrace',
-                style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontFamily: 'monospace'),
+                style: const TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 14,
+                    fontFamily: 'monospace'),
               ),
             ),
           ),
