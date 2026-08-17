@@ -93,6 +93,7 @@ Future<void> main() async {
       ProviderScope(
         overrides: [
           appDatabaseProvider.overrideWithValue(database),
+          appSupportDirectoryProvider.overrideWithValue(supportDir.path),
           coverArtCacheDirectoryProvider.overrideWithValue(coverArtDir),
           audioHandlerProvider.overrideWithValue(audioHandler),
           appPreferencesProvider

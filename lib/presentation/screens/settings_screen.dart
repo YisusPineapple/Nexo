@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../domain/entities/app_preferences.dart';
 import '../../domain/entities/crossfade_config.dart';
@@ -20,6 +19,11 @@ class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   Future<void> _showBackupDialog(BuildContext context, WidgetRef ref) async {
+    final destinationDirectory = await FilePicker.platform.getDirectoryPath();
+    if (destinationDirectory == null || !context.mounted) {
+      return;
+    }
+
     bool includeLibrary = true;
     bool includePlaylists = true;
     bool includeSettings = true;
@@ -32,6 +36,11 @@ class SettingsScreen extends ConsumerWidget {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Text(
+                'Destination: $destinationDirectory',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
               const Text('Select what to include in the backup.'),
               const SizedBox(height: 12),
               CheckboxListTile(
@@ -86,6 +95,7 @@ class SettingsScreen extends ConsumerWidget {
                           includeLibrary: includeLibrary,
                           includePlaylists: includePlaylists,
                           includeSettings: includeSettings,
+                          destinationDirectory: destinationDirectory,
                         );
 
                 if (!context.mounted) return;
@@ -102,15 +112,11 @@ class SettingsScreen extends ConsumerWidget {
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Backup created at: $backupPath'),
+                    content: Text('Backup saved to: $backupPath'),
                   ),
                 );
-                await Share.shareXFiles(
-                  [XFile(backupPath)],
-                  text: 'Nexo backup',
-                );
               },
-              child: const Text('Create & Share'),
+              child: const Text('Create'),
             ),
           ],
         ),

@@ -7,6 +7,7 @@ typedef BackupParams = ({
   bool includeLibrary,
   bool includePlaylists,
   bool includeSettings,
+  String? destinationDirectory,
 });
 
 final class CreateBackupUseCase implements UseCase<String, BackupParams> {
@@ -19,6 +20,7 @@ final class CreateBackupUseCase implements UseCase<String, BackupParams> {
       includeLibrary: params.includeLibrary,
       includePlaylists: params.includePlaylists,
       includeSettings: params.includeSettings,
+      destinationDirectory: params.destinationDirectory,
     );
   }
 }

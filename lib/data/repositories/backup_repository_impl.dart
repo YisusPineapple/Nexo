@@ -3,7 +3,6 @@ import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
@@ -11,33 +10,36 @@ import '../../domain/repositories/backup_repository.dart';
 import '../local/app_database.dart';
 
 class BackupRepositoryImpl implements BackupRepository {
-  BackupRepositoryImpl(this._db);
+  BackupRepositoryImpl(this._db, this._baseDir);
   final AppDatabase _db;
+  final String _baseDir;
 
   @override
   Future<Result<String, Failure>> createBackup({
     required bool includeLibrary,
     required bool includePlaylists,
     required bool includeSettings,
+    String? destinationDirectory,
   }) async {
     try {
       await _db.customStatement('PRAGMA wal_checkpoint(TRUNCATE);');
 
-      final supportDir = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now()
           .toIso8601String()
           .replaceAll(':', '-')
           .split('.')
           .first;
-      final backupDir = Directory(p.join(supportDir.path, 'backups'));
+      final backupDir = destinationDirectory != null
+          ? Directory(destinationDirectory)
+          : Directory(_baseDir);
       if (!await backupDir.exists()) {
         await backupDir.create(recursive: true);
       }
       final zipPath = p.join(backupDir.path, 'nexo_backup_$timestamp.zip');
 
       final result = await _compressInIsolate(
-        dbPath: p.join(supportDir.path, 'nexo.sqlite'),
-        coversPath: p.join(supportDir.path, 'covers'),
+        dbPath: p.join(_baseDir, 'nexo.sqlite'),
+        coversPath: p.join(_baseDir, 'covers'),
         zipPath: zipPath,
         includeLibrary: includeLibrary,
         includePlaylists: includePlaylists,
@@ -80,7 +82,7 @@ class BackupRepositoryImpl implements BackupRepository {
     return result;
   }
 
-  static void _compressIsolateEntry(dynamic message) {
+  static Future<void> _compressIsolateEntry(dynamic message) async {
     final (
       sendPort,
       dbPath,
@@ -106,12 +108,12 @@ class BackupRepositoryImpl implements BackupRepository {
       if (includeLibrary) {
         final dbFile = File(dbPath);
         if (dbFile.existsSync()) {
-          encoder.addFile(dbFile);
+          await encoder.addFile(dbFile, 'nexo.sqlite');
         }
 
         final coversDir = Directory(coversPath);
         if (coversDir.existsSync()) {
-          encoder.addDirectory(coversDir);
+          await encoder.addDirectory(coversDir);
         }
       }
 
@@ -119,7 +121,7 @@ class BackupRepositoryImpl implements BackupRepository {
         // Additional payloads can be added here when their storage paths are defined.
       }
 
-      encoder.close();
+      await encoder.close();
       sendPort.send(true);
     } catch (e) {
       sendPort.send(false);
@@ -129,8 +131,7 @@ class BackupRepositoryImpl implements BackupRepository {
   @override
   Future<Result<void, Failure>> restoreBackup(String zipPath) async {
     try {
-      final supportDir = await getApplicationDocumentsDirectory();
-      final tempDir = Directory(p.join(supportDir.path, 'temp_restore'));
+      final tempDir = Directory(p.join(_baseDir, 'temp_restore'));
 
       if (await tempDir.exists()) {
         await tempDir.delete(recursive: true);
@@ -147,10 +148,10 @@ class BackupRepositoryImpl implements BackupRepository {
       }
 
       await _db.close();
-      await extractedDb.copy(p.join(supportDir.path, 'nexo.sqlite'));
+      await extractedDb.copy(p.join(_baseDir, 'nexo.sqlite'));
 
       final extractedCovers = Directory(p.join(tempDir.path, 'covers'));
-      final targetCovers = Directory(p.join(supportDir.path, 'covers'));
+      final targetCovers = Directory(p.join(_baseDir, 'covers'));
       if (await extractedCovers.exists()) {
         if (await targetCovers.exists()) {
           await targetCovers.delete(recursive: true);

@@ -6,6 +6,7 @@ abstract interface class BackupRepository {
     required bool includeLibrary,
     required bool includePlaylists,
     required bool includeSettings,
+    String? destinationDirectory,
   });
 
   Future<Result<void, Failure>> restoreBackup(String zipPath);

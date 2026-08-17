@@ -15,17 +15,19 @@ class BackupController {
     required bool includeLibrary,
     required bool includePlaylists,
     required bool includeSettings,
+    String? destinationDirectory,
   }) async {
     final useCase = CreateBackupUseCase(_ref.read(backupRepositoryProvider));
     final result = await useCase.call((
       includeLibrary: includeLibrary,
       includePlaylists: includePlaylists,
       includeSettings: includeSettings,
+      destinationDirectory: destinationDirectory,
     ));
 
     return result.when(
       ok: (path) => path,
-      err: (e) => e.message,
+      err: (_) => null,
     );
   }
 

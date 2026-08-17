@@ -24,6 +24,11 @@ final appDatabaseProvider = Provider<AppDatabase>((ref) {
   throw UnimplementedError('appDatabaseProvider must be overridden in main()');
 });
 
+final appSupportDirectoryProvider = Provider<String>((ref) {
+  throw UnimplementedError(
+      'appSupportDirectoryProvider must be overridden in main()');
+});
+
 final coverArtCacheDirectoryProvider = Provider<String>((ref) {
   throw UnimplementedError(
       'coverArtCacheDirectoryProvider must be overridden in main()');
@@ -70,7 +75,10 @@ final audioPlayerRepositoryProvider = Provider<AudioPlayerRepository>((ref) {
 });
 
 final backupRepositoryProvider = Provider<BackupRepository>((ref) {
-  return BackupRepositoryImpl(ref.watch(appDatabaseProvider));
+  return BackupRepositoryImpl(
+    ref.watch(appDatabaseProvider),
+    ref.watch(appSupportDirectoryProvider),
+  );
 });
 
 final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
