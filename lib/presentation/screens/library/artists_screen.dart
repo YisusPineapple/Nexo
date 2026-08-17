@@ -273,10 +273,9 @@ class ArtistDetailScreen extends ConsumerWidget {
             ),
           );
         },
-        loading: () => const SliverFillRemaining(
-            child: Center(child: CircularProgressIndicator())),
-        error: (e, st) =>
-            SliverFillRemaining(child: Center(child: Text('Error: $e'))),
+        // FIX: Replaced SliverFillRemaining with standard RenderBox widgets
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, st) => Center(child: Text('Error: $e')),
       ),
     );
   }

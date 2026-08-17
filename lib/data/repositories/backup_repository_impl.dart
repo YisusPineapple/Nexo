@@ -11,6 +11,7 @@ import '../local/app_database.dart';
 
 class BackupRepositoryImpl implements BackupRepository {
   BackupRepositoryImpl(this._db, this._baseDir);
+  
   final AppDatabase _db;
   final String _baseDir;
 
@@ -22,109 +23,71 @@ class BackupRepositoryImpl implements BackupRepository {
     String? destinationDirectory,
   }) async {
     try {
-      await _db.customStatement('PRAGMA wal_checkpoint(TRUNCATE);');
+      // Sync WAL data to main DB without blocking active readers
+      await _db.customStatement('PRAGMA wal_checkpoint(PASSIVE);');
 
       final timestamp = DateTime.now()
           .toIso8601String()
           .replaceAll(':', '-')
           .split('.')
           .first;
+          
       final backupDir = destinationDirectory != null
           ? Directory(destinationDirectory)
           : Directory(_baseDir);
+          
       if (!await backupDir.exists()) {
         await backupDir.create(recursive: true);
       }
+      
       final zipPath = p.join(backupDir.path, 'nexo_backup_$timestamp.zip');
+      final dbPath = p.join(_baseDir, 'nexo.sqlite');
+      final coversPath = p.join(_baseDir, 'covers');
 
-      final result = await _compressInIsolate(
-        dbPath: p.join(_baseDir, 'nexo.sqlite'),
-        coversPath: p.join(_baseDir, 'covers'),
-        zipPath: zipPath,
-        includeLibrary: includeLibrary,
-        includePlaylists: includePlaylists,
-        includeSettings: includeSettings,
-      );
+      // Isolate.run returns String? (null if success, error message if failed)
+      final errorMessage = await Isolate.run(() {
+        try {
+          final encoder = ZipFileEncoder();
+          encoder.create(zipPath);
 
-      if (!result) {
-        return const Err(UnexpectedFailure('Failed to compress backup files.'));
+          if (includeLibrary) {
+            final dbFile = File(dbPath);
+            if (dbFile.existsSync()) {
+              // Copy DB to a temp file first to avoid SQLite lock issues during zip
+              final tempDbPath = p.join(backupDir.path, 'temp_nexo_$timestamp.sqlite');
+              dbFile.copySync(tempDbPath);
+              encoder.addFile(File(tempDbPath), 'nexo.sqlite');
+              File(tempDbPath).deleteSync(); // Clean up temp file
+            }
+
+            final coversDir = Directory(coversPath);
+            if (coversDir.existsSync()) {
+              // The archive package can crash if the directory is completely empty
+              final hasFiles = coversDir.listSync().isNotEmpty;
+              if (hasFiles) {
+                encoder.addDirectory(coversDir);
+              }
+            }
+          }
+
+          if (includePlaylists || includeSettings) {
+            // Additional payloads can be added here later
+          }
+
+          encoder.close();
+          return null; // Success
+        } catch (e) {
+          return e.toString(); // Return the exact error message
+        }
+      });
+
+      if (errorMessage != null) {
+        return Err(UnexpectedFailure('Backup failed: $errorMessage'));
       }
 
       return Ok(zipPath);
     } catch (e) {
-      return Err(UnexpectedFailure('Failed to create backup: $e'));
-    }
-  }
-
-  Future<bool> _compressInIsolate({
-    required String dbPath,
-    required String coversPath,
-    required String zipPath,
-    required bool includeLibrary,
-    required bool includePlaylists,
-    required bool includeSettings,
-  }) async {
-    final receivePort = ReceivePort();
-    await Isolate.spawn(
-      _compressIsolateEntry,
-      (
-        receivePort.sendPort,
-        dbPath,
-        coversPath,
-        zipPath,
-        includeLibrary,
-        includePlaylists,
-        includeSettings,
-      ),
-    );
-    final result = await receivePort.first as bool;
-    receivePort.close();
-    return result;
-  }
-
-  static Future<void> _compressIsolateEntry(dynamic message) async {
-    final (
-      sendPort,
-      dbPath,
-      coversPath,
-      zipPath,
-      includeLibrary,
-      includePlaylists,
-      includeSettings,
-    ) = message as (
-      SendPort,
-      String,
-      String,
-      String,
-      bool,
-      bool,
-      bool,
-    );
-
-    try {
-      final encoder = ZipFileEncoder();
-      encoder.create(zipPath);
-
-      if (includeLibrary) {
-        final dbFile = File(dbPath);
-        if (dbFile.existsSync()) {
-          await encoder.addFile(dbFile, 'nexo.sqlite');
-        }
-
-        final coversDir = Directory(coversPath);
-        if (coversDir.existsSync()) {
-          await encoder.addDirectory(coversDir);
-        }
-      }
-
-      if (includePlaylists || includeSettings) {
-        // Additional payloads can be added here when their storage paths are defined.
-      }
-
-      await encoder.close();
-      sendPort.send(true);
-    } catch (e) {
-      sendPort.send(false);
+      return Err(UnexpectedFailure('Failed to initialize backup: $e'));
     }
   }
 
@@ -138,7 +101,19 @@ class BackupRepositoryImpl implements BackupRepository {
       }
       await tempDir.create(recursive: true);
 
-      await extractFileToDisk(zipPath, tempDir.path);
+      // Extract in isolate to prevent UI freeze during restore
+      final errorMessage = await Isolate.run(() {
+        try {
+          extractFileToDisk(zipPath, tempDir.path);
+          return null;
+        } catch (e) {
+          return e.toString();
+        }
+      });
+
+      if (errorMessage != null) {
+        return Err(ValidationFailure('Failed to extract backup: $errorMessage'));
+      }
 
       final extractedDb = File(p.join(tempDir.path, 'nexo.sqlite'));
       if (!await extractedDb.exists()) {
@@ -152,6 +127,7 @@ class BackupRepositoryImpl implements BackupRepository {
 
       final extractedCovers = Directory(p.join(tempDir.path, 'covers'));
       final targetCovers = Directory(p.join(_baseDir, 'covers'));
+      
       if (await extractedCovers.exists()) {
         if (await targetCovers.exists()) {
           await targetCovers.delete(recursive: true);

@@ -13,6 +13,10 @@ class AppPreferencesMapper {
       isOnboardingCompleted: row.isOnboardingCompleted,
       performanceProfile: row.performanceProfile,
       themeMode: row.themeMode,
+      lyricsAlignment: row.lyricsAlignment,
+      lyricsFontSize: row.lyricsFontSize,
+      lyricsBlurEnabled: row.lyricsBlurEnabled,
+      lyricsHighlightWords: row.lyricsHighlightWords,
     );
   }
 
@@ -22,6 +26,10 @@ class AppPreferencesMapper {
       isOnboardingCompleted: Value(entity.isOnboardingCompleted),
       performanceProfile: entity.performanceProfile,
       themeMode: entity.themeMode,
+      lyricsAlignment: Value(entity.lyricsAlignment),
+      lyricsFontSize: Value(entity.lyricsFontSize),
+      lyricsBlurEnabled: Value(entity.lyricsBlurEnabled),
+      lyricsHighlightWords: Value(entity.lyricsHighlightWords),
     );
   }
 }

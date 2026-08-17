@@ -14,6 +14,8 @@ import 'converters/repeat_mode_converter.dart';
 import 'converters/string_list_converter.dart';
 import 'converters/performance_profile_converter.dart';
 import 'converters/app_theme_mode_converter.dart';
+import 'converters/lyrics_alignment_converter.dart';
+import 'converters/lyrics_font_size_converter.dart';
 import 'tables/active_session_table.dart';
 import 'tables/item_interactions_table.dart';
 import 'tables/playback_history_table.dart';
@@ -53,7 +55,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -65,6 +67,10 @@ class AppDatabase extends _$AppDatabase {
               isOnboardingCompleted: const Value(false),
               performanceProfile: PerformanceProfile.balanced,
               themeMode: AppThemeMode.system,
+              lyricsAlignment: const Value(LyricsAlignment.center),
+              lyricsFontSize: const Value(LyricsFontSize.medium),
+              lyricsBlurEnabled: const Value(true),
+              lyricsHighlightWords: const Value(true),
             ),
           );
         },
@@ -88,12 +94,24 @@ class AppDatabase extends _$AppDatabase {
                 isOnboardingCompleted: const Value(false),
                 performanceProfile: PerformanceProfile.balanced,
                 themeMode: AppThemeMode.system,
+                lyricsAlignment: const Value(LyricsAlignment.center),
+                lyricsFontSize: const Value(LyricsFontSize.medium),
+                lyricsBlurEnabled: const Value(true),
+                lyricsHighlightWords: const Value(true),
               ),
             );
           }
           if (from < 6) {
             await m.createTable(indexedFolders);
             await m.createTable(excludedFolders);
+          }
+          if (from < 7) {
+            await m.addColumn(appPreferencesTable, appPreferencesTable.lyricsAlignment);
+          }
+          if (from < 8) {
+            await m.addColumn(appPreferencesTable, appPreferencesTable.lyricsFontSize);
+            await m.addColumn(appPreferencesTable, appPreferencesTable.lyricsBlurEnabled);
+            await m.addColumn(appPreferencesTable, appPreferencesTable.lyricsHighlightWords);
           }
         },
       );

@@ -3269,8 +3269,54 @@ class $AppPreferencesTableTable extends AppPreferencesTable
           .withConverter<AppThemeMode>(
               $AppPreferencesTableTable.$converterthemeMode);
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, isOnboardingCompleted, performanceProfile, themeMode];
+  late final GeneratedColumnWithTypeConverter<LyricsAlignment, String>
+      lyricsAlignment = GeneratedColumn<String>(
+              'lyrics_alignment', aliasedName, false,
+              type: DriftSqlType.string,
+              requiredDuringInsert: false,
+              defaultValue: const Constant('center'))
+          .withConverter<LyricsAlignment>(
+              $AppPreferencesTableTable.$converterlyricsAlignment);
+  @override
+  late final GeneratedColumnWithTypeConverter<LyricsFontSize, String>
+      lyricsFontSize = GeneratedColumn<String>(
+              'lyrics_font_size', aliasedName, false,
+              type: DriftSqlType.string,
+              requiredDuringInsert: false,
+              defaultValue: const Constant('medium'))
+          .withConverter<LyricsFontSize>(
+              $AppPreferencesTableTable.$converterlyricsFontSize);
+  static const VerificationMeta _lyricsBlurEnabledMeta =
+      const VerificationMeta('lyricsBlurEnabled');
+  @override
+  late final GeneratedColumn<bool> lyricsBlurEnabled = GeneratedColumn<bool>(
+      'lyrics_blur_enabled', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("lyrics_blur_enabled" IN (0, 1))'),
+      defaultValue: const Constant(true));
+  static const VerificationMeta _lyricsHighlightWordsMeta =
+      const VerificationMeta('lyricsHighlightWords');
+  @override
+  late final GeneratedColumn<bool> lyricsHighlightWords = GeneratedColumn<bool>(
+      'lyrics_highlight_words', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("lyrics_highlight_words" IN (0, 1))'),
+      defaultValue: const Constant(true));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        isOnboardingCompleted,
+        performanceProfile,
+        themeMode,
+        lyricsAlignment,
+        lyricsFontSize,
+        lyricsBlurEnabled,
+        lyricsHighlightWords
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -3289,6 +3335,18 @@ class $AppPreferencesTableTable extends AppPreferencesTable
           _isOnboardingCompletedMeta,
           isOnboardingCompleted.isAcceptableOrUnknown(
               data['is_onboarding_completed']!, _isOnboardingCompletedMeta));
+    }
+    if (data.containsKey('lyrics_blur_enabled')) {
+      context.handle(
+          _lyricsBlurEnabledMeta,
+          lyricsBlurEnabled.isAcceptableOrUnknown(
+              data['lyrics_blur_enabled']!, _lyricsBlurEnabledMeta));
+    }
+    if (data.containsKey('lyrics_highlight_words')) {
+      context.handle(
+          _lyricsHighlightWordsMeta,
+          lyricsHighlightWords.isAcceptableOrUnknown(
+              data['lyrics_highlight_words']!, _lyricsHighlightWordsMeta));
     }
     return context;
   }
@@ -3310,6 +3368,16 @@ class $AppPreferencesTableTable extends AppPreferencesTable
       themeMode: $AppPreferencesTableTable.$converterthemeMode.fromSql(
           attachedDatabase.typeMapping.read(
               DriftSqlType.string, data['${effectivePrefix}theme_mode'])!),
+      lyricsAlignment: $AppPreferencesTableTable.$converterlyricsAlignment
+          .fromSql(attachedDatabase.typeMapping.read(DriftSqlType.string,
+              data['${effectivePrefix}lyrics_alignment'])!),
+      lyricsFontSize: $AppPreferencesTableTable.$converterlyricsFontSize
+          .fromSql(attachedDatabase.typeMapping.read(DriftSqlType.string,
+              data['${effectivePrefix}lyrics_font_size'])!),
+      lyricsBlurEnabled: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool, data['${effectivePrefix}lyrics_blur_enabled'])!,
+      lyricsHighlightWords: attachedDatabase.typeMapping.read(
+          DriftSqlType.bool, data['${effectivePrefix}lyrics_highlight_words'])!,
     );
   }
 
@@ -3322,6 +3390,10 @@ class $AppPreferencesTableTable extends AppPreferencesTable
       $converterperformanceProfile = const PerformanceProfileConverter();
   static TypeConverter<AppThemeMode, String> $converterthemeMode =
       const AppThemeModeConverter();
+  static TypeConverter<LyricsAlignment, String> $converterlyricsAlignment =
+      const LyricsAlignmentConverter();
+  static TypeConverter<LyricsFontSize, String> $converterlyricsFontSize =
+      const LyricsFontSizeConverter();
 }
 
 class AppPreferencesRow extends DataClass
@@ -3330,11 +3402,19 @@ class AppPreferencesRow extends DataClass
   final bool isOnboardingCompleted;
   final PerformanceProfile performanceProfile;
   final AppThemeMode themeMode;
+  final LyricsAlignment lyricsAlignment;
+  final LyricsFontSize lyricsFontSize;
+  final bool lyricsBlurEnabled;
+  final bool lyricsHighlightWords;
   const AppPreferencesRow(
       {required this.id,
       required this.isOnboardingCompleted,
       required this.performanceProfile,
-      required this.themeMode});
+      required this.themeMode,
+      required this.lyricsAlignment,
+      required this.lyricsFontSize,
+      required this.lyricsBlurEnabled,
+      required this.lyricsHighlightWords});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3349,6 +3429,18 @@ class AppPreferencesRow extends DataClass
       map['theme_mode'] = Variable<String>(
           $AppPreferencesTableTable.$converterthemeMode.toSql(themeMode));
     }
+    {
+      map['lyrics_alignment'] = Variable<String>($AppPreferencesTableTable
+          .$converterlyricsAlignment
+          .toSql(lyricsAlignment));
+    }
+    {
+      map['lyrics_font_size'] = Variable<String>($AppPreferencesTableTable
+          .$converterlyricsFontSize
+          .toSql(lyricsFontSize));
+    }
+    map['lyrics_blur_enabled'] = Variable<bool>(lyricsBlurEnabled);
+    map['lyrics_highlight_words'] = Variable<bool>(lyricsHighlightWords);
     return map;
   }
 
@@ -3358,6 +3450,10 @@ class AppPreferencesRow extends DataClass
       isOnboardingCompleted: Value(isOnboardingCompleted),
       performanceProfile: Value(performanceProfile),
       themeMode: Value(themeMode),
+      lyricsAlignment: Value(lyricsAlignment),
+      lyricsFontSize: Value(lyricsFontSize),
+      lyricsBlurEnabled: Value(lyricsBlurEnabled),
+      lyricsHighlightWords: Value(lyricsHighlightWords),
     );
   }
 
@@ -3371,6 +3467,13 @@ class AppPreferencesRow extends DataClass
       performanceProfile:
           serializer.fromJson<PerformanceProfile>(json['performanceProfile']),
       themeMode: serializer.fromJson<AppThemeMode>(json['themeMode']),
+      lyricsAlignment:
+          serializer.fromJson<LyricsAlignment>(json['lyricsAlignment']),
+      lyricsFontSize:
+          serializer.fromJson<LyricsFontSize>(json['lyricsFontSize']),
+      lyricsBlurEnabled: serializer.fromJson<bool>(json['lyricsBlurEnabled']),
+      lyricsHighlightWords:
+          serializer.fromJson<bool>(json['lyricsHighlightWords']),
     );
   }
   @override
@@ -3382,6 +3485,10 @@ class AppPreferencesRow extends DataClass
       'performanceProfile':
           serializer.toJson<PerformanceProfile>(performanceProfile),
       'themeMode': serializer.toJson<AppThemeMode>(themeMode),
+      'lyricsAlignment': serializer.toJson<LyricsAlignment>(lyricsAlignment),
+      'lyricsFontSize': serializer.toJson<LyricsFontSize>(lyricsFontSize),
+      'lyricsBlurEnabled': serializer.toJson<bool>(lyricsBlurEnabled),
+      'lyricsHighlightWords': serializer.toJson<bool>(lyricsHighlightWords),
     };
   }
 
@@ -3389,13 +3496,21 @@ class AppPreferencesRow extends DataClass
           {int? id,
           bool? isOnboardingCompleted,
           PerformanceProfile? performanceProfile,
-          AppThemeMode? themeMode}) =>
+          AppThemeMode? themeMode,
+          LyricsAlignment? lyricsAlignment,
+          LyricsFontSize? lyricsFontSize,
+          bool? lyricsBlurEnabled,
+          bool? lyricsHighlightWords}) =>
       AppPreferencesRow(
         id: id ?? this.id,
         isOnboardingCompleted:
             isOnboardingCompleted ?? this.isOnboardingCompleted,
         performanceProfile: performanceProfile ?? this.performanceProfile,
         themeMode: themeMode ?? this.themeMode,
+        lyricsAlignment: lyricsAlignment ?? this.lyricsAlignment,
+        lyricsFontSize: lyricsFontSize ?? this.lyricsFontSize,
+        lyricsBlurEnabled: lyricsBlurEnabled ?? this.lyricsBlurEnabled,
+        lyricsHighlightWords: lyricsHighlightWords ?? this.lyricsHighlightWords,
       );
   AppPreferencesRow copyWithCompanion(AppPreferencesTableCompanion data) {
     return AppPreferencesRow(
@@ -3407,6 +3522,18 @@ class AppPreferencesRow extends DataClass
           ? data.performanceProfile.value
           : this.performanceProfile,
       themeMode: data.themeMode.present ? data.themeMode.value : this.themeMode,
+      lyricsAlignment: data.lyricsAlignment.present
+          ? data.lyricsAlignment.value
+          : this.lyricsAlignment,
+      lyricsFontSize: data.lyricsFontSize.present
+          ? data.lyricsFontSize.value
+          : this.lyricsFontSize,
+      lyricsBlurEnabled: data.lyricsBlurEnabled.present
+          ? data.lyricsBlurEnabled.value
+          : this.lyricsBlurEnabled,
+      lyricsHighlightWords: data.lyricsHighlightWords.present
+          ? data.lyricsHighlightWords.value
+          : this.lyricsHighlightWords,
     );
   }
 
@@ -3416,14 +3543,25 @@ class AppPreferencesRow extends DataClass
           ..write('id: $id, ')
           ..write('isOnboardingCompleted: $isOnboardingCompleted, ')
           ..write('performanceProfile: $performanceProfile, ')
-          ..write('themeMode: $themeMode')
+          ..write('themeMode: $themeMode, ')
+          ..write('lyricsAlignment: $lyricsAlignment, ')
+          ..write('lyricsFontSize: $lyricsFontSize, ')
+          ..write('lyricsBlurEnabled: $lyricsBlurEnabled, ')
+          ..write('lyricsHighlightWords: $lyricsHighlightWords')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, isOnboardingCompleted, performanceProfile, themeMode);
+  int get hashCode => Object.hash(
+      id,
+      isOnboardingCompleted,
+      performanceProfile,
+      themeMode,
+      lyricsAlignment,
+      lyricsFontSize,
+      lyricsBlurEnabled,
+      lyricsHighlightWords);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3431,7 +3569,11 @@ class AppPreferencesRow extends DataClass
           other.id == this.id &&
           other.isOnboardingCompleted == this.isOnboardingCompleted &&
           other.performanceProfile == this.performanceProfile &&
-          other.themeMode == this.themeMode);
+          other.themeMode == this.themeMode &&
+          other.lyricsAlignment == this.lyricsAlignment &&
+          other.lyricsFontSize == this.lyricsFontSize &&
+          other.lyricsBlurEnabled == this.lyricsBlurEnabled &&
+          other.lyricsHighlightWords == this.lyricsHighlightWords);
 }
 
 class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
@@ -3439,17 +3581,29 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
   final Value<bool> isOnboardingCompleted;
   final Value<PerformanceProfile> performanceProfile;
   final Value<AppThemeMode> themeMode;
+  final Value<LyricsAlignment> lyricsAlignment;
+  final Value<LyricsFontSize> lyricsFontSize;
+  final Value<bool> lyricsBlurEnabled;
+  final Value<bool> lyricsHighlightWords;
   const AppPreferencesTableCompanion({
     this.id = const Value.absent(),
     this.isOnboardingCompleted = const Value.absent(),
     this.performanceProfile = const Value.absent(),
     this.themeMode = const Value.absent(),
+    this.lyricsAlignment = const Value.absent(),
+    this.lyricsFontSize = const Value.absent(),
+    this.lyricsBlurEnabled = const Value.absent(),
+    this.lyricsHighlightWords = const Value.absent(),
   });
   AppPreferencesTableCompanion.insert({
     this.id = const Value.absent(),
     this.isOnboardingCompleted = const Value.absent(),
     required PerformanceProfile performanceProfile,
     required AppThemeMode themeMode,
+    this.lyricsAlignment = const Value.absent(),
+    this.lyricsFontSize = const Value.absent(),
+    this.lyricsBlurEnabled = const Value.absent(),
+    this.lyricsHighlightWords = const Value.absent(),
   })  : performanceProfile = Value(performanceProfile),
         themeMode = Value(themeMode);
   static Insertable<AppPreferencesRow> custom({
@@ -3457,6 +3611,10 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
     Expression<bool>? isOnboardingCompleted,
     Expression<String>? performanceProfile,
     Expression<String>? themeMode,
+    Expression<String>? lyricsAlignment,
+    Expression<String>? lyricsFontSize,
+    Expression<bool>? lyricsBlurEnabled,
+    Expression<bool>? lyricsHighlightWords,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3464,6 +3622,11 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
         'is_onboarding_completed': isOnboardingCompleted,
       if (performanceProfile != null) 'performance_profile': performanceProfile,
       if (themeMode != null) 'theme_mode': themeMode,
+      if (lyricsAlignment != null) 'lyrics_alignment': lyricsAlignment,
+      if (lyricsFontSize != null) 'lyrics_font_size': lyricsFontSize,
+      if (lyricsBlurEnabled != null) 'lyrics_blur_enabled': lyricsBlurEnabled,
+      if (lyricsHighlightWords != null)
+        'lyrics_highlight_words': lyricsHighlightWords,
     });
   }
 
@@ -3471,13 +3634,21 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
       {Value<int>? id,
       Value<bool>? isOnboardingCompleted,
       Value<PerformanceProfile>? performanceProfile,
-      Value<AppThemeMode>? themeMode}) {
+      Value<AppThemeMode>? themeMode,
+      Value<LyricsAlignment>? lyricsAlignment,
+      Value<LyricsFontSize>? lyricsFontSize,
+      Value<bool>? lyricsBlurEnabled,
+      Value<bool>? lyricsHighlightWords}) {
     return AppPreferencesTableCompanion(
       id: id ?? this.id,
       isOnboardingCompleted:
           isOnboardingCompleted ?? this.isOnboardingCompleted,
       performanceProfile: performanceProfile ?? this.performanceProfile,
       themeMode: themeMode ?? this.themeMode,
+      lyricsAlignment: lyricsAlignment ?? this.lyricsAlignment,
+      lyricsFontSize: lyricsFontSize ?? this.lyricsFontSize,
+      lyricsBlurEnabled: lyricsBlurEnabled ?? this.lyricsBlurEnabled,
+      lyricsHighlightWords: lyricsHighlightWords ?? this.lyricsHighlightWords,
     );
   }
 
@@ -3500,6 +3671,23 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
       map['theme_mode'] = Variable<String>(
           $AppPreferencesTableTable.$converterthemeMode.toSql(themeMode.value));
     }
+    if (lyricsAlignment.present) {
+      map['lyrics_alignment'] = Variable<String>($AppPreferencesTableTable
+          .$converterlyricsAlignment
+          .toSql(lyricsAlignment.value));
+    }
+    if (lyricsFontSize.present) {
+      map['lyrics_font_size'] = Variable<String>($AppPreferencesTableTable
+          .$converterlyricsFontSize
+          .toSql(lyricsFontSize.value));
+    }
+    if (lyricsBlurEnabled.present) {
+      map['lyrics_blur_enabled'] = Variable<bool>(lyricsBlurEnabled.value);
+    }
+    if (lyricsHighlightWords.present) {
+      map['lyrics_highlight_words'] =
+          Variable<bool>(lyricsHighlightWords.value);
+    }
     return map;
   }
 
@@ -3509,7 +3697,11 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
           ..write('id: $id, ')
           ..write('isOnboardingCompleted: $isOnboardingCompleted, ')
           ..write('performanceProfile: $performanceProfile, ')
-          ..write('themeMode: $themeMode')
+          ..write('themeMode: $themeMode, ')
+          ..write('lyricsAlignment: $lyricsAlignment, ')
+          ..write('lyricsFontSize: $lyricsFontSize, ')
+          ..write('lyricsBlurEnabled: $lyricsBlurEnabled, ')
+          ..write('lyricsHighlightWords: $lyricsHighlightWords')
           ..write(')'))
         .toString();
   }
@@ -6506,6 +6698,10 @@ typedef $$AppPreferencesTableTableCreateCompanionBuilder
   Value<bool> isOnboardingCompleted,
   required PerformanceProfile performanceProfile,
   required AppThemeMode themeMode,
+  Value<LyricsAlignment> lyricsAlignment,
+  Value<LyricsFontSize> lyricsFontSize,
+  Value<bool> lyricsBlurEnabled,
+  Value<bool> lyricsHighlightWords,
 });
 typedef $$AppPreferencesTableTableUpdateCompanionBuilder
     = AppPreferencesTableCompanion Function({
@@ -6513,6 +6709,10 @@ typedef $$AppPreferencesTableTableUpdateCompanionBuilder
   Value<bool> isOnboardingCompleted,
   Value<PerformanceProfile> performanceProfile,
   Value<AppThemeMode> themeMode,
+  Value<LyricsAlignment> lyricsAlignment,
+  Value<LyricsFontSize> lyricsFontSize,
+  Value<bool> lyricsBlurEnabled,
+  Value<bool> lyricsHighlightWords,
 });
 
 class $$AppPreferencesTableTableFilterComposer
@@ -6540,6 +6740,24 @@ class $$AppPreferencesTableTableFilterComposer
       get themeMode => $composableBuilder(
           column: $table.themeMode,
           builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnWithTypeConverterFilters<LyricsAlignment, LyricsAlignment, String>
+      get lyricsAlignment => $composableBuilder(
+          column: $table.lyricsAlignment,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnWithTypeConverterFilters<LyricsFontSize, LyricsFontSize, String>
+      get lyricsFontSize => $composableBuilder(
+          column: $table.lyricsFontSize,
+          builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<bool> get lyricsBlurEnabled => $composableBuilder(
+      column: $table.lyricsBlurEnabled,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get lyricsHighlightWords => $composableBuilder(
+      column: $table.lyricsHighlightWords,
+      builder: (column) => ColumnFilters(column));
 }
 
 class $$AppPreferencesTableTableOrderingComposer
@@ -6564,6 +6782,22 @@ class $$AppPreferencesTableTableOrderingComposer
 
   ColumnOrderings<String> get themeMode => $composableBuilder(
       column: $table.themeMode, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get lyricsAlignment => $composableBuilder(
+      column: $table.lyricsAlignment,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get lyricsFontSize => $composableBuilder(
+      column: $table.lyricsFontSize,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get lyricsBlurEnabled => $composableBuilder(
+      column: $table.lyricsBlurEnabled,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get lyricsHighlightWords => $composableBuilder(
+      column: $table.lyricsHighlightWords,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$AppPreferencesTableTableAnnotationComposer
@@ -6587,6 +6821,20 @@ class $$AppPreferencesTableTableAnnotationComposer
 
   GeneratedColumnWithTypeConverter<AppThemeMode, String> get themeMode =>
       $composableBuilder(column: $table.themeMode, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<LyricsAlignment, String>
+      get lyricsAlignment => $composableBuilder(
+          column: $table.lyricsAlignment, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<LyricsFontSize, String> get lyricsFontSize =>
+      $composableBuilder(
+          column: $table.lyricsFontSize, builder: (column) => column);
+
+  GeneratedColumn<bool> get lyricsBlurEnabled => $composableBuilder(
+      column: $table.lyricsBlurEnabled, builder: (column) => column);
+
+  GeneratedColumn<bool> get lyricsHighlightWords => $composableBuilder(
+      column: $table.lyricsHighlightWords, builder: (column) => column);
 }
 
 class $$AppPreferencesTableTableTableManager extends RootTableManager<
@@ -6623,24 +6871,40 @@ class $$AppPreferencesTableTableTableManager extends RootTableManager<
             Value<bool> isOnboardingCompleted = const Value.absent(),
             Value<PerformanceProfile> performanceProfile = const Value.absent(),
             Value<AppThemeMode> themeMode = const Value.absent(),
+            Value<LyricsAlignment> lyricsAlignment = const Value.absent(),
+            Value<LyricsFontSize> lyricsFontSize = const Value.absent(),
+            Value<bool> lyricsBlurEnabled = const Value.absent(),
+            Value<bool> lyricsHighlightWords = const Value.absent(),
           }) =>
               AppPreferencesTableCompanion(
             id: id,
             isOnboardingCompleted: isOnboardingCompleted,
             performanceProfile: performanceProfile,
             themeMode: themeMode,
+            lyricsAlignment: lyricsAlignment,
+            lyricsFontSize: lyricsFontSize,
+            lyricsBlurEnabled: lyricsBlurEnabled,
+            lyricsHighlightWords: lyricsHighlightWords,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
             Value<bool> isOnboardingCompleted = const Value.absent(),
             required PerformanceProfile performanceProfile,
             required AppThemeMode themeMode,
+            Value<LyricsAlignment> lyricsAlignment = const Value.absent(),
+            Value<LyricsFontSize> lyricsFontSize = const Value.absent(),
+            Value<bool> lyricsBlurEnabled = const Value.absent(),
+            Value<bool> lyricsHighlightWords = const Value.absent(),
           }) =>
               AppPreferencesTableCompanion.insert(
             id: id,
             isOnboardingCompleted: isOnboardingCompleted,
             performanceProfile: performanceProfile,
             themeMode: themeMode,
+            lyricsAlignment: lyricsAlignment,
+            lyricsFontSize: lyricsFontSize,
+            lyricsBlurEnabled: lyricsBlurEnabled,
+            lyricsHighlightWords: lyricsHighlightWords,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

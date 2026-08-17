@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:nexo/domain/entities/repeat_mode.dart';
+import '../../domain/entities/app_preferences.dart';
+import '../providers/app_preferences_provider.dart';
 import '../providers/lyrics_provider.dart';
 import '../../domain/entities/lyric_line.dart';
 import '../../domain/entities/lyric_segment.dart';
@@ -31,6 +34,7 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
 
 class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   bool _showLyrics = false;
+  bool _isFullScreen = false;
   final ScrollController _lyricsScrollController = ScrollController();
 
   @override
@@ -43,6 +47,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final minutes = d.inMinutes;
     final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  void _toggleFullScreen() {
+    setState(() {
+      _isFullScreen = !_isFullScreen;
+    });
   }
 
   @override
@@ -64,7 +74,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         (id: currentSong.id.value, type: ItemType.song)));
     final interaction = interactionAsync.valueOrNull;
 
-    // FIX: Wrap AppBar in GestureDetector to allow swipe-down to close
     final appBar = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onVerticalDragUpdate: widget.onVerticalDragUpdate,
@@ -86,7 +95,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 ? PhosphorIconsRegular.image
                 : PhosphorIconsRegular.microphoneStage),
             tooltip: _showLyrics ? 'Show Cover' : 'Show Lyrics',
-            onPressed: () => setState(() => _showLyrics = !_showLyrics),
+            onPressed: () {
+              setState(() {
+                _showLyrics = !_showLyrics;
+                if (!_showLyrics) _isFullScreen = false;
+              });
+            },
           ),
           IconButton(
             icon: const Icon(PhosphorIconsRegular.listDashes),
@@ -98,26 +112,30 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       ),
     );
 
-    // FIX: Wrap CoverArt in GestureDetector to allow swipe-down to close
     final lyricsList = ref.watch(lyricsProvider).valueOrNull ?? const [];
     final currentLyricIndex = ref.watch(currentLyricIndexProvider);
     final currentSegment = ref.watch(currentLyricSegmentProvider);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (currentLyricIndex >= 0 &&
-          currentLyricIndex < lyricsList.length &&
+    final prefs = ref.watch(appPreferencesProvider);
+    final double itemExtent = switch (prefs.lyricsFontSize) {
+      LyricsFontSize.small => 70.0,
+      LyricsFontSize.medium => 84.0,
+      LyricsFontSize.large => 96.0,
+      LyricsFontSize.extraLarge => 110.0,
+    };
+
+    ref.listen<int>(currentLyricIndexProvider, (previous, next) {
+      if (previous != next &&
+          next >= 0 &&
+          next < lyricsList.length &&
           _lyricsScrollController.hasClients) {
-        final viewportHeight =
-            _lyricsScrollController.position.viewportDimension;
-        const itemExtent = 72.0;
-        final targetOffset = (currentLyricIndex * itemExtent) -
-            (viewportHeight / 2) +
-            (itemExtent / 2);
+        final targetOffset = next * itemExtent;
         final maxOffset = _lyricsScrollController.position.maxScrollExtent;
         final offset = targetOffset.clamp(0.0, maxOffset);
+
         _lyricsScrollController.animateTo(
           offset,
-          duration: const Duration(milliseconds: 250),
+          duration: const Duration(milliseconds: 400),
           curve: Curves.easeOutCubic,
         );
       }
@@ -138,6 +156,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 currentIndex: currentLyricIndex,
                 activeSegment: currentSegment,
                 scrollController: _lyricsScrollController,
+                onToggleFullScreen: _toggleFullScreen,
+                isFullScreen: _isFullScreen,
+                itemExtent: itemExtent,
               )
             : Hero(
                 tag: 'cover_${currentSong.id.value}',
@@ -336,44 +357,85 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              appBar,
-              Expanded(
-                child: OrientationBuilder(
-                  builder: (context, orientation) {
-                    if (orientation == Orientation.landscape) {
-                      return Row(
+          child: OrientationBuilder(
+            builder: (context, orientation) {
+              if (orientation == Orientation.landscape) {
+                return Column(
+                  children: [
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOutCubic,
+                      child: _isFullScreen
+                          ? const SizedBox(width: double.infinity, height: 0)
+                          : appBar,
+                    ),
+                    Expanded(
+                      child: Row(
                         children: [
                           Expanded(
-                              child: Padding(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(32, 0, 16, 32),
-                                  child: coverWidget)),
-                          Expanded(
-                              child: Padding(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(16, 0, 32, 32),
-                                  child: controlsWidget)),
+                            flex: _isFullScreen ? 2 : 1,
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(32, 0, _isFullScreen ? 32 : 16, 32),
+                              child: coverWidget,
+                            ),
+                          ),
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOutCubic,
+                            child: _isFullScreen
+                                ? const SizedBox(width: 0)
+                                : SizedBox(
+                                    width: MediaQuery.of(context).size.width / 2,
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(16, 0, 32, 32),
+                                      child: controlsWidget,
+                                    ),
+                                  ),
+                          ),
                         ],
-                      );
-                    } else {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                        child: Column(
-                          children: [
-                            Expanded(child: coverWidget),
-                            const SizedBox(height: 40),
-                            controlsWidget,
-                            const SizedBox(height: 32),
-                          ],
-                        ),
-                      );
-                    }
-                  },
-                ),
-              ),
-            ],
+                      ),
+                    ),
+                  ],
+                );
+              } else {
+                return Column(
+                  children: [
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOutCubic,
+                      child: _isFullScreen
+                          ? const SizedBox(width: double.infinity, height: 0)
+                          : appBar,
+                    ),
+                    Expanded(
+                      child: AnimatedPadding(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOutCubic,
+                        padding: EdgeInsets.symmetric(
+                            horizontal: _isFullScreen ? 16.0 : 32.0),
+                        child: coverWidget,
+                      ),
+                    ),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOutCubic,
+                      child: _isFullScreen
+                          ? const SizedBox(width: double.infinity, height: 0)
+                          : Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                              child: Column(
+                                children: [
+                                  const SizedBox(height: 40),
+                                  controlsWidget,
+                                  const SizedBox(height: 32),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ],
+                );
+              }
+            },
           ),
         ),
       ),
@@ -421,6 +483,9 @@ class _LyricsView extends ConsumerWidget {
     required this.currentIndex,
     required this.activeSegment,
     required this.scrollController,
+    required this.onToggleFullScreen,
+    required this.isFullScreen,
+    required this.itemExtent,
   });
 
   final WidgetRef ref;
@@ -428,108 +493,213 @@ class _LyricsView extends ConsumerWidget {
   final int currentIndex;
   final LyricSegment? activeSegment;
   final ScrollController scrollController;
-
-  static const double itemExtent = 72.0;
+  final VoidCallback onToggleFullScreen;
+  final bool isFullScreen;
+  final double itemExtent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final prefs = ref.watch(appPreferencesProvider);
+
+    final textAlign = switch (prefs.lyricsAlignment) {
+      LyricsAlignment.left => TextAlign.left,
+      LyricsAlignment.center => TextAlign.center,
+      LyricsAlignment.right => TextAlign.right,
+      LyricsAlignment.justify => TextAlign.justify,
+    };
+
+    final wrapAlignment = switch (prefs.lyricsAlignment) {
+      LyricsAlignment.left => WrapAlignment.start,
+      LyricsAlignment.center => WrapAlignment.center,
+      LyricsAlignment.right => WrapAlignment.end,
+      LyricsAlignment.justify => WrapAlignment.spaceBetween,
+    };
+
+    final crossAxisAlignment = switch (prefs.lyricsAlignment) {
+      LyricsAlignment.left => CrossAxisAlignment.start,
+      LyricsAlignment.center => CrossAxisAlignment.center,
+      LyricsAlignment.right => CrossAxisAlignment.end,
+      LyricsAlignment.justify => CrossAxisAlignment.stretch,
+    };
+
+    final baseFontSize = switch (prefs.lyricsFontSize) {
+      LyricsFontSize.small => 14.0,
+      LyricsFontSize.medium => 18.0,
+      LyricsFontSize.large => 22.0,
+      LyricsFontSize.extraLarge => 26.0,
+    };
+
     if (lines.isEmpty) {
-      return Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          color: Theme.of(context)
-              .colorScheme
-              .surfaceContainerHighest
-              .withValues(alpha: 0.5),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                PhosphorIconsRegular.microphoneStage,
-                size: 48,
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.5),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No synchronized lyrics found.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
+      return GestureDetector(
+        onTap: onToggleFullScreen,
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  PhosphorIconsRegular.microphoneStage,
+                  size: 48,
+                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No synchronized lyrics found.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withValues(alpha: 0.3),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-      child: ListView.builder(
-        controller: scrollController,
-        itemCount: lines.length,
-        itemExtent: itemExtent,
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        itemBuilder: (context, index) {
-          final line = lines[index];
-          final isActive = index == currentIndex;
-          final theme = Theme.of(context);
-          final currentLineActiveSegment = isActive ? activeSegment : null;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final verticalPadding = (constraints.maxHeight - itemExtent) / 2;
 
-          final lyricText = line.segments.length > 1
-              ? Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 4,
-                  runSpacing: 8,
-                  children: [
-                    for (var i = 0; i < line.segments.length; i++)
-                      _LyricSegmentChip(
-                        segment: line.segments[i],
-                        isActive: currentLineActiveSegment == line.segments[i],
-                        theme: theme,
-                      ),
-                  ],
-                )
-              : Text(
-                  line.fullText,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                    color: isActive
-                        ? theme.colorScheme.onPrimaryContainer
-                        : theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                    fontSize: isActive ? 18 : 16,
+        return Stack(
+          children: [
+            GestureDetector(
+              onTap: onToggleFullScreen,
+              behavior: HitTestBehavior.translucent,
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: lines.length,
+                  itemExtent: itemExtent,
+                  padding: EdgeInsets.symmetric(
+                    vertical: verticalPadding > 0 ? verticalPadding : 32.0,
                   ),
-                  textAlign: TextAlign.center,
-                );
+                  itemBuilder: (context, index) {
+                    final line = lines[index];
+                    final isActive = index == currentIndex;
+                    final distance = (index - currentIndex).abs();
+                    final currentLineActiveSegment = isActive ? activeSegment : null;
 
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            decoration: BoxDecoration(
-              color: isActive
-                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
+                    final double blurSigma = prefs.lyricsBlurEnabled
+                        ? (isActive ? 0.0 : (distance * 0.8).clamp(0.0, 3.0))
+                        : 0.0;
+                    final double opacity = isActive
+                        ? 1.0
+                        : (1.0 - (distance * 0.18)).clamp(0.25, 0.75);
+                    final double scale = isActive ? 1.0 : 0.96;
+
+                    final useWordSync = prefs.lyricsHighlightWords && line.segments.length > 1;
+
+                    final lyricText = useWordSync
+                        ? Wrap(
+                            alignment: wrapAlignment,
+                            spacing: 5,
+                            runSpacing: 8,
+                            children: [
+                              for (var i = 0; i < line.segments.length; i++)
+                                _LyricSegmentChip(
+                                  segment: line.segments[i],
+                                  isActive: currentLineActiveSegment == line.segments[i],
+                                  theme: theme,
+                                  fontSize: baseFontSize,
+                                ),
+                            ],
+                          )
+                        : Text(
+                            line.fullText,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                              color: isActive
+                                  ? theme.colorScheme.onPrimaryContainer
+                                  : theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                              fontSize: isActive ? baseFontSize : baseFontSize - 2,
+                              height: 1.4,
+                            ),
+                            textAlign: textAlign,
+                          );
+
+                    Widget lineContent = Center(child: lyricText);
+
+                    if (blurSigma > 0.0) {
+                      lineContent = ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+                        child: lineContent,
+                      );
+                    }
+
+                    return GestureDetector(
+                      onTap: () {
+                        ref.read(playbackControllerProvider.notifier).seekTo(line.lineTimestamp);
+                      },
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 250),
+                        opacity: opacity,
+                        child: AnimatedScale(
+                          duration: const Duration(milliseconds: 250),
+                          scale: scale,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: isActive
+                                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: crossAxisAlignment,
+                              children: [lineContent],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
-            child: lyricText,
-          );
-        },
-      ),
+            
+            // Full Screen Toggle Button
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                icon: Icon(
+                  isFullScreen ? PhosphorIconsRegular.cornersIn : PhosphorIconsRegular.cornersOut,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                tooltip: isFullScreen ? 'Exit Full Screen' : 'Full Screen',
+                onPressed: onToggleFullScreen,
+              ),
+            ),
+
+            // Offset Controls
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOutCubic,
+              bottom: isFullScreen ? 16 : -70,
+              right: 16,
+              child: const _OffsetControls(),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -539,22 +709,116 @@ class _LyricSegmentChip extends StatelessWidget {
     required this.segment,
     required this.isActive,
     required this.theme,
+    required this.fontSize,
   });
 
   final LyricSegment segment;
   final bool isActive;
   final ThemeData theme;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      segment.text,
-      style: theme.textTheme.bodyLarge?.copyWith(
-        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+    return AnimatedDefaultTextStyle(
+      duration: const Duration(milliseconds: 150),
+      style: theme.textTheme.bodyLarge!.copyWith(
+        fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
         color: isActive
             ? theme.colorScheme.primary
-            : theme.colorScheme.onSurface.withValues(alpha: 0.7),
-        fontSize: isActive ? 18 : 16,
+            : theme.colorScheme.onSurface.withValues(alpha: 0.75),
+        fontSize: isActive ? fontSize + 0.5 : fontSize,
+        height: 1.4,
+      ),
+      child: Text(segment.text),
+    );
+  }
+}
+
+class _OffsetControls extends ConsumerWidget {
+  const _OffsetControls();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final offset = ref.watch(lyricOffsetProvider);
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.95),
+      borderRadius: BorderRadius.circular(32),
+      elevation: 6,
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(PhosphorIconsRegular.caretDoubleLeft, size: 16),
+              tooltip: 'Delay -1.0s',
+              visualDensity: VisualDensity.compact,
+              onPressed: () {
+                final current = ref.read(lyricOffsetProvider);
+                if (current > -5000) {
+                  ref.read(lyricOffsetProvider.notifier).state =
+                      (current - 1000).clamp(-5000, 5000);
+                }
+              },
+            ),
+            IconButton(
+              icon: const Icon(PhosphorIconsRegular.minus, size: 16),
+              tooltip: 'Delay -0.1s',
+              visualDensity: VisualDensity.compact,
+              onPressed: () {
+                final current = ref.read(lyricOffsetProvider);
+                if (current > -5000) {
+                  ref.read(lyricOffsetProvider.notifier).state =
+                      (current - 100).clamp(-5000, 5000);
+                }
+              },
+            ),
+            InkWell(
+              onTap: () => ref.read(lyricOffsetProvider.notifier).state = 0,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                child: Text(
+                  '${offset > 0 ? '+' : ''}${(offset / 1000).toStringAsFixed(1)}s',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    fontWeight: FontWeight.bold,
+                    color: offset == 0
+                        ? theme.colorScheme.onSurfaceVariant
+                        : theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(PhosphorIconsRegular.plus, size: 16),
+              tooltip: 'Advance +0.1s',
+              visualDensity: VisualDensity.compact,
+              onPressed: () {
+                final current = ref.read(lyricOffsetProvider);
+                if (current < 5000) {
+                  ref.read(lyricOffsetProvider.notifier).state =
+                      (current + 100).clamp(-5000, 5000);
+                }
+              },
+            ),
+            IconButton(
+              icon: const Icon(PhosphorIconsRegular.caretDoubleRight, size: 16),
+              tooltip: 'Advance +1.0s',
+              visualDensity: VisualDensity.compact,
+              onPressed: () {
+                final current = ref.read(lyricOffsetProvider);
+                if (current < 5000) {
+                  ref.read(lyricOffsetProvider.notifier).state =
+                      (current + 1000).clamp(-5000, 5000);
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -18,6 +18,39 @@ import 'library/folder_management_screen.dart';
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
+  Future<void> _executeBackup(
+    BuildContext loadingCtx,
+    BuildContext mainCtx,
+    WidgetRef ref,
+    bool includeLibrary,
+    bool includePlaylists,
+    bool includeSettings,
+    String destinationDirectory,
+  ) async {
+    final backupPath = await ref.read(backupControllerProvider).createBackup(
+          includeLibrary: includeLibrary,
+          includePlaylists: includePlaylists,
+          includeSettings: includeSettings,
+          destinationDirectory: destinationDirectory,
+        );
+
+    if (loadingCtx.mounted) {
+      Navigator.pop(loadingCtx);
+    }
+
+    if (!mainCtx.mounted) return;
+
+    if (backupPath == null) {
+      ScaffoldMessenger.of(mainCtx).showSnackBar(
+        const SnackBar(content: Text('Backup creation failed.')),
+      );
+    } else {
+      ScaffoldMessenger.of(mainCtx).showSnackBar(
+        SnackBar(content: Text('Backup saved to: $backupPath')),
+      );
+    }
+  }
+
   Future<void> _showBackupDialog(BuildContext context, WidgetRef ref) async {
     final destinationDirectory = await FilePicker.platform.getDirectoryPath();
     if (destinationDirectory == null || !context.mounted) {
@@ -30,7 +63,7 @@ class SettingsScreen extends ConsumerWidget {
 
     await showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
+      builder: (dialogCtx) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: const Text('Create Backup'),
           content: Column(
@@ -65,54 +98,45 @@ class SettingsScreen extends ConsumerWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogCtx),
               child: const Text('Cancel'),
             ),
             FilledButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                if (!context.mounted) return;
-
+              onPressed: () {
+                Navigator.pop(dialogCtx);
+                
                 unawaited(
                   showDialog(
                     context: context,
                     barrierDismissible: false,
-                    builder: (context) => const AlertDialog(
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 16),
-                          Text('Creating backup...'),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
+                    builder: (loadingCtx) {
+                      unawaited(_executeBackup(
+                        loadingCtx,
+                        context,
+                        ref,
+                        includeLibrary,
+                        includePlaylists,
+                        includeSettings,
+                        destinationDirectory,
+                      ));
 
-                final backupPath =
-                    await ref.read(backupControllerProvider).createBackup(
-                          includeLibrary: includeLibrary,
-                          includePlaylists: includePlaylists,
-                          includeSettings: includeSettings,
-                          destinationDirectory: destinationDirectory,
-                        );
-
-                if (!context.mounted) return;
-                Navigator.pop(context);
-
-                if (backupPath == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Backup creation failed.'),
-                    ),
-                  );
-                  return;
-                }
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Backup saved to: $backupPath'),
+                      return const AlertDialog(
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('Creating backup...'),
+                            SizedBox(height: 8),
+                            Text(
+                              'This may take a few minutes depending on your library size.',
+                              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 );
               },
@@ -162,26 +186,39 @@ class SettingsScreen extends ConsumerWidget {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Restoring backup...'),
-            ],
-          ),
-        ),
+        builder: (loadingCtx) {
+          unawaited(_executeRestore(loadingCtx, context, ref, path));
+          return const AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Restoring backup...'),
+              ],
+            ),
+          );
+        },
       ),
     );
+  }
 
+  Future<void> _executeRestore(
+    BuildContext loadingCtx,
+    BuildContext mainCtx,
+    WidgetRef ref,
+    String path,
+  ) async {
     final error = await ref.read(backupControllerProvider).restoreBackup(path);
 
-    if (!context.mounted) return;
-    Navigator.pop(context);
+    if (loadingCtx.mounted) {
+      Navigator.pop(loadingCtx);
+    }
+
+    if (!mainCtx.mounted) return;
 
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(mainCtx).showSnackBar(
         SnackBar(content: Text(error)),
       );
     } else {
@@ -209,8 +246,8 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle: const Text('10-band EQ and presets'),
                 trailing: const Icon(PhosphorIconsRegular.caretRight),
                 onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const EqualizerScreen()));
+                  unawaited(Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const EqualizerScreen())));
                 },
               ),
               ListTile(
@@ -225,9 +262,9 @@ class SettingsScreen extends ConsumerWidget {
                       .toList(),
                   onChanged: (mode) {
                     if (mode != null) {
-                      controller.updateCrossfade(
+                      unawaited(controller.updateCrossfade(
                           mode, settings.crossfade.duration,
-                          isAutoDuration: settings.crossfade.isAutoDuration);
+                          isAutoDuration: settings.crossfade.isAutoDuration));
                     }
                   },
                 ),
@@ -248,19 +285,19 @@ class SettingsScreen extends ConsumerWidget {
                             ChoiceChip(
                               label: const Text('Manual'),
                               selected: !settings.crossfade.isAutoDuration,
-                              onSelected: (_) => controller.updateCrossfade(
+                              onSelected: (_) => unawaited(controller.updateCrossfade(
                                   settings.crossfade.mode,
                                   settings.crossfade.duration,
-                                  isAutoDuration: false),
+                                  isAutoDuration: false)),
                             ),
                             const SizedBox(width: 8),
                             ChoiceChip(
                               label: const Text('Auto'),
                               selected: settings.crossfade.isAutoDuration,
-                              onSelected: (_) => controller.updateCrossfade(
+                              onSelected: (_) => unawaited(controller.updateCrossfade(
                                   settings.crossfade.mode,
                                   settings.crossfade.duration,
-                                  isAutoDuration: true),
+                                  isAutoDuration: true)),
                             ),
                           ],
                         ),
@@ -276,11 +313,11 @@ class SettingsScreen extends ConsumerWidget {
                           max: 12,
                           divisions: 12,
                           label: '${settings.crossfade.duration.inSeconds}s',
-                          onChanged: (val) => controller.updateCrossfade(
+                          onChanged: (val) => unawaited(controller.updateCrossfade(
                               settings.crossfade.mode,
                               Duration(seconds: val.toInt()),
                               isAutoDuration:
-                                  settings.crossfade.isAutoDuration),
+                                  settings.crossfade.isAutoDuration)),
                         ),
                       ] else ...[
                         const Padding(
@@ -310,8 +347,8 @@ class SettingsScreen extends ConsumerWidget {
                       max: 2.0,
                       divisions: 15,
                       label: '${settings.speed.multiplier.toStringAsFixed(2)}x',
-                      onChanged: (val) => controller.updateSpeed(
-                          val, settings.speed.pitchCorrectionEnabled),
+                      onChanged: (val) => unawaited(controller.updateSpeed(
+                          val, settings.speed.pitchCorrectionEnabled)),
                     ),
                   ],
                 ),
@@ -321,7 +358,69 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle: const Text('Keep original pitch when changing speed'),
                 value: settings.speed.pitchCorrectionEnabled,
                 onChanged: (val) =>
-                    controller.updateSpeed(settings.speed.multiplier, val),
+                    unawaited(controller.updateSpeed(settings.speed.multiplier, val)),
+              ),
+              const Divider(),
+              const _SectionHeader(title: 'Lyrics & Display'),
+              ListTile(
+                leading: const Icon(PhosphorIconsRegular.textAlignCenter),
+                title: const Text('Lyrics Alignment'),
+                subtitle: Text(prefs.lyricsAlignment.name.toUpperCase()),
+                trailing: DropdownButton<LyricsAlignment>(
+                  value: prefs.lyricsAlignment,
+                  underline: const SizedBox(),
+                  items: LyricsAlignment.values
+                      .map((align) => DropdownMenuItem(
+                          value: align, child: Text(align.name.toUpperCase())))
+                      .toList(),
+                  onChanged: (align) {
+                    if (align != null) {
+                      unawaited(ref
+                          .read(appPreferencesProvider.notifier)
+                          .updateLyricsAlignment(align));
+                    }
+                  },
+                ),
+              ),
+              ListTile(
+                leading: const Icon(PhosphorIconsRegular.textT),
+                title: const Text('Lyrics Font Size'),
+                subtitle: Text(prefs.lyricsFontSize.name.toUpperCase()),
+                trailing: DropdownButton<LyricsFontSize>(
+                  value: prefs.lyricsFontSize,
+                  underline: const SizedBox(),
+                  items: LyricsFontSize.values
+                      .map((size) => DropdownMenuItem(
+                          value: size, child: Text(size.name.toUpperCase())))
+                      .toList(),
+                  onChanged: (size) {
+                    if (size != null) {
+                      unawaited(ref
+                          .read(appPreferencesProvider.notifier)
+                          .updateLyricsFontSize(size));
+                    }
+                  },
+                ),
+              ),
+              SwitchListTile(
+                secondary: const Icon(PhosphorIconsRegular.sparkle),
+                title: const Text('3D Depth & Blur Effect'),
+                subtitle: const Text(
+                    'Blurs inactive lyric lines. Disable on older hardware for maximum FPS'),
+                value: prefs.lyricsBlurEnabled,
+                onChanged: (val) => unawaited(ref
+                    .read(appPreferencesProvider.notifier)
+                    .toggleLyricsBlur(val)),
+              ),
+              SwitchListTile(
+                secondary: const Icon(PhosphorIconsRegular.textAa),
+                title: const Text('Word-by-Word Sync'),
+                subtitle: const Text(
+                    'Highlights individual syllables when available in Enhanced LRC'),
+                value: prefs.lyricsHighlightWords,
+                onChanged: (val) => unawaited(ref
+                    .read(appPreferencesProvider.notifier)
+                    .toggleLyricsHighlightWords(val)),
               ),
               const Divider(),
               const _SectionHeader(title: 'Library & Data'),
@@ -332,8 +431,8 @@ class SettingsScreen extends ConsumerWidget {
                     const Text('Add music folders or exclude directories'),
                 trailing: const Icon(PhosphorIconsRegular.caretRight),
                 onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const FolderManagementScreen()));
+                  unawaited(Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const FolderManagementScreen())));
                 },
               ),
               ListTile(
@@ -357,7 +456,7 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle: const Text(
                     'Create a backup of your library, playlists, and settings'),
                 trailing: const Icon(PhosphorIconsRegular.caretRight),
-                onTap: () => _showBackupDialog(context, ref),
+                onTap: () => unawaited(_showBackupDialog(context, ref)),
               ),
               ListTile(
                 leading: const Icon(PhosphorIconsRegular.downloadSimple),
@@ -365,7 +464,7 @@ class SettingsScreen extends ConsumerWidget {
                 subtitle:
                     const Text('Restore from a previously exported backup'),
                 trailing: const Icon(PhosphorIconsRegular.caretRight),
-                onTap: () => _handleImportBackup(context, ref),
+                onTap: () => unawaited(_handleImportBackup(context, ref)),
               ),
               const Divider(),
               const _SectionHeader(title: 'Appearance & Performance'),
@@ -382,9 +481,9 @@ class SettingsScreen extends ConsumerWidget {
                       .toList(),
                   onChanged: (mode) {
                     if (mode != null) {
-                      ref
+                      unawaited(ref
                           .read(appPreferencesProvider.notifier)
-                          .updateTheme(mode);
+                          .updateTheme(mode));
                     }
                   },
                 ),
@@ -402,9 +501,9 @@ class SettingsScreen extends ConsumerWidget {
                       .toList(),
                   onChanged: (profile) {
                     if (profile != null) {
-                      ref
+                      unawaited(ref
                           .read(appPreferencesProvider.notifier)
-                          .updateProfile(profile);
+                          .updateProfile(profile));
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                           content: Text(
                               'Restart the app to fully apply RAM limits.'),

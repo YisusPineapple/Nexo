@@ -1,26 +1,41 @@
 import '../../domain/entities/lyric_line.dart';
 import '../../domain/entities/lyric_segment.dart';
 
-/// Parser for standard and Enhanced `.lrc` files.
-/// Supports timestamps in the format `[mm:ss.xx]` or `[mm:ss]`, and also
-/// enhanced-lrc word/syllable timestamps wrapped in angle brackets, such as
-/// `<mm:ss.xx>`.
-/// Ignores metadata tags like `[ti:...]`, `[ar:...]`, etc.
+/// Parser for standard LRC and Enhanced LRC (word/syllable) files.
+/// Supports 1, 2, or 3-digit millisecond timestamps in `[mm:ss.xxx]` and `<mm:ss.xxx>`.
+/// Completely cleans speaker tags like 'v1:', 'male:', '[v1]' without damaging timestamp brackets.
 class LyricsParser {
   const LyricsParser._();
 
-  // Matches [mm:ss] / [mm:ss.xx] / <mm:ss> / <mm:ss.xx>
+  // Matches timestamps like [00:15.324], [00:15.32], [00:15], <00:15.324>, etc.
   static final RegExp _timestampRegex = RegExp(
-    r'(?:\[(\d{2}):(\d{2})(?:\.(\d{2}))?\]|<(\d{2}):(\d{2})(?:\.(\d{2}))?>)',
+    r'(?:\[|<)(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?(?:\]|>)',
   );
 
-  /// Parses the content of an LRC file and returns a list of [LyricLine].
+  // Matches metadata headers like [ti:Title], [ar:Artist], [al:Album], [length:...]
+  static final RegExp _metadataRegex = RegExp(
+    r'^\[(ti|ar|al|au|by|offset|re|ve|length|kana):',
+    caseSensitive: false,
+  );
+
+  // Matches voice/speaker tags like 'v1:', 'v2:', '[v1]', 'male:', 'female:', 'c1:', etc.
+  static final RegExp _speakerPrefixRegex = RegExp(
+    r'^(?:\[(?:v\d+|c\d+|male|female|duet|f|m|vox|voice\s*\d*)\]|\b(?:v\d+|c\d+|male|female|duet|vox|voice\s*\d*)\b[:.]?)\s*',
+    caseSensitive: false,
+  );
+
+  static String _cleanText(String text) {
+    return text.replaceFirst(_speakerPrefixRegex, '').trim();
+  }
+
+  /// Parses the raw string content of an LRC file into structured [LyricLine]s.
   static List<LyricLine> parse(String content) {
     final lines = <LyricLine>[];
 
     for (final rawLine in content.split('\n')) {
       final trimmed = rawLine.trim();
       if (trimmed.isEmpty) continue;
+      if (_metadataRegex.hasMatch(trimmed)) continue;
 
       final matches = _timestampRegex.allMatches(trimmed).toList();
       if (matches.isEmpty) continue;
@@ -29,47 +44,51 @@ class LyricsParser {
       final segments = <LyricSegment>[];
 
       if (matches.length == 1) {
-        final text = trimmed.substring(matches.first.end).trim();
+        final rawText = trimmed.substring(matches.first.end);
+        final text = _cleanText(rawText);
         if (text.isNotEmpty) {
           segments.add(LyricSegment(timestamp: lineTimestamp, text: text));
-        }
-        if (segments.isNotEmpty) {
-          lines
-              .add(LyricLine(lineTimestamp: lineTimestamp, segments: segments));
+          lines.add(LyricLine(
+            lineTimestamp: lineTimestamp,
+            segments: segments,
+            text: text,
+          ));
         }
         continue;
       }
 
+      // Enhanced LRC with multiple inline segment timestamps
       var cursor = matches.first.end;
       var currentSegmentTimestamp = lineTimestamp;
 
       for (var i = 1; i < matches.length; i++) {
         final match = matches[i];
-        final textBefore = trimmed.substring(cursor, match.start).trimRight();
+        final rawTextBefore = trimmed.substring(cursor, match.start);
+        final textBefore = _cleanText(rawTextBefore);
         if (textBefore.isNotEmpty) {
-          segments.add(
-            LyricSegment(timestamp: currentSegmentTimestamp, text: textBefore),
-          );
+          segments.add(LyricSegment(
+            timestamp: currentSegmentTimestamp,
+            text: textBefore,
+          ));
         }
-
         currentSegmentTimestamp = _durationFromMatch(match);
         cursor = match.end;
       }
 
-      final trailingText = trimmed.substring(cursor).trimLeft();
+      final rawTrailingText = trimmed.substring(cursor);
+      final trailingText = _cleanText(rawTrailingText);
       if (trailingText.isNotEmpty) {
-        segments.add(
-          LyricSegment(timestamp: currentSegmentTimestamp, text: trailingText),
-        );
+        segments.add(LyricSegment(
+          timestamp: currentSegmentTimestamp,
+          text: trailingText,
+        ));
       }
 
       if (segments.isNotEmpty) {
-        lines.add(
-          LyricLine(
-            lineTimestamp: lineTimestamp,
-            segments: segments,
-          ),
-        );
+        lines.add(LyricLine(
+          lineTimestamp: lineTimestamp,
+          segments: segments,
+        ));
       }
     }
 
@@ -78,15 +97,15 @@ class LyricsParser {
   }
 
   static Duration _durationFromMatch(Match match) {
-    final minutes = int.parse(match.group(1) ?? match.group(4)!);
-    final seconds = int.parse(match.group(2) ?? match.group(5)!);
-    final centis = (match.group(3) ?? match.group(6))?.padRight(2, '0') ?? '00';
-    final milliseconds = int.parse(centis) * 10;
+    final minutes = int.parse(match.group(1)!);
+    final seconds = int.parse(match.group(2)!);
+    final millisRaw = match.group(3) ?? '0';
+    final millis = int.parse(millisRaw.padRight(3, '0').substring(0, 3));
 
     return Duration(
       minutes: minutes,
       seconds: seconds,
-      milliseconds: milliseconds,
+      milliseconds: millis,
     );
   }
 }

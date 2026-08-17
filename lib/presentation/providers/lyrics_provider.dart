@@ -20,8 +20,11 @@ final lyricsProvider = FutureProvider<List<LyricLine>>((ref) async {
   );
 });
 
+/// State provider for the lyrics offset in milliseconds (±5000ms)
+final lyricOffsetProvider = StateProvider<int>((ref) => 0);
+
 /// Returns the index of the lyric line that should be highlighted
-/// based on the current playback position.
+/// based on the current playback position + offset.
 final currentLyricIndexProvider = Provider<int>((ref) {
   final lines = ref.watch(lyricsProvider).valueOrNull;
   if (lines == null || lines.isEmpty) return -1;
@@ -29,10 +32,13 @@ final currentLyricIndexProvider = Provider<int>((ref) {
   final position = ref.watch(positionStreamProvider).valueOrNull;
   if (position == null) return -1;
 
-  // Find the last line whose timestamp is <= current position.
+  final offsetMs = ref.watch(lyricOffsetProvider);
+  final effectivePosition = position + Duration(milliseconds: offsetMs);
+
+  // Find the last line whose timestamp is <= effective position.
   int index = -1;
   for (int i = 0; i < lines.length; i++) {
-    if (lines[i].lineTimestamp <= position) {
+    if (lines[i].lineTimestamp <= effectivePosition) {
       index = i;
     } else {
       break;
@@ -52,12 +58,15 @@ final currentLyricSegmentProvider = Provider<LyricSegment?>((ref) {
   final position = ref.watch(positionStreamProvider).valueOrNull;
   if (position == null) return null;
 
+  final offsetMs = ref.watch(lyricOffsetProvider);
+  final effectivePosition = position + Duration(milliseconds: offsetMs);
+
   final activeLine = lines[currentLineIndex];
   if (activeLine.segments.isEmpty) return null;
 
   LyricSegment? activeSegment;
   for (final segment in activeLine.segments) {
-    if (segment.timestamp <= position) {
+    if (segment.timestamp <= effectivePosition) {
       activeSegment = segment;
     } else {
       break;

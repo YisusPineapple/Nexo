@@ -1,5 +1,3 @@
-// lib/presentation/providers/app_preferences_provider.dart
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/app_preferences.dart';
 import 'repository_providers.dart';
@@ -15,8 +13,6 @@ class AppPreferencesNotifier extends Notifier<AppPreferences> {
 
   @override
   AppPreferences build() {
-    // Dart 3.2+ promotes final fields after null-check,
-    // so no '!' is needed here.
     if (_initialPrefs != null) return _initialPrefs;
     return AppPreferences.defaults;
   }
@@ -28,6 +24,26 @@ class AppPreferencesNotifier extends Notifier<AppPreferences> {
 
   Future<void> updateTheme(AppThemeMode theme) async {
     final updated = state.copyWith(themeMode: theme);
+    await _save(updated);
+  }
+
+  Future<void> updateLyricsAlignment(LyricsAlignment alignment) async {
+    final updated = state.copyWith(lyricsAlignment: alignment);
+    await _save(updated);
+  }
+
+  Future<void> updateLyricsFontSize(LyricsFontSize size) async {
+    final updated = state.copyWith(lyricsFontSize: size);
+    await _save(updated);
+  }
+
+  Future<void> toggleLyricsBlur(bool enabled) async {
+    final updated = state.copyWith(lyricsBlurEnabled: enabled);
+    await _save(updated);
+  }
+
+  Future<void> toggleLyricsHighlightWords(bool enabled) async {
+    final updated = state.copyWith(lyricsHighlightWords: enabled);
     await _save(updated);
   }
 
