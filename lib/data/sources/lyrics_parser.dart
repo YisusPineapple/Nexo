@@ -34,7 +34,8 @@ class LyricsParser {
           segments.add(LyricSegment(timestamp: lineTimestamp, text: text));
         }
         if (segments.isNotEmpty) {
-          lines.add(LyricLine(lineTimestamp: lineTimestamp, segments: segments));
+          lines
+              .add(LyricLine(lineTimestamp: lineTimestamp, segments: segments));
         }
         continue;
       }

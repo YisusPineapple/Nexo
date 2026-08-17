@@ -39,9 +39,11 @@ class LyricLine {
           _segmentsEqual(other.segments, segments));
 
   @override
-  int get hashCode => Object.hash(lineTimestamp, text, Object.hashAll(segments));
+  int get hashCode =>
+      Object.hash(lineTimestamp, text, Object.hashAll(segments));
 
-  static bool _segmentsEqual(List<LyricSegment> left, List<LyricSegment> right) {
+  static bool _segmentsEqual(
+      List<LyricSegment> left, List<LyricSegment> right) {
     if (left.length != right.length) return false;
     for (var i = 0; i < left.length; i++) {
       if (left[i] != right[i]) return false;

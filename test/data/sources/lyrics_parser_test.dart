@@ -9,7 +9,8 @@ void main() {
       final lines = LyricsParser.parse(content);
 
       expect(lines.length, 1);
-      expect(lines.first.lineTimestamp, const Duration(seconds: 10, milliseconds: 500));
+      expect(lines.first.lineTimestamp,
+          const Duration(seconds: 10, milliseconds: 500));
       expect(lines.first.segments, [
         const LyricSegment(
           timestamp: Duration(seconds: 10, milliseconds: 500),
@@ -27,7 +28,8 @@ void main() {
       expect(lines.first.lineTimestamp, const Duration(seconds: 5));
       expect(lines.first.segments, [
         const LyricSegment(timestamp: Duration(seconds: 5), text: 'Hello'),
-        const LyricSegment(timestamp: Duration(seconds: 6, milliseconds: 500), text: 'world'),
+        const LyricSegment(
+            timestamp: Duration(seconds: 6, milliseconds: 500), text: 'world'),
         const LyricSegment(timestamp: Duration(seconds: 8), text: 'again'),
       ]);
       expect(lines.first.fullText, 'Hello world again');
