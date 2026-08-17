@@ -20,20 +20,21 @@ import '../../domain/repositories/song_repository.dart';
 import '../../domain/repositories/user_metrics_repository.dart';
 import '../../domain/repositories/lyrics_repository.dart';
 
-
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   throw UnimplementedError('appDatabaseProvider must be overridden in main()');
 });
 
 final coverArtCacheDirectoryProvider = Provider<String>((ref) {
-  throw UnimplementedError('coverArtCacheDirectoryProvider must be overridden in main()');
+  throw UnimplementedError(
+      'coverArtCacheDirectoryProvider must be overridden in main()');
 });
 
 final audioHandlerProvider = Provider<NexoAudioHandler>((ref) {
   throw UnimplementedError('audioHandlerProvider must be overridden in main()');
 });
 
-final libraryFolderRepositoryProvider = Provider<LibraryFolderRepository>((ref) {
+final libraryFolderRepositoryProvider =
+    Provider<LibraryFolderRepository>((ref) {
   return LibraryFolderRepositoryImpl(ref.watch(appDatabaseProvider));
 });
 
@@ -57,7 +58,8 @@ final userMetricsRepositoryProvider = Provider<UserMetricsRepository>((ref) {
   return UserMetricsRepositoryImpl(ref.watch(appDatabaseProvider));
 });
 
-final appPreferencesRepositoryProvider = Provider<AppPreferencesRepository>((ref) {
+final appPreferencesRepositoryProvider =
+    Provider<AppPreferencesRepository>((ref) {
   return AppPreferencesRepositoryImpl(ref.watch(appDatabaseProvider));
 });
 

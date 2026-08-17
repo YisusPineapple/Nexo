@@ -6,6 +6,7 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:nexo/domain/entities/repeat_mode.dart';
 import '../providers/lyrics_provider.dart';
 import '../../domain/entities/lyric_line.dart';
+import '../../domain/entities/lyric_segment.dart';
 
 import '../../domain/entities/item_interaction.dart';
 import '../providers/playback_providers.dart';
@@ -48,7 +49,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   Widget build(BuildContext context) {
     final queue = ref.watch(playbackControllerProvider).valueOrNull;
     final isPlaying = ref.watch(playingStreamProvider).valueOrNull ?? false;
-    final position = ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
+    final position =
+        ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
 
     final currentSong = queue?.currentSong;
 
@@ -58,7 +60,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
     final duration = currentSong.duration;
     final theme = Theme.of(context);
-    final interactionAsync = ref.watch(itemInteractionProvider((id: currentSong.id.value, type: ItemType.song)));
+    final interactionAsync = ref.watch(itemInteractionProvider(
+        (id: currentSong.id.value, type: ItemType.song)));
     final interaction = interactionAsync.valueOrNull;
 
     // FIX: Wrap AppBar in GestureDetector to allow swipe-down to close
@@ -73,18 +76,23 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           icon: const Icon(PhosphorIconsRegular.caretDown),
           onPressed: widget.onClose ?? () => Navigator.of(context).pop(),
         ),
-        title: Text('Now Playing', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+        title: Text('Now Playing',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w600)),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(_showLyrics ? PhosphorIconsRegular.image : PhosphorIconsRegular.microphoneStage),
+            icon: Icon(_showLyrics
+                ? PhosphorIconsRegular.image
+                : PhosphorIconsRegular.microphoneStage),
             tooltip: _showLyrics ? 'Show Cover' : 'Show Lyrics',
             onPressed: () => setState(() => _showLyrics = !_showLyrics),
           ),
           IconButton(
             icon: const Icon(PhosphorIconsRegular.listDashes),
             tooltip: 'Playback Queue',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const QueueScreen())),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const QueueScreen())),
           ),
         ],
       ),
@@ -93,13 +101,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     // FIX: Wrap CoverArt in GestureDetector to allow swipe-down to close
     final lyricsList = ref.watch(lyricsProvider).valueOrNull ?? const [];
     final currentLyricIndex = ref.watch(currentLyricIndexProvider);
+    final currentSegment = ref.watch(currentLyricSegmentProvider);
 
     // Auto-scroll cuando cambia la línea actual.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (currentLyricIndex >= 0 &&
           currentLyricIndex < lyricsList.length &&
           _lyricsScrollController.hasClients) {
-        final targetOffset = currentLyricIndex * 72.0; // ajustar según altura de cada item
+        final targetOffset =
+            currentLyricIndex * 72.0; // ajustar según altura de cada item
         final maxOffset = _lyricsScrollController.position.maxScrollExtent;
         final offset = targetOffset.clamp(0.0, maxOffset);
         _lyricsScrollController.animateTo(
@@ -122,11 +132,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 key: const ValueKey('lyrics'),
                 lines: lyricsList,
                 currentIndex: currentLyricIndex,
+                activeSegment: currentSegment,
                 scrollController: _lyricsScrollController,
               )
             : Hero(
                 tag: 'cover_${currentSong.id.value}',
-                child: _CoverArtView(key: const ValueKey('cover'), coverArtPath: currentSong.coverArtPath),
+                child: _CoverArtView(
+                    key: const ValueKey('cover'),
+                    coverArtPath: currentSong.coverArtPath),
               ),
       ),
     );
@@ -142,14 +155,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 children: [
                   Text(
                     currentSong.title,
-                    style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     currentSong.trackArtistId.value,
-                    style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -158,18 +175,35 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: Icon(interaction == InteractionType.dislike ? PhosphorIconsFill.heartBreak : PhosphorIconsRegular.heartBreak),
-                  color: interaction == InteractionType.dislike ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-                  onPressed: () => ref.read(userMetricsControllerProvider).toggleInteraction(currentSong.id.value, ItemType.song, InteractionType.dislike),
+                  icon: Icon(interaction == InteractionType.dislike
+                      ? PhosphorIconsFill.heartBreak
+                      : PhosphorIconsRegular.heartBreak),
+                  color: interaction == InteractionType.dislike
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                  onPressed: () => ref
+                      .read(userMetricsControllerProvider)
+                      .toggleInteraction(currentSong.id.value, ItemType.song,
+                          InteractionType.dislike),
                 ),
                 IconButton(
                   icon: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
-                    transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-                    child: Icon(interaction == InteractionType.like ? PhosphorIconsFill.heart : PhosphorIconsRegular.heart, key: ValueKey(interaction == InteractionType.like)),
+                    transitionBuilder: (child, anim) =>
+                        ScaleTransition(scale: anim, child: child),
+                    child: Icon(
+                        interaction == InteractionType.like
+                            ? PhosphorIconsFill.heart
+                            : PhosphorIconsRegular.heart,
+                        key: ValueKey(interaction == InteractionType.like)),
                   ),
-                  color: interaction == InteractionType.like ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-                  onPressed: () => ref.read(userMetricsControllerProvider).toggleInteraction(currentSong.id.value, ItemType.song, InteractionType.like),
+                  color: interaction == InteractionType.like
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                  onPressed: () => ref
+                      .read(userMetricsControllerProvider)
+                      .toggleInteraction(currentSong.id.value, ItemType.song,
+                          InteractionType.like),
                 ),
               ],
             ),
@@ -182,13 +216,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
             activeTrackColor: theme.colorScheme.primary,
-            inactiveTrackColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+            inactiveTrackColor:
+                theme.colorScheme.primary.withValues(alpha: 0.2),
             thumbColor: theme.colorScheme.primary,
           ),
           child: Slider(
-            value: position.inMilliseconds.toDouble().clamp(0, duration.inMilliseconds.toDouble()),
+            value: position.inMilliseconds
+                .toDouble()
+                .clamp(0, duration.inMilliseconds.toDouble()),
             max: duration.inMilliseconds.toDouble(),
-            onChanged: (value) => ref.read(playbackControllerProvider.notifier).seekTo(Duration(milliseconds: value.toInt())),
+            onChanged: (value) => ref
+                .read(playbackControllerProvider.notifier)
+                .seekTo(Duration(milliseconds: value.toInt())),
           ),
         ),
         Padding(
@@ -196,8 +235,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(_formatDuration(position), style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
-              Text(_formatDuration(duration), style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+              Text(_formatDuration(position),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600)),
+              Text(_formatDuration(duration),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -207,40 +252,67 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           children: [
             IconButton(
               icon: const Icon(PhosphorIconsRegular.shuffle),
-              color: queue!.shuffleEnabled ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-              onPressed: () => ref.read(playbackControllerProvider.notifier).toggleShuffle(),
+              color: queue!.shuffleEnabled
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+              onPressed: () =>
+                  ref.read(playbackControllerProvider.notifier).toggleShuffle(),
             ),
             IconButton(
               icon: const Icon(PhosphorIconsFill.skipBack),
-              iconSize: 40, color: theme.colorScheme.onSurface,
-              onPressed: () => ref.read(playbackControllerProvider.notifier).skipPrevious(),
+              iconSize: 40,
+              color: theme.colorScheme.onSurface,
+              onPressed: () =>
+                  ref.read(playbackControllerProvider.notifier).skipPrevious(),
             ),
             Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: theme.colorScheme.primaryContainer,
-                boxShadow: [BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 8))],
+                boxShadow: [
+                  BoxShadow(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8))
+                ],
               ),
               child: IconButton(
                 padding: const EdgeInsets.all(20),
-                iconSize: 40, color: theme.colorScheme.onPrimaryContainer,
-                onPressed: () => ref.read(playbackControllerProvider.notifier).togglePlayPause(),
+                iconSize: 40,
+                color: theme.colorScheme.onPrimaryContainer,
+                onPressed: () => ref
+                    .read(playbackControllerProvider.notifier)
+                    .togglePlayPause(),
                 icon: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 250),
-                  transitionBuilder: (child, anim) => RotationTransition(turns: Tween<double>(begin: 0.8, end: 1.0).animate(anim), child: ScaleTransition(scale: anim, child: child)),
-                  child: Icon(isPlaying ? PhosphorIconsFill.pause : PhosphorIconsFill.play, key: ValueKey(isPlaying)),
+                  transitionBuilder: (child, anim) => RotationTransition(
+                      turns: Tween<double>(begin: 0.8, end: 1.0).animate(anim),
+                      child: ScaleTransition(scale: anim, child: child)),
+                  child: Icon(
+                      isPlaying
+                          ? PhosphorIconsFill.pause
+                          : PhosphorIconsFill.play,
+                      key: ValueKey(isPlaying)),
                 ),
               ),
             ),
             IconButton(
               icon: const Icon(PhosphorIconsFill.skipForward),
-              iconSize: 40, color: theme.colorScheme.onSurface,
-              onPressed: () => ref.read(playbackControllerProvider.notifier).skipNext(),
+              iconSize: 40,
+              color: theme.colorScheme.onSurface,
+              onPressed: () =>
+                  ref.read(playbackControllerProvider.notifier).skipNext(),
             ),
             IconButton(
-              icon: Icon(queue.repeatMode == RepeatMode.one ? PhosphorIconsRegular.repeatOnce : PhosphorIconsRegular.repeat),
-              color: queue.repeatMode != RepeatMode.off ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
-              onPressed: () => ref.read(playbackControllerProvider.notifier).toggleRepeatMode(),
+              icon: Icon(queue.repeatMode == RepeatMode.one
+                  ? PhosphorIconsRegular.repeatOnce
+                  : PhosphorIconsRegular.repeat),
+              color: queue.repeatMode != RepeatMode.off
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+              onPressed: () => ref
+                  .read(playbackControllerProvider.notifier)
+                  .toggleRepeatMode(),
             ),
           ],
         ),
@@ -251,8 +323,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3), theme.colorScheme.surface],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              theme.colorScheme.surface
+            ],
           ),
         ),
         child: SafeArea(
@@ -265,8 +341,16 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                     if (orientation == Orientation.landscape) {
                       return Row(
                         children: [
-                          Expanded(child: Padding(padding: const EdgeInsets.fromLTRB(32, 0, 16, 32), child: coverWidget)),
-                          Expanded(child: Padding(padding: const EdgeInsets.fromLTRB(16, 0, 32, 32), child: controlsWidget)),
+                          Expanded(
+                              child: Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(32, 0, 16, 32),
+                                  child: coverWidget)),
+                          Expanded(
+                              child: Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(16, 0, 32, 32),
+                                  child: controlsWidget)),
                         ],
                       );
                     } else {
@@ -306,12 +390,20 @@ class _CoverArtView extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           color: theme.colorScheme.surfaceContainerHighest,
-          boxShadow: [BoxShadow(color: theme.colorScheme.primary.withValues(alpha: 0.25), blurRadius: 30, spreadRadius: 5, offset: const Offset(0, 15))],
+          boxShadow: [
+            BoxShadow(
+                color: theme.colorScheme.primary.withValues(alpha: 0.25),
+                blurRadius: 30,
+                spreadRadius: 5,
+                offset: const Offset(0, 15))
+          ],
         ),
         clipBehavior: Clip.antiAlias,
         child: coverArtPath != null
-            ? Image.file(File(coverArtPath!), fit: BoxFit.cover, cacheWidth: 600)
-            : Icon(PhosphorIconsRegular.musicNotes, size: 100, color: theme.colorScheme.onSurfaceVariant),
+            ? Image.file(File(coverArtPath!),
+                fit: BoxFit.cover, cacheWidth: 600)
+            : Icon(PhosphorIconsRegular.musicNotes,
+                size: 100, color: theme.colorScheme.onSurfaceVariant),
       ),
     );
   }
@@ -322,11 +414,13 @@ class _LyricsView extends StatelessWidget {
     super.key,
     required this.lines,
     required this.currentIndex,
+    required this.activeSegment,
     required this.scrollController,
   });
 
   final List<LyricLine> lines;
   final int currentIndex;
+  final LyricSegment? activeSegment;
   final ScrollController scrollController;
 
   @override
@@ -336,7 +430,10 @@ class _LyricsView extends StatelessWidget {
         width: double.infinity,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
-          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          color: Theme.of(context)
+              .colorScheme
+              .surfaceContainerHighest
+              .withValues(alpha: 0.5),
         ),
         padding: const EdgeInsets.all(24),
         child: Center(
@@ -346,15 +443,18 @@ class _LyricsView extends StatelessWidget {
               Icon(
                 PhosphorIconsRegular.microphoneStage,
                 size: 48,
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.5),
               ),
               const SizedBox(height: 16),
               Text(
                 'No synchronized lyrics found.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
               ),
             ],
           ),
@@ -366,7 +466,10 @@ class _LyricsView extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.3),
       ),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
       child: ListView.builder(
@@ -377,6 +480,33 @@ class _LyricsView extends StatelessWidget {
           final line = lines[index];
           final isActive = index == currentIndex;
           final theme = Theme.of(context);
+          final currentLineActiveSegment = isActive ? activeSegment : null;
+
+          final lyricText = line.segments.length > 1
+              ? Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 4,
+                  runSpacing: 8,
+                  children: [
+                    for (var i = 0; i < line.segments.length; i++)
+                      _LyricSegmentChip(
+                        segment: line.segments[i],
+                        isActive: currentLineActiveSegment == line.segments[i],
+                        theme: theme,
+                      ),
+                  ],
+                )
+              : Text(
+                  line.fullText,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                    color: isActive
+                        ? theme.colorScheme.onPrimaryContainer
+                        : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    fontSize: isActive ? 18 : 16,
+                  ),
+                  textAlign: TextAlign.center,
+                );
 
           return AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -387,19 +517,35 @@ class _LyricsView extends StatelessWidget {
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(
-              line.text,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                color: isActive
-                    ? theme.colorScheme.onPrimaryContainer
-                    : theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                fontSize: isActive ? 18 : 16,
-              ),
-              textAlign: TextAlign.center,
-            ),
+            child: lyricText,
           );
         },
+      ),
+    );
+  }
+}
+
+class _LyricSegmentChip extends StatelessWidget {
+  const _LyricSegmentChip({
+    required this.segment,
+    required this.isActive,
+    required this.theme,
+  });
+
+  final LyricSegment segment;
+  final bool isActive;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      segment.text,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+        color: isActive
+            ? theme.colorScheme.primary
+            : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+        fontSize: isActive ? 18 : 16,
       ),
     );
   }
