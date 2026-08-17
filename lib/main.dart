@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:path/path.dart' as p;
@@ -30,6 +31,31 @@ Future<void> main() async {
       iOS: false,
       macOS: false,
     );
+
+    if (Platform.isAndroid) {
+      final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+      const AndroidInitializationSettings initializationSettingsAndroid =
+          AndroidInitializationSettings('ic_notification');
+      const InitializationSettings initializationSettings =
+          InitializationSettings(android: initializationSettingsAndroid);
+
+      await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+      const AndroidNotificationChannel channel = AndroidNotificationChannel(
+        'com.example.nexo.channel.audio',
+        'Nexo Music Playback',
+        description: 'Controls local music playback in Nexo',
+        importance: Importance.low,
+        enableVibration: false,
+        playSound: false,
+      );
+
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(channel);
+    }
 
     final supportDir = await getApplicationSupportDirectory();
     final dbFile = File(p.join(supportDir.path, 'nexo.sqlite'));

@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../domain/usecases/backup_usecases.dart';
 import 'repository_providers.dart';
@@ -25,10 +24,7 @@ class BackupController {
     ));
 
     return result.when(
-      ok: (path) {
-        Share.shareXFiles([XFile(path)], text: 'Nexo backup');
-        return null;
-      },
+      ok: (path) => path,
       err: (e) => e.message,
     );
   }

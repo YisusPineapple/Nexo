@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../domain/entities/app_preferences.dart';
 import '../../domain/entities/crossfade_config.dart';
@@ -80,7 +81,7 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 );
 
-                final error =
+                final backupPath =
                     await ref.read(backupControllerProvider).createBackup(
                           includeLibrary: includeLibrary,
                           includePlaylists: includePlaylists,
@@ -90,11 +91,23 @@ class SettingsScreen extends ConsumerWidget {
                 if (!context.mounted) return;
                 Navigator.pop(context);
 
+                if (backupPath == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Backup creation failed.'),
+                    ),
+                  );
+                  return;
+                }
+
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(
-                        error ?? 'Backup created and shared successfully.'),
+                    content: Text('Backup created at: $backupPath'),
                   ),
+                );
+                await Share.shareXFiles(
+                  [XFile(backupPath)],
+                  text: 'Nexo backup',
                 );
               },
               child: const Text('Create & Share'),
