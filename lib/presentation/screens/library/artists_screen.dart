@@ -136,6 +136,10 @@ class ArtistDetailScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
+      appBar: AppBar(
+        title: Text(artist.name),
+        leading: const BackButton(),
+      ),
       body: songsAsync.when(
         data: (songs) {
           if (songs.isEmpty) {

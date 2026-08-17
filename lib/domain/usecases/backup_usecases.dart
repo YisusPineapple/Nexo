@@ -3,13 +3,23 @@ import '../../core/utils/result.dart';
 import '../repositories/backup_repository.dart';
 import 'use_case.dart';
 
-final class CreateBackupUseCase implements UseCase<void, String> {
+typedef BackupParams = ({
+  bool includeLibrary,
+  bool includePlaylists,
+  bool includeSettings,
+});
+
+final class CreateBackupUseCase implements UseCase<String, BackupParams> {
   CreateBackupUseCase(this._repository);
   final BackupRepository _repository;
 
   @override
-  Future<Result<void, Failure>> call(String destinationPath) {
-    return _repository.createBackup(destinationPath);
+  Future<Result<String, Failure>> call(BackupParams params) {
+    return _repository.createBackup(
+      includeLibrary: params.includeLibrary,
+      includePlaylists: params.includePlaylists,
+      includeSettings: params.includeSettings,
+    );
   }
 }
 

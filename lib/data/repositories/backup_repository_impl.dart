@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
@@ -14,70 +15,150 @@ class BackupRepositoryImpl implements BackupRepository {
   final AppDatabase _db;
 
   @override
-  Future<Result<void, Failure>> createBackup(String destinationPath) async {
+  Future<Result<String, Failure>> createBackup({
+    required bool includeLibrary,
+    required bool includePlaylists,
+    required bool includeSettings,
+  }) async {
     try {
-      // Force SQLite to write any pending WAL data to the main file
       await _db.customStatement('PRAGMA wal_checkpoint(TRUNCATE);');
 
-      final supportDir = await getApplicationSupportDirectory();
-      final encoder = ZipFileEncoder();
-      
-      // Create the zip file at the user-selected destination
-      encoder.create(destinationPath);
+      final supportDir = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')
+          .first;
+      final backupDir = Directory(p.join(supportDir.path, 'backups'));
+      if (!await backupDir.exists()) {
+        await backupDir.create(recursive: true);
+      }
+      final zipPath = p.join(backupDir.path, 'nexo_backup_$timestamp.zip');
 
-      // Add the database file
-      final dbFile = File(p.join(supportDir.path, 'nexo.sqlite'));
-      if (dbFile.existsSync()) {
-        await encoder.addFile(dbFile);
+      final result = await _compressInIsolate(
+        dbPath: p.join(supportDir.path, 'nexo.sqlite'),
+        coversPath: p.join(supportDir.path, 'covers'),
+        zipPath: zipPath,
+        includeLibrary: includeLibrary,
+        includePlaylists: includePlaylists,
+        includeSettings: includeSettings,
+      );
+
+      if (!result) {
+        return const Err(UnexpectedFailure('Failed to compress backup files.'));
       }
 
-      // Add the cached cover arts
-      final coversDir = Directory(p.join(supportDir.path, 'covers'));
-      if (coversDir.existsSync()) {
-        await encoder.addDirectory(coversDir);
-      }
-
-      await encoder.close();
-      return const Ok(null);
+      return Ok(zipPath);
     } catch (e) {
       return Err(UnexpectedFailure('Failed to create backup: $e'));
+    }
+  }
+
+  Future<bool> _compressInIsolate({
+    required String dbPath,
+    required String coversPath,
+    required String zipPath,
+    required bool includeLibrary,
+    required bool includePlaylists,
+    required bool includeSettings,
+  }) async {
+    final receivePort = ReceivePort();
+    await Isolate.spawn(
+      _compressIsolateEntry,
+      (
+        receivePort.sendPort,
+        dbPath,
+        coversPath,
+        zipPath,
+        includeLibrary,
+        includePlaylists,
+        includeSettings,
+      ),
+    );
+    final result = await receivePort.first as bool;
+    receivePort.close();
+    return result;
+  }
+
+  static void _compressIsolateEntry(dynamic message) {
+    final (
+      sendPort,
+      dbPath,
+      coversPath,
+      zipPath,
+      includeLibrary,
+      includePlaylists,
+      includeSettings,
+    ) = message as (
+      SendPort,
+      String,
+      String,
+      String,
+      bool,
+      bool,
+      bool,
+    );
+
+    try {
+      final encoder = ZipFileEncoder();
+      encoder.create(zipPath);
+
+      if (includeLibrary) {
+        final dbFile = File(dbPath);
+        if (dbFile.existsSync()) {
+          encoder.addFile(dbFile);
+        }
+
+        final coversDir = Directory(coversPath);
+        if (coversDir.existsSync()) {
+          encoder.addDirectory(coversDir);
+        }
+      }
+
+      if (includePlaylists || includeSettings) {
+        // Additional payloads can be added here when their storage paths are defined.
+      }
+
+      encoder.close();
+      sendPort.send(true);
+    } catch (e) {
+      sendPort.send(false);
     }
   }
 
   @override
   Future<Result<void, Failure>> restoreBackup(String zipPath) async {
     try {
-      final supportDir = await getApplicationSupportDirectory();
+      final supportDir = await getApplicationDocumentsDirectory();
       final tempDir = Directory(p.join(supportDir.path, 'temp_restore'));
-      
-      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
-      tempDir.createSync();
 
-      // Extract the zip to a temporary folder
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+      await tempDir.create(recursive: true);
+
       await extractFileToDisk(zipPath, tempDir.path);
 
       final extractedDb = File(p.join(tempDir.path, 'nexo.sqlite'));
-      if (!extractedDb.existsSync()) {
-        return const Err(ValidationFailure('Invalid backup file: nexo.sqlite not found.'));
+      if (!await extractedDb.exists()) {
+        return const Err(
+          ValidationFailure('Invalid backup file: nexo.sqlite not found.'),
+        );
       }
 
-      // Close the current database connection to allow overwriting
       await _db.close();
+      await extractedDb.copy(p.join(supportDir.path, 'nexo.sqlite'));
 
-      // Overwrite the database file
-      extractedDb.copySync(p.join(supportDir.path, 'nexo.sqlite'));
-
-      // Overwrite the cover arts
       final extractedCovers = Directory(p.join(tempDir.path, 'covers'));
       final targetCovers = Directory(p.join(supportDir.path, 'covers'));
-      
-      if (extractedCovers.existsSync()) {
-        if (targetCovers.existsSync()) targetCovers.deleteSync(recursive: true);
-        // In Dart, renaming a directory acts as a fast "move" operation
-        extractedCovers.renameSync(targetCovers.path);
+      if (await extractedCovers.exists()) {
+        if (await targetCovers.exists()) {
+          await targetCovers.delete(recursive: true);
+        }
+        await extractedCovers.rename(targetCovers.path);
       }
 
-      tempDir.deleteSync(recursive: true);
+      await tempDir.delete(recursive: true);
       return const Ok(null);
     } catch (e) {
       return Err(UnexpectedFailure('Failed to restore backup: $e'));

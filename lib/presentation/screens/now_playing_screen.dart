@@ -103,19 +103,22 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final currentLyricIndex = ref.watch(currentLyricIndexProvider);
     final currentSegment = ref.watch(currentLyricSegmentProvider);
 
-    // Auto-scroll cuando cambia la línea actual.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (currentLyricIndex >= 0 &&
           currentLyricIndex < lyricsList.length &&
           _lyricsScrollController.hasClients) {
-        final targetOffset =
-            currentLyricIndex * 72.0; // ajustar según altura de cada item
+        final viewportHeight =
+            _lyricsScrollController.position.viewportDimension;
+        const itemExtent = 72.0;
+        final targetOffset = (currentLyricIndex * itemExtent) -
+            (viewportHeight / 2) +
+            (itemExtent / 2);
         final maxOffset = _lyricsScrollController.position.maxScrollExtent;
         final offset = targetOffset.clamp(0.0, maxOffset);
         _lyricsScrollController.animateTo(
           offset,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
         );
       }
     });
@@ -130,6 +133,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         child: _showLyrics
             ? _LyricsView(
                 key: const ValueKey('lyrics'),
+                ref: ref,
                 lines: lyricsList,
                 currentIndex: currentLyricIndex,
                 activeSegment: currentSegment,
@@ -409,22 +413,26 @@ class _CoverArtView extends StatelessWidget {
   }
 }
 
-class _LyricsView extends StatelessWidget {
+class _LyricsView extends ConsumerWidget {
   const _LyricsView({
     super.key,
+    required this.ref,
     required this.lines,
     required this.currentIndex,
     required this.activeSegment,
     required this.scrollController,
   });
 
+  final WidgetRef ref;
   final List<LyricLine> lines;
   final int currentIndex;
   final LyricSegment? activeSegment;
   final ScrollController scrollController;
 
+  static const double itemExtent = 72.0;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (lines.isEmpty) {
       return Container(
         width: double.infinity,
@@ -475,6 +483,7 @@ class _LyricsView extends StatelessWidget {
       child: ListView.builder(
         controller: scrollController,
         itemCount: lines.length,
+        itemExtent: itemExtent,
         padding: const EdgeInsets.symmetric(vertical: 20),
         itemBuilder: (context, index) {
           final line = lines[index];
