@@ -40,17 +40,28 @@ Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
   const metadataReader = SongMetadataReader();
 
   try {
-    final found = <(String, AudioFormat)>[];
+    final foundMap = <String, AudioFormat>{};
     for (final directoryPath in args.directoryPaths) {
-      found.addAll(await scanner.scan(directoryPath, excludedPaths: args.excludedPaths));
+      final scanned = await scanner.scan(directoryPath, excludedPaths: args.excludedPaths);
+      for (final (path, format) in scanned) {
+        foundMap[path] = format; // Deduplicate paths
+      }
     }
 
-    final total = found.length;
+    final entries = foundMap.entries.toList();
+    final total = entries.length;
+
     for (var i = 0; i < total; i++) {
-      final (path, format) = found[i];
+      final path = entries[i].key;
+      final format = entries[i].value;
       Song? song;
       try {
-        song = await _buildSong(path, format, metadataReader: metadataReader, coverArtCacheDirectory: args.coverArtCacheDirectory);
+        song = await _buildSong(
+          path, 
+          format, 
+          metadataReader: metadataReader, 
+          coverArtCacheDirectory: args.coverArtCacheDirectory,
+        );
       } catch (_) {}
       args.sendPort.send(_IndexingProgress(i + 1, total, song));
     }
@@ -100,6 +111,7 @@ class SongRepositoryImpl implements SongRepository {
   final String _coverArtCacheDirectory;
   final LibraryFolderRepository _libraryFolderRepository;
   final SongMapper _mapper;
+  bool _isScanning = false;
 
   @override
   Future<Result<void, Failure>> indexDirectories(
@@ -123,6 +135,11 @@ class SongRepositoryImpl implements SongRepository {
     List<String> directoryPaths, {
     void Function(int current, int total)? onProgress,
   }) async {
+    if (_isScanning) {
+      return const Ok(null); // Prevent concurrent scan progress collisions
+    }
+    _isScanning = true;
+
     final excludedResult = await _libraryFolderRepository.getExcludedFolders();
     final excludedPaths = excludedResult.valueOrNull?.map((e) => e.path).toSet() ?? {};
 
@@ -130,6 +147,7 @@ class SongRepositoryImpl implements SongRepository {
     final exitPort = ReceivePort();
     final completer = Completer<Result<void, Failure>>();
     final batchSongs = <Song>[];
+    bool isDoneReceived = false;
 
     Future<void> flushBatch() async {
       if (batchSongs.isEmpty) return;
@@ -141,7 +159,10 @@ class SongRepositoryImpl implements SongRepository {
     }
 
     void finish(Result<void, Failure> result) {
-      if (!completer.isCompleted) completer.complete(result);
+      if (!completer.isCompleted) {
+        _isScanning = false;
+        completer.complete(result);
+      }
     }
 
     receivePort.listen((rawMessage) async {
@@ -154,6 +175,7 @@ class SongRepositoryImpl implements SongRepository {
             }
             onProgress?.call(current, total);
           case _IndexingDone():
+            isDoneReceived = true;
             await flushBatch();
             finish(const Ok(null));
           case _IndexingFailed(:final message):
@@ -164,7 +186,12 @@ class SongRepositoryImpl implements SongRepository {
       }
     });
 
-    exitPort.listen((_) => finish(const Err(UnexpectedFailure('Indexing isolate exited unexpectedly.'))));
+    // FIX: Only trigger unexpected exit if _IndexingDone was never received
+    exitPort.listen((_) {
+      if (!isDoneReceived) {
+        finish(const Err(UnexpectedFailure('Indexing isolate exited unexpectedly.')));
+      }
+    });
 
     try {
       await Isolate.spawn(
@@ -177,6 +204,7 @@ class SongRepositoryImpl implements SongRepository {
       );
       return await completer.future;
     } catch (e) {
+      _isScanning = false;
       return Err(UnexpectedFailure('Failed to index directories.', cause: e));
     } finally {
       receivePort.close();

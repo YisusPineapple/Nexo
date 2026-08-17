@@ -23,7 +23,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   List<Song> _queue = [];
   int _currentIndex = 0;
   RepeatMode _repeatMode = RepeatMode.off;
-  String? _currentLoadedSongId; // FIX: Track the currently loaded song ID
+  String? _currentLoadedSongId;
 
   // --- Settings ---
   double _currentSpeed = 1.0;
@@ -68,7 +68,9 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Stream<void> get completedStream => _completedController.stream;
 
   void _fire(Future<dynamic> f) {
-    f.catchError((e) {});
+    f.catchError((e) {
+      debugPrint('AudioHandler async error suppressed: $e');
+    });
   }
 
   void _init() {
@@ -111,7 +113,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         ja.ProcessingState.buffering: AudioProcessingState.buffering,
         ja.ProcessingState.ready: AudioProcessingState.ready,
         ja.ProcessingState.completed: AudioProcessingState.completed,
-      }[_activePlayer.processingState]!,
+      }[_activePlayer.processingState] ?? AudioProcessingState.idle,
       playing: playing,
       updatePosition: _activePlayer.position,
       bufferedPosition: _activePlayer.bufferedPosition,
@@ -180,7 +182,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         _gainB = gainFactor;
       }
       
-      // FIX: Track the loaded song ID to prevent unnecessary reloads
       if (identical(p, _activePlayer)) {
         _currentLoadedSongId = song.id.value;
       }
@@ -203,8 +204,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
 
     final newCurrentSong = _queue[currentIndex];
-    // FIX: Check if the song we are trying to sync is ALREADY playing.
-    // This prevents Shuffle/Repeat toggles from restarting the track.
     final isSameSong = _currentLoadedSongId == newCurrentSong.id.value;
 
     _currentIndex = currentIndex;
@@ -240,8 +239,9 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await updateQueue(items);
     mediaItem.add(items[_currentIndex]);
     
+    // FIX: Fire play without blocking the handler
     if (!isSameSong) {
-      await _activePlayer.play();
+      _fire(_activePlayer.play());
     }
   }
 
@@ -356,7 +356,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     _isPlayerAActive = !_isPlayerAActive;
     _switchActivePlayer();
-    _currentLoadedSongId = _queue[_currentIndex].id.value; // FIX: Update ID
+    _currentLoadedSongId = _queue[_currentIndex].id.value;
 
     if (_currentIndex < _queue.length) {
       mediaItem.add(queue.value[_currentIndex]);
@@ -395,7 +395,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     try {
       await _loadSongIntoPlayer(_activePlayer, _queue[_currentIndex]);
       _switchActivePlayer();
-      await _activePlayer.play();
+      _fire(_activePlayer.play());
       if (_currentIndex < _queue.length) {
         mediaItem.add(queue.value[_currentIndex]);
       }
@@ -418,7 +418,8 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final crossfadeDur = _getActualCrossfadeDuration();
       _startCrossfade(crossfadeDur);
     } else {
-      await _activePlayer.play();
+      // FIX: Do not block the AudioHandler event loop
+      _fire(_activePlayer.play());
     }
   }
 
@@ -467,7 +468,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _currentIndex = prevIndex;
       await _loadSongIntoPlayer(_activePlayer, _queue[_currentIndex]);
       _switchActivePlayer();
-      await _activePlayer.play();
+      _fire(_activePlayer.play());
       if (_currentIndex < _queue.length) {
         mediaItem.add(queue.value[_currentIndex]);
       }
