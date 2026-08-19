@@ -16,6 +16,7 @@ class AlbumsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final albumsAsync = ref.watch(albumsProvider);
     final sortOption = ref.watch(albumSortOptionProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.small(
@@ -56,36 +57,61 @@ class AlbumsScreen extends ConsumerWidget {
                 crossAxisCount: crossAxisCount,
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
-                childAspectRatio: 0.8,
+                childAspectRatio: 0.75,
               ),
               itemCount: albums.length,
               itemBuilder: (context, index) {
                 final album = albums[index];
-                return InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AlbumDetailScreen(album: album))),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: AspectRatio(
+                return Container(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AlbumDetailScreen(album: album))),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AspectRatio(
                           aspectRatio: 1,
                           child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                            ),
-                            clipBehavior: Clip.antiAlias,
+                            color: theme.colorScheme.surfaceContainerHighest,
                             child: album.coverArtPath != null
                                 ? Image.file(File(album.coverArtPath!), fit: BoxFit.cover, cacheWidth: 400)
                                 : const Icon(Icons.album, size: 48),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(album.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-                      Text(album.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
-                    ],
+                        Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                album.name, 
+                                maxLines: 1, 
+                                overflow: TextOverflow.ellipsis, 
+                                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                album.artist, 
+                                maxLines: 1, 
+                                overflow: TextOverflow.ellipsis, 
+                                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },

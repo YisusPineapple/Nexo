@@ -38,116 +38,144 @@ class EqualizerScreen extends ConsumerWidget {
           const SizedBox(width: 16),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Preset:'),
-                DropdownButton<String>(
-                  value: preset,
-                  items: const [
-                    DropdownMenuItem(value: 'Custom', child: Text('Custom')),
-                    DropdownMenuItem(value: 'Flat', child: Text('Flat')),
-                    DropdownMenuItem(
-                        value: 'Bass Boost', child: Text('Bass Boost')),
-                    DropdownMenuItem(
-                        value: 'Acoustic', child: Text('Acoustic')),
-                  ],
-                  onChanged: isEnabled
-                      ? (val) {
-                          if (val != null) {
-                            ref.read(equalizerPresetProvider.notifier).state =
-                                val;
-                            if (val == 'Flat') {
-                              ref.read(equalizerBandsProvider.notifier).state =
-                                  List.filled(10, 0.0);
-                            } else if (val == 'Bass Boost') {
-                              ref.read(equalizerBandsProvider.notifier).state =
-                                  [
-                                6.0,
-                                5.0,
-                                4.0,
-                                2.0,
-                                0.0,
-                                0.0,
-                                0.0,
-                                0.0,
-                                0.0,
-                                0.0
-                              ];
-                            } else if (val == 'Acoustic') {
-                              ref.read(equalizerBandsProvider.notifier).state =
-                                  [
-                                3.0,
-                                4.0,
-                                3.0,
-                                1.0,
-                                1.0,
-                                1.0,
-                                2.0,
-                                3.0,
-                                2.0,
-                                1.0
-                              ];
+      // FIX: SingleChildScrollView prevents vertical overflow on small Android screens
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: 32),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Preset:'),
+                  DropdownButton<String>(
+                    value: preset,
+                    items: const [
+                      DropdownMenuItem(value: 'Custom', child: Text('Custom')),
+                      DropdownMenuItem(value: 'Flat', child: Text('Flat')),
+                      DropdownMenuItem(
+                          value: 'Bass Boost', child: Text('Bass Boost')),
+                      DropdownMenuItem(
+                          value: 'Acoustic', child: Text('Acoustic')),
+                    ],
+                    onChanged: isEnabled
+                        ? (val) {
+                            if (val != null) {
+                              ref.read(equalizerPresetProvider.notifier).state =
+                                  val;
+                              if (val == 'Flat') {
+                                ref.read(equalizerBandsProvider.notifier).state =
+                                    List.filled(10, 0.0);
+                              } else if (val == 'Bass Boost') {
+                                ref.read(equalizerBandsProvider.notifier).state =
+                                    [
+                                  6.0,
+                                  5.0,
+                                  4.0,
+                                  2.0,
+                                  0.0,
+                                  0.0,
+                                  0.0,
+                                  0.0,
+                                  0.0,
+                                  0.0
+                                ];
+                              } else if (val == 'Acoustic') {
+                                ref.read(equalizerBandsProvider.notifier).state =
+                                    [
+                                  3.0,
+                                  4.0,
+                                  3.0,
+                                  1.0,
+                                  1.0,
+                                  1.0,
+                                  2.0,
+                                  3.0,
+                                  2.0,
+                                  1.0
+                                ];
+                              }
                             }
                           }
-                        }
-                      : null,
-                ),
-              ],
-            ),
-          ),
-
-          // Visual EQ Curve
-          Container(
-            height: 120,
-            width: double.infinity,
-            margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest
-                  .withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: CustomPaint(
-              painter: _EqCurvePainter(
-                bands: bands,
-                color: isEnabled
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                        : null,
+                  ),
+                ],
               ),
             ),
-          ),
 
-          Expanded(
-            child: Opacity(
-              opacity: isEnabled ? 1.0 : 0.5,
-              child: IgnorePointer(
-                ignoring: !isEnabled,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(10, (index) {
-                    return _EqBand(
-                      frequency: _frequencies[index],
-                      value: bands[index],
-                      onChanged: (val) {
-                        final newBands = List<double>.from(bands);
-                        newBands[index] = val;
-                        ref.read(equalizerBandsProvider.notifier).state =
-                            newBands;
-                        ref.read(equalizerPresetProvider.notifier).state =
-                            'Custom';
-                      },
-                    );
-                  }),
+            // Visual EQ Curve
+            Container(
+              height: 120,
+              width: double.infinity,
+              margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: CustomPaint(
+                painter: _EqCurvePainter(
+                  bands: bands,
+                  color: isEnabled
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 32),
-        ],
+
+            // FIX: Fixed height container with horizontal scroll for narrow screens
+            SizedBox(
+              height: 280,
+              child: Opacity(
+                opacity: isEnabled ? 1.0 : 0.5,
+                child: IgnorePointer(
+                  ignoring: !isEnabled,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // 56px per band * 10 bands = 560px minimum width
+                      final minWidth = 56.0 * 10;
+                      final isScrollable = constraints.maxWidth < minWidth;
+                      
+                      Widget bandsRow = Row(
+                        mainAxisAlignment: isScrollable ? MainAxisAlignment.start : MainAxisAlignment.spaceEvenly,
+                        children: List.generate(10, (index) {
+                          return SizedBox(
+                            width: isScrollable ? 56.0 : constraints.maxWidth / 10,
+                            child: _EqBand(
+                              frequency: _frequencies[index],
+                              value: bands[index],
+                              onChanged: (val) {
+                                final newBands = List<double>.from(bands);
+                                newBands[index] = val;
+                                ref.read(equalizerBandsProvider.notifier).state =
+                                    newBands;
+                                ref.read(equalizerPresetProvider.notifier).state =
+                                    'Custom';
+                              },
+                            ),
+                          );
+                        }),
+                      );
+
+                      if (isScrollable) {
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: bandsRow,
+                        );
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: bandsRow,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -39,84 +39,115 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
   Widget build(BuildContext context) {
     final songsAsync = ref.watch(sortedSongsProvider);
     final sortOption = ref.watch(songSortOptionProvider);
+    final theme = Theme.of(context);
 
+    // FIX: Removed AppBar so it embeds cleanly inside LibraryHubScreen's TabBarView
     return Scaffold(
-      appBar: AppBar(
-        title: TextField(
-          controller: _searchController,
-          onChanged: _onQueryChanged,
-          decoration: const InputDecoration(
-            hintText: 'Search songs, artists, albums',
-            border: InputBorder.none,
-          ),
-        ),
-        actions: [
-          PopupMenuButton<SongSortOption>(
-            initialValue: sortOption,
-            tooltip: 'Sort by',
-            icon: const Icon(PhosphorIconsRegular.arrowsDownUp),
-            onSelected: (option) =>
-                ref.read(songSortOptionProvider.notifier).state = option,
-            itemBuilder: (context) => [
-              for (final option in SongSortOption.values)
-                PopupMenuItem(value: option, child: Text(option.label)),
-            ],
-          ),
-        ],
-      ),
-      body: songsAsync.when(
-        data: (songs) {
-          if (songs.isEmpty) {
-            return const Center(
-              child: Text('No songs found. Go to Library to add a folder.'),
-            );
-          }
-          return Scrollbar(
-            interactive: true,
-            thickness: 8,
-            radius: const Radius.circular(4),
-            child: ListView.builder(
-              itemExtent: 72,
-              itemCount: songs.length,
-              itemBuilder: (context, index) {
-                final song = songs[index];
-                return ListTile(
-                  title: Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _onQueryChanged,
+                      decoration: InputDecoration(
+                        hintText: 'Search songs, artists, albums',
+                        prefixIcon:
+                            const Icon(PhosphorIconsRegular.magnifyingGlass),
+                        filled: true,
+                        fillColor: theme.colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.5),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
                   ),
-                  subtitle: Text(
-                    '${song.trackArtistId.value} • '
-                    '${_formatDuration(song.duration)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  const SizedBox(width: 8),
+                  PopupMenuButton<SongSortOption>(
+                    initialValue: sortOption,
+                    tooltip: 'Sort by',
+                    icon: const Icon(PhosphorIconsRegular.arrowsDownUp),
+                    onSelected: (option) => ref
+                        .read(songSortOptionProvider.notifier)
+                        .state = option,
+                    itemBuilder: (context) => [
+                      for (final option in SongSortOption.values)
+                        PopupMenuItem(value: option, child: Text(option.label)),
+                    ],
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(PhosphorIconsRegular.listPlus),
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (_) =>
-                            AddToPlaylistDialog(songId: song.id.value),
-                      );
-                    },
-                  ),
-                  onTap: () {
-                    ref.read(playbackControllerProvider.notifier).playSongs(
-                          queueIdStr: 'library_songs',
-                          songs: songs,
-                          startIndex: index,
-                          source: const ManualQueueSource(),
-                        );
-                  },
-                );
-              },
+                ],
+              ),
             ),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('Error: $error')),
+            Expanded(
+              child: songsAsync.when(
+                data: (songs) {
+                  if (songs.isEmpty) {
+                    return const Center(
+                      child: Text(
+                          'No songs found. Go to Library to add a folder.'),
+                    );
+                  }
+                  return Scrollbar(
+                    interactive: true,
+                    thickness: 8,
+                    radius: const Radius.circular(4),
+                    child: ListView.builder(
+                      itemExtent: 72,
+                      itemCount: songs.length,
+                      itemBuilder: (context, index) {
+                        final song = songs[index];
+                        return ListTile(
+                          title: Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${song.trackArtistId.value} • '
+                            '${_formatDuration(song.duration)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(PhosphorIconsRegular.listPlus),
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) =>
+                                    AddToPlaylistDialog(songId: song.id.value),
+                              );
+                            },
+                          ),
+                          onTap: () {
+                            ref
+                                .read(playbackControllerProvider.notifier)
+                                .playSongs(
+                                  queueIdStr: 'library_songs',
+                                  songs: songs,
+                                  startIndex: index,
+                                  source: const ManualQueueSource(),
+                                );
+                          },
+                        );
+                      },
+                    ),
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stackTrace) =>
+                    Center(child: Text('Error: $error')),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

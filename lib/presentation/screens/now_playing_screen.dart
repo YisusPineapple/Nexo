@@ -14,6 +14,8 @@ import '../../domain/entities/lyric_segment.dart';
 import '../../domain/entities/item_interaction.dart';
 import '../providers/playback_providers.dart';
 import '../providers/user_metrics_providers.dart';
+import '../widgets/animated_interaction_button.dart';
+import '../widgets/marquee_text.dart';
 import 'queue_screen.dart';
 
 class NowPlayingScreen extends ConsumerStatefulWidget {
@@ -117,11 +119,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final currentSegment = ref.watch(currentLyricSegmentProvider);
 
     final prefs = ref.watch(appPreferencesProvider);
+    
     final double itemExtent = switch (prefs.lyricsFontSize) {
-      LyricsFontSize.small => 70.0,
-      LyricsFontSize.medium => 84.0,
-      LyricsFontSize.large => 96.0,
-      LyricsFontSize.extraLarge => 110.0,
+      LyricsFontSize.small => 100.0,
+      LyricsFontSize.medium => 120.0,
+      LyricsFontSize.large => 150.0,
+      LyricsFontSize.extraLarge => 180.0,
     };
 
     ref.listen<int>(currentLyricIndexProvider, (previous, next) {
@@ -178,12 +181,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    currentSong.title,
+                  MarqueeText(
+                    text: currentSong.title,
                     style: theme.textTheme.headlineSmall
                         ?.copyWith(fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -199,32 +200,29 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: Icon(interaction == InteractionType.dislike
+                AnimatedInteractionButton(
+                  icon: interaction == InteractionType.dislike
                       ? PhosphorIconsFill.heartBreak
-                      : PhosphorIconsRegular.heartBreak),
+                      : PhosphorIconsRegular.heartBreak,
                   color: interaction == InteractionType.dislike
                       ? theme.colorScheme.primary
                       : theme.colorScheme.onSurfaceVariant,
+                  isActive: interaction == InteractionType.dislike,
+                  showBurst: false, // FIX: No burst for dislike
                   onPressed: () => ref
                       .read(userMetricsControllerProvider)
                       .toggleInteraction(currentSong.id.value, ItemType.song,
                           InteractionType.dislike),
                 ),
-                IconButton(
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    transitionBuilder: (child, anim) =>
-                        ScaleTransition(scale: anim, child: child),
-                    child: Icon(
-                        interaction == InteractionType.like
-                            ? PhosphorIconsFill.heart
-                            : PhosphorIconsRegular.heart,
-                        key: ValueKey(interaction == InteractionType.like)),
-                  ),
+                AnimatedInteractionButton(
+                  icon: interaction == InteractionType.like
+                      ? PhosphorIconsFill.heart
+                      : PhosphorIconsRegular.heart,
                   color: interaction == InteractionType.like
                       ? theme.colorScheme.primary
                       : theme.colorScheme.onSurfaceVariant,
+                  isActive: interaction == InteractionType.like,
+                  showBurst: true, // Burst for like
                   onPressed: () => ref
                       .read(userMetricsControllerProvider)
                       .toggleInteraction(currentSong.id.value, ItemType.song,
@@ -581,6 +579,7 @@ class _LyricsView extends ConsumerWidget {
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: ListView.builder(
+                  key: const PageStorageKey('lyrics_list'),
                   controller: scrollController,
                   itemCount: lines.length,
                   itemExtent: itemExtent,
@@ -675,7 +674,6 @@ class _LyricsView extends ConsumerWidget {
               ),
             ),
             
-            // Full Screen Toggle Button
             Positioned(
               top: 8,
               right: 8,
@@ -689,7 +687,6 @@ class _LyricsView extends ConsumerWidget {
               ),
             ),
 
-            // Offset Controls
             AnimatedPositioned(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOutCubic,

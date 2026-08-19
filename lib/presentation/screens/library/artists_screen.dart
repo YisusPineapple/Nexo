@@ -18,6 +18,7 @@ class ArtistsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final artistsAsync = ref.watch(artistsProvider);
     final sortOption = ref.watch(artistSortOptionProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.small(
@@ -56,38 +57,66 @@ class ArtistsScreen extends ConsumerWidget {
             thickness: 8,
             radius: const Radius.circular(4),
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               itemCount: artists.length,
               itemBuilder: (context, index) {
                 final artist = artists[index];
-                return ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                  leading: _ArtistAvatar(
-                      name: artist.name, coverArtPath: artist.coverArtPath),
-                  title: Text(artist.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Row(
-                    children: [
-                      Text('${artist.songCount} songs'),
-                      if (artist.albumCount > 0) ...[
-                        const Text(' • '),
-                        Text('${artist.albumCount} albums')
-                      ],
-                      if (artist.collaborationCount > 0) ...[
-                        const Text(' • '),
-                        Text('${artist.collaborationCount} collabs',
-                            style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary))
-                      ],
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
                     ],
                   ),
-                  trailing:
-                      const Icon(PhosphorIconsRegular.caretRight, size: 16),
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => ArtistDetailScreen(artist: artist))),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ArtistDetailScreen(artist: artist))),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Row(
+                        children: [
+                          _ArtistAvatar(
+                              name: artist.name, coverArtPath: artist.coverArtPath),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(artist.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Text('${artist.songCount} songs', style: theme.textTheme.bodySmall),
+                                    if (artist.albumCount > 0) ...[
+                                      Text(' • ', style: theme.textTheme.bodySmall),
+                                      Text('${artist.albumCount} albums', style: theme.textTheme.bodySmall)
+                                    ],
+                                    if (artist.collaborationCount > 0) ...[
+                                      Text(' • ', style: theme.textTheme.bodySmall),
+                                      Text('${artist.collaborationCount} collabs',
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                              color: theme.colorScheme.primary))
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(PhosphorIconsRegular.caretRight, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
                 );
               },
             ),
@@ -109,16 +138,16 @@ class _ArtistAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return CircleAvatar(
-      radius: 24,
+      radius: 28,
       backgroundColor: theme.colorScheme.primaryContainer,
       backgroundImage: coverArtPath != null
-          ? ResizeImage(FileImage(File(coverArtPath!)), width: 96)
+          ? ResizeImage(FileImage(File(coverArtPath!)), width: 112)
               as ImageProvider
           : null,
       child: coverArtPath == null
           ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
               style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.onPrimaryContainer))
           : null,
@@ -273,7 +302,6 @@ class ArtistDetailScreen extends ConsumerWidget {
             ),
           );
         },
-        // FIX: Replaced SliverFillRemaining with standard RenderBox widgets
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),
       ),

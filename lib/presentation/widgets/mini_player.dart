@@ -6,6 +6,7 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../providers/playback_providers.dart';
 import '../screens/now_playing_screen.dart';
+import 'marquee_text.dart';
 
 class MiniPlayer extends ConsumerWidget {
   const MiniPlayer({
@@ -50,7 +51,6 @@ class MiniPlayer extends ConsumerWidget {
         );
       },
       child: GestureDetector(
-        // FIX: Delegate gestures to parent if provided, otherwise fallback to modal
         onTap: onTap ?? () {
           showModalBottomSheet(
             context: context,
@@ -139,14 +139,12 @@ class MiniPlayer extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          currentSong.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        MarqueeText(
+                          text: currentSong.title,
                           style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.onSecondaryContainer,
-                              ),
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSecondaryContainer,
+                          ),
                         ),
                         Text(
                           currentSong.trackArtistId.value,
@@ -178,8 +176,28 @@ class MiniPlayer extends ConsumerWidget {
                       ref.read(playbackControllerProvider.notifier).skipNext();
                     },
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 8),
                 ],
+              ),
+              // FIX: Subtle close button positioned at the top right corner
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => ref.read(playbackControllerProvider.notifier).stop(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: Icon(
+                        PhosphorIconsRegular.x,
+                        size: 14,
+                        color: theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

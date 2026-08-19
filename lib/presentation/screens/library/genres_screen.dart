@@ -11,6 +11,7 @@ class GenresScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final genresAsync = ref.watch(genresProvider);
+    final theme = Theme.of(context);
 
     return genresAsync.when(
       data: (genres) {
@@ -31,57 +32,58 @@ class GenresScreen extends ConsumerWidget {
           itemCount: genres.length,
           itemBuilder: (context, index) {
             final genre = genres[index];
-            return InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => GenreDetailScreen(genre: genre),
-                  ),
-                );
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  // FIX: Added a subtle gradient and shadow for a premium look
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).colorScheme.primaryContainer,
-                      Theme.of(context).colorScheme.secondaryContainer,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
+            return Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primaryContainer.withValues(alpha: 0.8),
+                    theme.colorScheme.secondaryContainer.withValues(alpha: 0.8),
                   ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      genre.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.bold,
-                          ),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => GenreDetailScreen(genre: genre),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${genre.songCount} songs',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
-                          ),
-                    ),
-                  ],
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        genre.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                              color: theme.colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${genre.songCount} songs',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+                            ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );

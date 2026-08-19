@@ -10,86 +10,120 @@ import 'folder_management_screen.dart';
 import 'folders_screen.dart';
 import 'genres_screen.dart';
 import 'playlists_screen.dart';
+import 'songs_screen.dart';
 
-class LibraryHubScreen extends ConsumerWidget {
+// FIX: StateProvider to preserve the selected tab across rotations
+final libraryTabProvider = StateProvider<int>((ref) => 0);
+
+class LibraryHubScreen extends ConsumerStatefulWidget {
   const LibraryHubScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryHubScreen> createState() => _LibraryHubScreenState();
+}
+
+class _LibraryHubScreenState extends ConsumerState<LibraryHubScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(
+      length: 6,
+      vsync: this,
+      initialIndex: ref.read(libraryTabProvider),
+    );
+
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        ref.read(libraryTabProvider.notifier).state = _tabController.index;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final indexState = ref.watch(indexDirectoriesControllerProvider);
     final isIndexing = indexState is AsyncData && indexState.value != null;
     final progress = indexState.valueOrNull;
     final theme = Theme.of(context);
 
-    return DefaultTabController(
-      length: 5,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Library', style: TextStyle(fontWeight: FontWeight.bold)),
-          centerTitle: false,
-          actions: [
-            IconButton(
-              icon: const Icon(PhosphorIconsRegular.folderPlus),
-              tooltip: 'Manage folders',
-              onPressed: isIndexing ? null : () {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FolderManagementScreen()));
-              },
-            ),
-            IconButton(
-              icon: const Icon(PhosphorIconsRegular.gear),
-              tooltip: 'Settings',
-              onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-              },
-            ),
-          ],
-          bottom: const TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: [
-              Tab(text: 'Playlists'),
-              Tab(text: 'Albums'),
-              Tab(text: 'Artists'),
-              Tab(text: 'Folders'),
-              Tab(text: 'Genres'),
-            ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Library', style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(PhosphorIconsRegular.folderPlus),
+            tooltip: 'Manage folders',
+            onPressed: isIndexing ? null : () {
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FolderManagementScreen()));
+            },
           ),
+          IconButton(
+            icon: const Icon(PhosphorIconsRegular.gear),
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          tabs: const [
+            Tab(text: 'Songs'), // FIX: Songs is now the default tab
+            Tab(text: 'Playlists'),
+            Tab(text: 'Albums'),
+            Tab(text: 'Artists'),
+            Tab(text: 'Folders'),
+            Tab(text: 'Genres'),
+          ],
         ),
-        body: Column(
-          children: [
-            if (isIndexing && progress != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                color: theme.colorScheme.primaryContainer,
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.onPrimaryContainer),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'Scanning library... ${progress.current} / ${progress.total}',
-                        style: TextStyle(color: theme.colorScheme.onPrimaryContainer, fontWeight: FontWeight.w500),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const Expanded(
-              child: TabBarView(
+      ),
+      body: Column(
+        children: [
+          if (isIndexing && progress != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: theme.colorScheme.primaryContainer,
+              child: Row(
                 children: [
-                  PlaylistsScreen(),
-                  AlbumsScreen(),
-                  ArtistsScreen(),
-                  FoldersScreen(),
-                  GenresScreen(),
+                  SizedBox(
+                    width: 20, height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'Scanning library... ${progress.current} / ${progress.total}',
+                      style: TextStyle(color: theme.colorScheme.onPrimaryContainer, fontWeight: FontWeight.w500),
+                    ),
+                  ),
                 ],
               ),
             ),
-          ],
-        ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: const [
+                SongsScreen(),
+                PlaylistsScreen(),
+                AlbumsScreen(),
+                ArtistsScreen(),
+                FoldersScreen(),
+                GenresScreen(),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

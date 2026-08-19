@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../../core/error/failures.dart';
@@ -40,6 +43,10 @@ class HomeShell extends ConsumerStatefulWidget {
 
 class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProviderStateMixin {
   late AnimationController _playerAnim;
+  
+  // FIX: GlobalKey prevents the IndexedStack from losing state when LayoutBuilder 
+  // switches between Row (wide) and Stack (narrow) layouts on rotation.
+  final GlobalKey _indexedStackKey = GlobalKey();
 
   @override
   void initState() {
@@ -48,6 +55,12 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
       vsync: this,
       duration: const Duration(milliseconds: 350),
     );
+
+    // FIX: Ensure POST_NOTIFICATIONS is requested for Android 13+ in case 
+    // the user skipped onboarding or updated from an older version.
+    if (Platform.isAndroid) {
+      Permission.notification.request();
+    }
   }
 
   @override
@@ -65,7 +78,6 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
-    // delta.dy is negative when dragging up (opening), positive when dragging down (closing)
     final delta = -details.primaryDelta! / MediaQuery.of(context).size.height;
     _playerAnim.value += delta;
   }
@@ -106,7 +118,13 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= HomeShell._wideBreakpoint;
-        final body = IndexedStack(index: selectedIndex, children: _screens);
+        
+        // FIX: Applied the GlobalKey here
+        final body = IndexedStack(
+          key: _indexedStackKey, 
+          index: selectedIndex, 
+          children: _screens,
+        );
 
         void onSelect(int i) =>
             ref.read(selectedNavIndexProvider.notifier).state = i;
@@ -122,7 +140,6 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
             AnimatedBuilder(
               animation: _playerAnim,
               builder: (context, child) {
-                // Fade out the MiniPlayer as the NowPlayingScreen slides up
                 return Opacity(
                   opacity: (1.0 - (_playerAnim.value * 2)).clamp(0.0, 1.0),
                   child: IgnorePointer(
@@ -199,9 +216,6 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
           );
         }
 
-        // FIX: Render NowPlayingScreen in a Stack for fluid 60fps interactive swipe.
-        // We use PopScope to intercept the Android back button when the player is open.
-        // The 'scaffold' is passed as 'child' so it doesn't rebuild on every animation frame.
         return AnimatedBuilder(
           animation: _playerAnim,
           child: scaffold,

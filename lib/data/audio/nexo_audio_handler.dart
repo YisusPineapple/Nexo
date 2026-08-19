@@ -61,6 +61,10 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration?>? _durationSub;
   StreamSubscription<bool>? _playingSub;
+  
+  // FIX: Added subscriptions for audio_service state broadcasting
+  StreamSubscription<ja.PlaybackEvent>? _playbackEventSub;
+  StreamSubscription<bool>? _playingEventSub;
 
   Stream<Duration> get positionStream => _positionController.stream;
   Stream<Duration?> get durationStream => _durationController.stream;
@@ -74,10 +78,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   void _init() {
-    _activePlayer.playbackEventStream.listen(_broadcastState);
-    _activePlayer.playingStream
-        .listen((_) => _broadcastState(_activePlayer.playbackEvent));
-
     _playerA.processingStateStream.listen((state) {
       if (state == ja.ProcessingState.completed && !_isTransitioning) {
         _onNaturalEnd();
@@ -126,6 +126,8 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _positionSub?.cancel();
     _durationSub?.cancel();
     _playingSub?.cancel();
+    _playbackEventSub?.cancel();
+    _playingEventSub?.cancel();
 
     _positionSub = _activePlayer.positionStream.listen((pos) {
       _positionController.add(pos);
@@ -133,6 +135,10 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     });
     _durationSub = _activePlayer.durationStream.listen(_durationController.add);
     _playingSub = _activePlayer.playingStream.listen(_playingController.add);
+
+    // FIX: Ensure audio_service always listens to the currently active player
+    _playbackEventSub = _activePlayer.playbackEventStream.listen(_broadcastState);
+    _playingEventSub = _activePlayer.playingStream.listen((_) => _broadcastState(_activePlayer.playbackEvent));
 
     _fire(_activePlayer.setSpeed(_currentSpeed));
     _fire(_activePlayer.setPitch(_currentPitch));
@@ -239,7 +245,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await updateQueue(items);
     mediaItem.add(items[_currentIndex]);
     
-    // FIX: Fire play without blocking the handler
     if (!isSameSong) {
       _fire(_activePlayer.play());
     }
@@ -418,7 +423,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final crossfadeDur = _getActualCrossfadeDuration();
       _startCrossfade(crossfadeDur);
     } else {
-      // FIX: Do not block the AudioHandler event loop
       _fire(_activePlayer.play());
     }
   }
@@ -517,6 +521,8 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await _positionSub?.cancel();
     await _durationSub?.cancel();
     await _playingSub?.cancel();
+    await _playbackEventSub?.cancel();
+    await _playingEventSub?.cancel();
     await _playerA.dispose();
     await _playerB.dispose();
   }
