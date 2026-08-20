@@ -50,9 +50,11 @@ Future<void> main() async {
       audioHandler = await AudioService.init(
         builder: () => NexoAudioHandler(),
         config: const AudioServiceConfig(
-          androidNotificationChannelId: 'com.example.nexo.channel.audio',
+          androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio',
           androidNotificationChannelName: 'Nexo Music Playback',
           androidNotificationOngoing: true,
+          androidStopForegroundOnPause: true, // FIX: Allows dismissing the notification
+          androidShowNotificationBadge: true,
           androidNotificationIcon: 'drawable/ic_notification',
         ),
       );

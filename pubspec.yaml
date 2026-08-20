@@ -4,7 +4,7 @@ description: >-
   interface, smooth transitions, and extreme optimization for devices
   with limited resources. FOSS & AI-Maintained.
 publish_to: 'none'
-version: 0.0.10-beta+15
+version: 0.0.10-beta+17
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -52,8 +52,8 @@ flutter_launcher_icons:
   ios: false
   image_path: "assets/icon.png"
   min_sdk_android: 21
-  adaptive_icon_background: "#FDFBF7"
-  adaptive_icon_foreground: "assets/icon.png"
+  adaptive_icon_background: "#1A1614"
+  adaptive_icon_foreground: "assets/icon_fg.png"
   monochrome_icon_path: "assets/icon_mono.png"
   windows:
     generate: true

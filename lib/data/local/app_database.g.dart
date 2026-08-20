@@ -131,6 +131,14 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("is_missing" IN (0, 1))'),
       defaultValue: const Constant(false));
+  static const VerificationMeta _lyricOffsetMsMeta =
+      const VerificationMeta('lyricOffsetMs');
+  @override
+  late final GeneratedColumn<int> lyricOffsetMs = GeneratedColumn<int>(
+      'lyric_offset_ms', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -152,7 +160,8 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
         replayGainTrackDb,
         replayGainAlbumDb,
         dateAddedUtcMs,
-        isMissing
+        isMissing,
+        lyricOffsetMs
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -273,6 +282,12 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
       context.handle(_isMissingMeta,
           isMissing.isAcceptableOrUnknown(data['is_missing']!, _isMissingMeta));
     }
+    if (data.containsKey('lyric_offset_ms')) {
+      context.handle(
+          _lyricOffsetMsMeta,
+          lyricOffsetMs.isAcceptableOrUnknown(
+              data['lyric_offset_ms']!, _lyricOffsetMsMeta));
+    }
     return context;
   }
 
@@ -323,6 +338,8 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
           .read(DriftSqlType.int, data['${effectivePrefix}date_added_utc_ms'])!,
       isMissing: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}is_missing'])!,
+      lyricOffsetMs: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}lyric_offset_ms'])!,
     );
   }
 
@@ -345,19 +362,10 @@ class SongRow extends DataClass implements Insertable<SongRow> {
   final String? albumId;
   final int? trackNumber;
   final int? discNumber;
-
-  /// [Duration] stored as whole milliseconds. Deliberately a plain
-  /// int, not drift's dateTime()-style column sugar: this is a
-  /// duration, not a point in time, and a plain int sidesteps any
-  /// version-specific behavior in how drift's temporal columns pick
-  /// their on-disk representation.
   final int durationMs;
   final String filePath;
   final AudioFormat format;
   final int fileSizeBytes;
-
-  /// See [StringListConverter]'s docstring for why this is one column,
-  /// not a join table.
   final List<String> genreNames;
   final int? year;
   final String? coverArtPath;
@@ -365,11 +373,9 @@ class SongRow extends DataClass implements Insertable<SongRow> {
   final int trailingSilenceMs;
   final double? replayGainTrackDb;
   final double? replayGainAlbumDb;
-
-  /// Epoch milliseconds, UTC — see [durationMs]'s docstring for the
-  /// same "plain int, not a temporal column type" reasoning.
   final int dateAddedUtcMs;
   final bool isMissing;
+  final int lyricOffsetMs;
   const SongRow(
       {required this.id,
       required this.title,
@@ -390,7 +396,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
       this.replayGainTrackDb,
       this.replayGainAlbumDb,
       required this.dateAddedUtcMs,
-      required this.isMissing});
+      required this.isMissing,
+      required this.lyricOffsetMs});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -436,6 +443,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
     }
     map['date_added_utc_ms'] = Variable<int>(dateAddedUtcMs);
     map['is_missing'] = Variable<bool>(isMissing);
+    map['lyric_offset_ms'] = Variable<int>(lyricOffsetMs);
     return map;
   }
 
@@ -475,6 +483,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           : Value(replayGainAlbumDb),
       dateAddedUtcMs: Value(dateAddedUtcMs),
       isMissing: Value(isMissing),
+      lyricOffsetMs: Value(lyricOffsetMs),
     );
   }
 
@@ -504,6 +513,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           serializer.fromJson<double?>(json['replayGainAlbumDb']),
       dateAddedUtcMs: serializer.fromJson<int>(json['dateAddedUtcMs']),
       isMissing: serializer.fromJson<bool>(json['isMissing']),
+      lyricOffsetMs: serializer.fromJson<int>(json['lyricOffsetMs']),
     );
   }
   @override
@@ -530,6 +540,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
       'replayGainAlbumDb': serializer.toJson<double?>(replayGainAlbumDb),
       'dateAddedUtcMs': serializer.toJson<int>(dateAddedUtcMs),
       'isMissing': serializer.toJson<bool>(isMissing),
+      'lyricOffsetMs': serializer.toJson<int>(lyricOffsetMs),
     };
   }
 
@@ -553,7 +564,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           Value<double?> replayGainTrackDb = const Value.absent(),
           Value<double?> replayGainAlbumDb = const Value.absent(),
           int? dateAddedUtcMs,
-          bool? isMissing}) =>
+          bool? isMissing,
+          int? lyricOffsetMs}) =>
       SongRow(
         id: id ?? this.id,
         title: title ?? this.title,
@@ -581,6 +593,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
             : this.replayGainAlbumDb,
         dateAddedUtcMs: dateAddedUtcMs ?? this.dateAddedUtcMs,
         isMissing: isMissing ?? this.isMissing,
+        lyricOffsetMs: lyricOffsetMs ?? this.lyricOffsetMs,
       );
   SongRow copyWithCompanion(SongsCompanion data) {
     return SongRow(
@@ -626,6 +639,9 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           ? data.dateAddedUtcMs.value
           : this.dateAddedUtcMs,
       isMissing: data.isMissing.present ? data.isMissing.value : this.isMissing,
+      lyricOffsetMs: data.lyricOffsetMs.present
+          ? data.lyricOffsetMs.value
+          : this.lyricOffsetMs,
     );
   }
 
@@ -651,33 +667,36 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           ..write('replayGainTrackDb: $replayGainTrackDb, ')
           ..write('replayGainAlbumDb: $replayGainAlbumDb, ')
           ..write('dateAddedUtcMs: $dateAddedUtcMs, ')
-          ..write('isMissing: $isMissing')
+          ..write('isMissing: $isMissing, ')
+          ..write('lyricOffsetMs: $lyricOffsetMs')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
-      id,
-      title,
-      trackArtistId,
-      albumArtistId,
-      albumId,
-      trackNumber,
-      discNumber,
-      durationMs,
-      filePath,
-      format,
-      fileSizeBytes,
-      genreNames,
-      year,
-      coverArtPath,
-      leadingSilenceMs,
-      trailingSilenceMs,
-      replayGainTrackDb,
-      replayGainAlbumDb,
-      dateAddedUtcMs,
-      isMissing);
+  int get hashCode => Object.hashAll([
+        id,
+        title,
+        trackArtistId,
+        albumArtistId,
+        albumId,
+        trackNumber,
+        discNumber,
+        durationMs,
+        filePath,
+        format,
+        fileSizeBytes,
+        genreNames,
+        year,
+        coverArtPath,
+        leadingSilenceMs,
+        trailingSilenceMs,
+        replayGainTrackDb,
+        replayGainAlbumDb,
+        dateAddedUtcMs,
+        isMissing,
+        lyricOffsetMs
+      ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -701,7 +720,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           other.replayGainTrackDb == this.replayGainTrackDb &&
           other.replayGainAlbumDb == this.replayGainAlbumDb &&
           other.dateAddedUtcMs == this.dateAddedUtcMs &&
-          other.isMissing == this.isMissing);
+          other.isMissing == this.isMissing &&
+          other.lyricOffsetMs == this.lyricOffsetMs);
 }
 
 class SongsCompanion extends UpdateCompanion<SongRow> {
@@ -725,6 +745,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
   final Value<double?> replayGainAlbumDb;
   final Value<int> dateAddedUtcMs;
   final Value<bool> isMissing;
+  final Value<int> lyricOffsetMs;
   final Value<int> rowid;
   const SongsCompanion({
     this.id = const Value.absent(),
@@ -747,6 +768,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     this.replayGainAlbumDb = const Value.absent(),
     this.dateAddedUtcMs = const Value.absent(),
     this.isMissing = const Value.absent(),
+    this.lyricOffsetMs = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SongsCompanion.insert({
@@ -770,6 +792,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     this.replayGainAlbumDb = const Value.absent(),
     required int dateAddedUtcMs,
     this.isMissing = const Value.absent(),
+    this.lyricOffsetMs = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         title = Value(title),
@@ -801,6 +824,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     Expression<double>? replayGainAlbumDb,
     Expression<int>? dateAddedUtcMs,
     Expression<bool>? isMissing,
+    Expression<int>? lyricOffsetMs,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -824,6 +848,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
       if (replayGainAlbumDb != null) 'replay_gain_album_db': replayGainAlbumDb,
       if (dateAddedUtcMs != null) 'date_added_utc_ms': dateAddedUtcMs,
       if (isMissing != null) 'is_missing': isMissing,
+      if (lyricOffsetMs != null) 'lyric_offset_ms': lyricOffsetMs,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -849,6 +874,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
       Value<double?>? replayGainAlbumDb,
       Value<int>? dateAddedUtcMs,
       Value<bool>? isMissing,
+      Value<int>? lyricOffsetMs,
       Value<int>? rowid}) {
     return SongsCompanion(
       id: id ?? this.id,
@@ -871,6 +897,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
       replayGainAlbumDb: replayGainAlbumDb ?? this.replayGainAlbumDb,
       dateAddedUtcMs: dateAddedUtcMs ?? this.dateAddedUtcMs,
       isMissing: isMissing ?? this.isMissing,
+      lyricOffsetMs: lyricOffsetMs ?? this.lyricOffsetMs,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -940,6 +967,9 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     if (isMissing.present) {
       map['is_missing'] = Variable<bool>(isMissing.value);
     }
+    if (lyricOffsetMs.present) {
+      map['lyric_offset_ms'] = Variable<int>(lyricOffsetMs.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -969,6 +999,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
           ..write('replayGainAlbumDb: $replayGainAlbumDb, ')
           ..write('dateAddedUtcMs: $dateAddedUtcMs, ')
           ..write('isMissing: $isMissing, ')
+          ..write('lyricOffsetMs: $lyricOffsetMs, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4163,6 +4194,7 @@ typedef $$SongsTableCreateCompanionBuilder = SongsCompanion Function({
   Value<double?> replayGainAlbumDb,
   required int dateAddedUtcMs,
   Value<bool> isMissing,
+  Value<int> lyricOffsetMs,
   Value<int> rowid,
 });
 typedef $$SongsTableUpdateCompanionBuilder = SongsCompanion Function({
@@ -4186,6 +4218,7 @@ typedef $$SongsTableUpdateCompanionBuilder = SongsCompanion Function({
   Value<double?> replayGainAlbumDb,
   Value<int> dateAddedUtcMs,
   Value<bool> isMissing,
+  Value<int> lyricOffsetMs,
   Value<int> rowid,
 });
 
@@ -4314,6 +4347,9 @@ class $$SongsTableFilterComposer extends Composer<_$AppDatabase, $SongsTable> {
 
   ColumnFilters<bool> get isMissing => $composableBuilder(
       column: $table.isMissing, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get lyricOffsetMs => $composableBuilder(
+      column: $table.lyricOffsetMs, builder: (column) => ColumnFilters(column));
 
   Expression<bool> queueSongsRefs(
       Expression<bool> Function($$QueueSongsTableFilterComposer f) f) {
@@ -4456,6 +4492,10 @@ class $$SongsTableOrderingComposer
 
   ColumnOrderings<bool> get isMissing => $composableBuilder(
       column: $table.isMissing, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get lyricOffsetMs => $composableBuilder(
+      column: $table.lyricOffsetMs,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$SongsTableAnnotationComposer
@@ -4527,6 +4567,9 @@ class $$SongsTableAnnotationComposer
 
   GeneratedColumn<bool> get isMissing =>
       $composableBuilder(column: $table.isMissing, builder: (column) => column);
+
+  GeneratedColumn<int> get lyricOffsetMs => $composableBuilder(
+      column: $table.lyricOffsetMs, builder: (column) => column);
 
   Expression<T> queueSongsRefs<T extends Object>(
       Expression<T> Function($$QueueSongsTableAnnotationComposer a) f) {
@@ -4638,6 +4681,7 @@ class $$SongsTableTableManager extends RootTableManager<
             Value<double?> replayGainAlbumDb = const Value.absent(),
             Value<int> dateAddedUtcMs = const Value.absent(),
             Value<bool> isMissing = const Value.absent(),
+            Value<int> lyricOffsetMs = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SongsCompanion(
@@ -4661,6 +4705,7 @@ class $$SongsTableTableManager extends RootTableManager<
             replayGainAlbumDb: replayGainAlbumDb,
             dateAddedUtcMs: dateAddedUtcMs,
             isMissing: isMissing,
+            lyricOffsetMs: lyricOffsetMs,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -4684,6 +4729,7 @@ class $$SongsTableTableManager extends RootTableManager<
             Value<double?> replayGainAlbumDb = const Value.absent(),
             required int dateAddedUtcMs,
             Value<bool> isMissing = const Value.absent(),
+            Value<int> lyricOffsetMs = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SongsCompanion.insert(
@@ -4707,6 +4753,7 @@ class $$SongsTableTableManager extends RootTableManager<
             replayGainAlbumDb: replayGainAlbumDb,
             dateAddedUtcMs: dateAddedUtcMs,
             isMissing: isMissing,
+            lyricOffsetMs: lyricOffsetMs,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

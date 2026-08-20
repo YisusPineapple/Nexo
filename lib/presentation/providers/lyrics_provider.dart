@@ -6,7 +6,6 @@ import '../../domain/usecases/get_lyrics_usecase.dart';
 import '../providers/playback_providers.dart';
 import '../providers/repository_providers.dart';
 
-/// Loads the lyrics for the currently playing song.
 final lyricsProvider = FutureProvider<List<LyricLine>>((ref) async {
   final queue = ref.watch(playbackControllerProvider).valueOrNull;
   final currentSong = queue?.currentSong;
@@ -20,11 +19,27 @@ final lyricsProvider = FutureProvider<List<LyricLine>>((ref) async {
   );
 });
 
-/// State provider for the lyrics offset in milliseconds (±5000ms)
-final lyricOffsetProvider = StateProvider<int>((ref) => 0);
+// FIX: Changed from StateProvider to Notifier to sync with the Database
+final lyricOffsetProvider = NotifierProvider<LyricOffsetNotifier, int>(LyricOffsetNotifier.new);
 
-/// Returns the index of the lyric line that should be highlighted
-/// based on the current playback position + offset.
+class LyricOffsetNotifier extends Notifier<int> {
+  @override
+  int build() {
+    final queue = ref.watch(playbackControllerProvider).valueOrNull;
+    return queue?.currentSong?.lyricOffsetMs ?? 0;
+  }
+
+  void updateOffset(int newOffset) {
+    state = newOffset;
+    final queue = ref.read(playbackControllerProvider).valueOrNull;
+    final currentSong = queue?.currentSong;
+    if (currentSong != null) {
+      // Fire and forget the DB update
+      ref.read(songRepositoryProvider).updateLyricOffset(currentSong.id, newOffset);
+    }
+  }
+}
+
 final currentLyricIndexProvider = Provider<int>((ref) {
   final lines = ref.watch(lyricsProvider).valueOrNull;
   if (lines == null || lines.isEmpty) return -1;
@@ -35,7 +50,6 @@ final currentLyricIndexProvider = Provider<int>((ref) {
   final offsetMs = ref.watch(lyricOffsetProvider);
   final effectivePosition = position + Duration(milliseconds: offsetMs);
 
-  // Find the last line whose timestamp is <= effective position.
   int index = -1;
   for (int i = 0; i < lines.length; i++) {
     if (lines[i].lineTimestamp <= effectivePosition) {
@@ -47,7 +61,6 @@ final currentLyricIndexProvider = Provider<int>((ref) {
   return index;
 });
 
-/// Returns the active segment within the currently active lyric line.
 final currentLyricSegmentProvider = Provider<LyricSegment?>((ref) {
   final lines = ref.watch(lyricsProvider).valueOrNull;
   if (lines == null || lines.isEmpty) return null;

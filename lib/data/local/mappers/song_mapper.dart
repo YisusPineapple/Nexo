@@ -9,18 +9,9 @@ import '../../../domain/value_objects/artist_id.dart';
 import '../../../domain/value_objects/song_id.dart';
 import '../app_database.dart';
 
-/// The only file allowed to know about BOTH [Song] (Domain) and
-/// [SongRow]/[SongsCompanion] (Drift) — every other file works with
-/// exactly one side of this boundary.
 class SongMapper {
   const SongMapper();
 
-  /// Re-runs [Song.create]'s validation on the way out of the
-  /// database. In practice this should never fail — nothing writes an
-  /// invalid [Song] in the first place — but returning [Result] here
-  /// means a corrupted row (manual DB tampering, a future schema bug)
-  /// surfaces as an honest [Failure] instead of an invalid [Song]
-  /// silently entering Domain.
   Result<Song, Failure> toEntity(SongRow row) {
     return Song.create(
       id: SongId(row.id),
@@ -49,6 +40,7 @@ class SongMapper {
         isUtc: true,
       ),
       isMissing: row.isMissing,
+      lyricOffsetMs: row.lyricOffsetMs,
     );
   }
 
@@ -74,6 +66,7 @@ class SongMapper {
       replayGainAlbumDb: Value(song.replayGainAlbumDb),
       dateAddedUtcMs: song.dateAddedUtc.toUtc().millisecondsSinceEpoch,
       isMissing: Value(song.isMissing),
+      lyricOffsetMs: Value(song.lyricOffsetMs),
     );
   }
 }

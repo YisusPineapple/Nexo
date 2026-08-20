@@ -33,6 +33,7 @@ Song _fullSong() {
     replayGainAlbumDb: -7.1,
     dateAddedUtc: DateTime.utc(2026, 1, 15, 10, 30),
     isMissing: true,
+    lyricOffsetMs: 500, // FIX: Added the new field to the test mock
   ).valueOrNull!;
 }
 
@@ -61,6 +62,7 @@ SongRow _rowFrom(SongsCompanion companion) {
     replayGainAlbumDb: companion.replayGainAlbumDb.value,
     dateAddedUtcMs: companion.dateAddedUtcMs.value,
     isMissing: companion.isMissing.value,
+    lyricOffsetMs: companion.lyricOffsetMs.value, // FIX: Mapped the new field
   );
 }
 
@@ -88,6 +90,7 @@ void main() {
     expect(roundTripped.replayGainTrackDb, original.replayGainTrackDb);
     expect(roundTripped.dateAddedUtc, original.dateAddedUtc);
     expect(roundTripped.isMissing, original.isMissing);
+    expect(roundTripped.lyricOffsetMs, original.lyricOffsetMs); // FIX: Assert the new field
   });
 
   test('handles a song with no optional fields set', () {
@@ -109,5 +112,6 @@ void main() {
     final roundTripped = mapper.toEntity(_rowFrom(companion)).valueOrNull!;
     expect(roundTripped.albumArtistId, isNull);
     expect(roundTripped.genreNames, isEmpty);
+    expect(roundTripped.lyricOffsetMs, 0); // Defaults to 0
   });
 }

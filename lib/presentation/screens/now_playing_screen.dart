@@ -756,8 +756,7 @@ class _OffsetControls extends ConsumerWidget {
               onPressed: () {
                 final current = ref.read(lyricOffsetProvider);
                 if (current > -5000) {
-                  ref.read(lyricOffsetProvider.notifier).state =
-                      (current - 1000).clamp(-5000, 5000);
+                  ref.read(lyricOffsetProvider.notifier).updateOffset((current - 1000).clamp(-5000, 5000));
                 }
               },
             ),
@@ -768,13 +767,12 @@ class _OffsetControls extends ConsumerWidget {
               onPressed: () {
                 final current = ref.read(lyricOffsetProvider);
                 if (current > -5000) {
-                  ref.read(lyricOffsetProvider.notifier).state =
-                      (current - 100).clamp(-5000, 5000);
+                  ref.read(lyricOffsetProvider.notifier).updateOffset((current - 100).clamp(-5000, 5000));
                 }
               },
             ),
             InkWell(
-              onTap: () => ref.read(lyricOffsetProvider.notifier).state = 0,
+              onTap: () => ref.read(lyricOffsetProvider.notifier).updateOffset(0),
               borderRadius: BorderRadius.circular(8),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
@@ -797,8 +795,7 @@ class _OffsetControls extends ConsumerWidget {
               onPressed: () {
                 final current = ref.read(lyricOffsetProvider);
                 if (current < 5000) {
-                  ref.read(lyricOffsetProvider.notifier).state =
-                      (current + 100).clamp(-5000, 5000);
+                  ref.read(lyricOffsetProvider.notifier).updateOffset((current + 100).clamp(-5000, 5000));
                 }
               },
             ),
@@ -809,8 +806,7 @@ class _OffsetControls extends ConsumerWidget {
               onPressed: () {
                 final current = ref.read(lyricOffsetProvider);
                 if (current < 5000) {
-                  ref.read(lyricOffsetProvider.notifier).state =
-                      (current + 1000).clamp(-5000, 5000);
+                  ref.read(lyricOffsetProvider.notifier).updateOffset((current + 1000).clamp(-5000, 5000));
                 }
               },
             ),

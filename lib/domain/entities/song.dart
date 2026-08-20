@@ -6,16 +6,6 @@ import '../value_objects/song_id.dart';
 import 'audio_format.dart';
 import 'silence_trim_points.dart';
 
-/// A single indexed audio file and its metadata.
-///
-/// Song is an Entity, not a Value Object: two Song instances are "the
-/// same song" if they share an [id], even after fields like
-/// [isMissing] or [coverArtPath] change following a re-scan.
-/// Equality and hashCode are identity-based (by [id]) rather than
-/// structural — comparing all ~15 fields would be both semantically
-/// wrong (a re-tagged file is still the same Song) and needlessly
-/// expensive to recompute on every scroll-triggered rebuild across a
-/// 15,000-item list.
 final class Song {
   const Song._({
     required this.id,
@@ -37,65 +27,29 @@ final class Song {
     required this.replayGainAlbumDb,
     required this.dateAddedUtc,
     required this.isMissing,
+    required this.lyricOffsetMs,
   });
 
   final SongId id;
   final String title;
-
-  /// The performing artist for THIS track. Distinguished from
-  /// [albumArtistId] per the mandatory "Álbum artist vs Track artist"
-  /// library distinction (e.g. a guest track on a various-artists
-  /// compilation).
   final ArtistId trackArtistId;
-
-  /// Null when the source file has no album-artist tag (common on
-  /// singles or files ripped without that field).
   final ArtistId? albumArtistId;
-
-  /// Null for a track that isn't part of an indexed album.
   final AlbumId? albumId;
-
   final int? trackNumber;
   final int? discNumber;
   final Duration duration;
-
-  /// Kept as a plain String rather than a value object — unlike the
-  /// ID types, there's no risk of mixing this path up with another
-  /// kind of path on this entity, so the extra type doesn't earn its
-  /// cost yet.
   final String filePath;
-
   final AudioFormat format;
   final int fileSizeBytes;
-
-  /// A file can carry more than one genre tag (ID3v2.4 and Vorbis
-  /// Comments both allow repeated genre fields), so this is a list,
-  /// not a single String. Empty, never null, when untagged.
   final List<String> genreNames;
-
   final int? year;
-
-  /// Path to the pre-resized 512x512 cached cover, never the original
-  /// file (which may be 3000x3000+ and must not be loaded into
-  /// memory just to render a list thumbnail). Null until the indexing
-  /// isolate has produced the cache entry.
   final String? coverArtPath;
-
   final SilenceTrimPoints silenceTrim;
-
-  /// ReplayGain values in dB for loudness normalization. Null when
-  /// the file carries no ReplayGain tag; the audio engine falls back
-  /// to no normalization rather than guessing a value.
   final double? replayGainTrackDb;
   final double? replayGainAlbumDb;
-
   final DateTime dateAddedUtc;
-
-  /// True when the file behind [filePath] wasn't found on the last
-  /// scan. The library shows such songs grayed out per the resilience
-  /// requirements, instead of silently dropping them from playlists
-  /// that reference them.
   final bool isMissing;
+  final int lyricOffsetMs;
 
   static Result<Song, Failure> create({
     required SongId id,
@@ -117,6 +71,7 @@ final class Song {
     double? replayGainAlbumDb,
     required DateTime dateAddedUtc,
     bool isMissing = false,
+    int lyricOffsetMs = 0,
   }) {
     if (duration.isNegative) {
       return Err(ValidationFailure(
@@ -152,20 +107,16 @@ final class Song {
       replayGainAlbumDb: replayGainAlbumDb,
       dateAddedUtc: dateAddedUtc,
       isMissing: isMissing,
+      lyricOffsetMs: lyricOffsetMs,
     ));
   }
 
-  /// Scoped to only the fields that plausibly change without a full
-  /// re-index (art cache populated later, ReplayGain computed later,
-  /// missing-flag toggled on re-scan). Unlike the Value Objects in
-  /// this codebase, this never fails — each field is independently
-  /// valid with no cross-field invariant to re-check. If a future
-  /// field needs re-validation, switch this to return Result.
   Song copyWith({
     String? coverArtPath,
     double? replayGainTrackDb,
     double? replayGainAlbumDb,
     bool? isMissing,
+    int? lyricOffsetMs,
   }) {
     return Song._(
       id: id,
@@ -187,6 +138,7 @@ final class Song {
       replayGainAlbumDb: replayGainAlbumDb ?? this.replayGainAlbumDb,
       dateAddedUtc: dateAddedUtc,
       isMissing: isMissing ?? this.isMissing,
+      lyricOffsetMs: lyricOffsetMs ?? this.lyricOffsetMs,
     );
   }
 

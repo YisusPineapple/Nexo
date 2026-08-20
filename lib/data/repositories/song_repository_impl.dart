@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'package:drift/drift.dart';
 import 'package:path/path.dart' as p;
 import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
@@ -44,7 +45,7 @@ Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
     for (final directoryPath in args.directoryPaths) {
       final scanned = await scanner.scan(directoryPath, excludedPaths: args.excludedPaths);
       for (final (path, format) in scanned) {
-        foundMap[path] = format; // Deduplicate paths
+        foundMap[path] = format;
       }
     }
 
@@ -136,7 +137,7 @@ class SongRepositoryImpl implements SongRepository {
     void Function(int current, int total)? onProgress,
   }) async {
     if (_isScanning) {
-      return const Ok(null); // Prevent concurrent scan progress collisions
+      return const Ok(null);
     }
     _isScanning = true;
 
@@ -186,7 +187,6 @@ class SongRepositoryImpl implements SongRepository {
       }
     });
 
-    // FIX: Only trigger unexpected exit if _IndexingDone was never received
     exitPort.listen((_) {
       if (!isDoneReceived) {
         finish(const Err(UnexpectedFailure('Indexing isolate exited unexpectedly.')));
@@ -241,6 +241,17 @@ class SongRepositoryImpl implements SongRepository {
         row.title.toLowerCase().contains(normalized) ||
         row.trackArtistId.toLowerCase().contains(normalized) ||
         (row.albumId?.toLowerCase().contains(normalized) ?? false)).toList());
+  }
+
+  @override
+  Future<Result<void, Failure>> updateLyricOffset(SongId id, int offsetMs) async {
+    try {
+      await (_db.update(_db.songs)..where((t) => t.id.equals(id.value)))
+          .write(SongsCompanion(lyricOffsetMs: Value(offsetMs)));
+      return const Ok(null);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to update lyric offset.', cause: e));
+    }
   }
 
   Result<List<Song>, Failure> _mapRows(List<SongRow> rows) {

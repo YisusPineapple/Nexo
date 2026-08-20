@@ -6,26 +6,12 @@ import 'package:nexo/domain/value_objects/album_id.dart';
 import 'package:nexo/domain/value_objects/artist_id.dart';
 import 'package:nexo/domain/value_objects/song_id.dart';
 
-/// In-memory stand-in for [SongRepository], used ONLY to prove the
-/// contract is implementable and to drive it through Result's
-/// happy/error paths. Deliberately lives beside the contract it
-/// exercises rather than in a shared test-utils folder, so it doesn't
-/// quietly become an unofficial second contract that drifts from the
-/// real one.
 class FakeSongRepository implements SongRepository {
   FakeSongRepository({List<Song> initialSongs = const []})
       : _songs = List.of(initialSongs);
 
   final List<Song> _songs;
-
-  /// Test hook: when true, every scanning call fails — lets tests
-  /// exercise the error path without needing real I/O to break.
   bool failIndexing = false;
-
-  /// Number of times [indexDirectories] actually ran. Lets tests
-  /// confirm a use case's OWN validation short-circuited before ever
-  /// reaching the repository (e.g. rejecting an empty path list),
-  /// rather than only asserting on the final Result.
   int indexDirectoriesCallCount = 0;
 
   @override
@@ -88,5 +74,15 @@ class FakeSongRepository implements SongRepository {
     return Ok(
       _songs.where((s) => s.title.toLowerCase().contains(normalized)).toList(),
     );
+  }
+
+  @override
+  Future<Result<void, Failure>> updateLyricOffset(SongId id, int offsetMs) async {
+    final index = _songs.indexWhere((s) => s.id == id);
+    if (index != -1) {
+      _songs[index] = _songs[index].copyWith(lyricOffsetMs: offsetMs);
+      return const Ok(null);
+    }
+    return Err(NotFoundFailure('No song found with id "${id.value}".'));
   }
 }
