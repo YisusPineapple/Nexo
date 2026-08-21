@@ -7,10 +7,16 @@ class AudioFileScanner {
 
   static const _extensionToFormat = <String, AudioFormat>{
     '.mp3': AudioFormat.mp3, '.m4a': AudioFormat.aac, '.aac': AudioFormat.aac,
-    '.flac': AudioFormat.flac, '.opus': AudioFormat.opus, '.ogg': AudioFormat.vorbis,
-    '.oga': AudioFormat.vorbis, '.wav': AudioFormat.wav, '.wma': AudioFormat.wma,
-    '.aiff': AudioFormat.aiff, '.aif': AudioFormat.aiff, '.eac3': AudioFormat.eac3,
-    '.ec3': AudioFormat.eac3, '.ac4': AudioFormat.ac4, '.webm': AudioFormat.webm,
+    '.flac': AudioFormat.flac, '.opus': AudioFormat.opus,
+    '.ogg': AudioFormat.vorbis,
+    '.oga': AudioFormat.vorbis, '.wav': AudioFormat.wav,
+    '.wma': AudioFormat.wma,
+    '.aiff': AudioFormat.aiff, '.aif': AudioFormat.aiff,
+    '.eac3': AudioFormat.eac3,
+    '.ec3': AudioFormat.eac3, '.ac4': AudioFormat.ac4,
+    '.webm': AudioFormat.webm,
+    '.alac': AudioFormat.aac, '.m4b': AudioFormat.aac,
+    '.mp4': AudioFormat.aac, // FIX: Added more formats
   };
 
   Future<List<(String path, AudioFormat format)>> scan(
@@ -19,7 +25,7 @@ class AudioFileScanner {
   }) async {
     final dir = Directory(directoryPath);
     if (!await dir.exists()) return const [];
-    
+
     final results = <(String, AudioFormat)>[];
     await _scanRecursive(dir, excludedPaths, results);
     return results;

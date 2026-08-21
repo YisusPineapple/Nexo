@@ -119,7 +119,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final currentSegment = ref.watch(currentLyricSegmentProvider);
 
     final prefs = ref.watch(appPreferencesProvider);
-    
+
     final double itemExtent = switch (prefs.lyricsFontSize) {
       LyricsFontSize.small => 100.0,
       LyricsFontSize.medium => 120.0,
@@ -373,7 +373,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                           Expanded(
                             flex: _isFullScreen ? 2 : 1,
                             child: Padding(
-                              padding: EdgeInsets.fromLTRB(32, 0, _isFullScreen ? 32 : 16, 32),
+                              padding: EdgeInsets.fromLTRB(
+                                  32, 0, _isFullScreen ? 32 : 16, 32),
                               child: coverWidget,
                             ),
                           ),
@@ -383,9 +384,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                             child: _isFullScreen
                                 ? const SizedBox(width: 0)
                                 : SizedBox(
-                                    width: MediaQuery.of(context).size.width / 2,
+                                    width:
+                                        MediaQuery.of(context).size.width / 2,
                                     child: Padding(
-                                      padding: const EdgeInsets.fromLTRB(16, 0, 32, 32),
+                                      padding: const EdgeInsets.fromLTRB(
+                                          16, 0, 32, 32),
                                       child: controlsWidget,
                                     ),
                                   ),
@@ -420,7 +423,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                       child: _isFullScreen
                           ? const SizedBox(width: double.infinity, height: 0)
                           : Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 32.0),
                               child: Column(
                                 children: [
                                   const SizedBox(height: 40),
@@ -500,6 +504,10 @@ class _LyricsView extends ConsumerWidget {
     final theme = Theme.of(context);
     final prefs = ref.watch(appPreferencesProvider);
 
+    // FIX: Detect if lyrics are plain text (all timestamps are zero)
+    final isPlainText = lines.isNotEmpty &&
+        lines.every((l) => l.lineTimestamp == Duration.zero);
+
     final textAlign = switch (prefs.lyricsAlignment) {
       LyricsAlignment.left => TextAlign.left,
       LyricsAlignment.center => TextAlign.center,
@@ -522,10 +530,10 @@ class _LyricsView extends ConsumerWidget {
     };
 
     final baseFontSize = switch (prefs.lyricsFontSize) {
-      LyricsFontSize.small => 14.0,
-      LyricsFontSize.medium => 18.0,
-      LyricsFontSize.large => 22.0,
-      LyricsFontSize.extraLarge => 26.0,
+      LyricsFontSize.small => 16.0,
+      LyricsFontSize.medium => 20.0,
+      LyricsFontSize.large => 24.0,
+      LyricsFontSize.extraLarge => 28.0,
     };
 
     if (lines.isEmpty) {
@@ -535,7 +543,8 @@ class _LyricsView extends ConsumerWidget {
           width: double.infinity,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.5),
           ),
           padding: const EdgeInsets.all(24),
           child: Center(
@@ -549,11 +558,11 @@ class _LyricsView extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'No synchronized lyrics found.',
+                  'No lyrics found.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -575,32 +584,42 @@ class _LyricsView extends ConsumerWidget {
                 width: double.infinity,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  color: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.3),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: ListView.builder(
                   key: const PageStorageKey('lyrics_list'),
                   controller: scrollController,
                   itemCount: lines.length,
-                  itemExtent: itemExtent,
+                  // FIX: If plain text, don't force itemExtent so lines can wrap naturally
+                  itemExtent: isPlainText ? null : itemExtent,
                   padding: EdgeInsets.symmetric(
-                    vertical: verticalPadding > 0 ? verticalPadding : 32.0,
+                    vertical: isPlainText
+                        ? 32.0
+                        : (verticalPadding > 0 ? verticalPadding : 32.0),
                   ),
                   itemBuilder: (context, index) {
                     final line = lines[index];
-                    final isActive = index == currentIndex;
-                    final distance = (index - currentIndex).abs();
-                    final currentLineActiveSegment = isActive ? activeSegment : null;
 
-                    final double blurSigma = prefs.lyricsBlurEnabled
+                    // FIX: If plain text, everything is "active" but without blur
+                    final isActive = isPlainText ? true : index == currentIndex;
+                    final distance =
+                        isPlainText ? 0 : (index - currentIndex).abs();
+                    final currentLineActiveSegment =
+                        isActive ? activeSegment : null;
+
+                    final double blurSigma = (prefs.lyricsBlurEnabled &&
+                            !isPlainText)
                         ? (isActive ? 0.0 : (distance * 0.8).clamp(0.0, 3.0))
                         : 0.0;
                     final double opacity = isActive
                         ? 1.0
                         : (1.0 - (distance * 0.18)).clamp(0.25, 0.75);
-                    final double scale = isActive ? 1.0 : 0.96;
 
-                    final useWordSync = prefs.lyricsHighlightWords && line.segments.length > 1;
+                    final useWordSync = prefs.lyricsHighlightWords &&
+                        line.segments.length > 1 &&
+                        !isPlainText;
 
                     final lyricText = useWordSync
                         ? Wrap(
@@ -611,7 +630,8 @@ class _LyricsView extends ConsumerWidget {
                               for (var i = 0; i < line.segments.length; i++)
                                 _LyricSegmentChip(
                                   segment: line.segments[i],
-                                  isActive: currentLineActiveSegment == line.segments[i],
+                                  isActive: currentLineActiveSegment ==
+                                      line.segments[i],
                                   theme: theme,
                                   fontSize: baseFontSize,
                                 ),
@@ -619,14 +639,13 @@ class _LyricsView extends ConsumerWidget {
                           )
                         : Text(
                             line.fullText,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodyLarge?.copyWith(
-                              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                              fontWeight: FontWeight.w700,
                               color: isActive
                                   ? theme.colorScheme.onPrimaryContainer
-                                  : theme.colorScheme.onSurface.withValues(alpha: 0.8),
-                              fontSize: isActive ? baseFontSize : baseFontSize - 2,
+                                  : theme.colorScheme.onSurface
+                                      .withValues(alpha: 0.5),
+                              fontSize: baseFontSize,
                               height: 1.4,
                             ),
                             textAlign: textAlign,
@@ -636,35 +655,37 @@ class _LyricsView extends ConsumerWidget {
 
                     if (blurSigma > 0.0) {
                       lineContent = ImageFiltered(
-                        imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+                        imageFilter: ImageFilter.blur(
+                            sigmaX: blurSigma, sigmaY: blurSigma),
                         child: lineContent,
                       );
                     }
 
                     return GestureDetector(
-                      onTap: () {
-                        ref.read(playbackControllerProvider.notifier).seekTo(line.lineTimestamp);
-                      },
+                      onTap: isPlainText
+                          ? null
+                          : () {
+                              ref
+                                  .read(playbackControllerProvider.notifier)
+                                  .seekTo(line.lineTimestamp);
+                            },
                       child: AnimatedOpacity(
                         duration: const Duration(milliseconds: 250),
                         opacity: opacity,
-                        child: AnimatedScale(
-                          duration: const Duration(milliseconds: 250),
-                          scale: scale,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                            decoration: BoxDecoration(
-                              color: isActive
-                                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: crossAxisAlignment,
-                              children: [lineContent],
-                            ),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                              vertical: isPlainText ? 4 : 8, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: (isActive && !isPlainText)
+                                ? theme.colorScheme.primaryContainer
+                                    .withValues(alpha: 0.35)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: crossAxisAlignment,
+                            children: [lineContent],
                           ),
                         ),
                       ),
@@ -673,27 +694,28 @@ class _LyricsView extends ConsumerWidget {
                 ),
               ),
             ),
-            
             Positioned(
               top: 8,
               right: 8,
               child: IconButton(
                 icon: Icon(
-                  isFullScreen ? PhosphorIconsRegular.cornersIn : PhosphorIconsRegular.cornersOut,
+                  isFullScreen
+                      ? PhosphorIconsRegular.cornersIn
+                      : PhosphorIconsRegular.cornersOut,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
                 tooltip: isFullScreen ? 'Exit Full Screen' : 'Full Screen',
                 onPressed: onToggleFullScreen,
               ),
             ),
-
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOutCubic,
-              bottom: isFullScreen ? 16 : -70,
-              right: 16,
-              child: const _OffsetControls(),
-            ),
+            if (!isPlainText)
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOutCubic,
+                bottom: isFullScreen ? 16 : -70,
+                right: 16,
+                child: const _OffsetControls(),
+              ),
           ],
         );
       },
@@ -716,14 +738,16 @@ class _LyricSegmentChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // FIX: Removed font size and weight changes to prevent layout shifts.
+    // Only color and opacity change.
     return AnimatedDefaultTextStyle(
       duration: const Duration(milliseconds: 150),
       style: theme.textTheme.bodyLarge!.copyWith(
-        fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
+        fontWeight: FontWeight.w700,
         color: isActive
             ? theme.colorScheme.primary
-            : theme.colorScheme.onSurface.withValues(alpha: 0.75),
-        fontSize: isActive ? fontSize + 0.5 : fontSize,
+            : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+        fontSize: fontSize,
         height: 1.4,
       ),
       child: Text(segment.text),
@@ -756,7 +780,9 @@ class _OffsetControls extends ConsumerWidget {
               onPressed: () {
                 final current = ref.read(lyricOffsetProvider);
                 if (current > -5000) {
-                  ref.read(lyricOffsetProvider.notifier).updateOffset((current - 1000).clamp(-5000, 5000));
+                  ref
+                      .read(lyricOffsetProvider.notifier)
+                      .updateOffset((current - 1000).clamp(-5000, 5000));
                 }
               },
             ),
@@ -767,15 +793,19 @@ class _OffsetControls extends ConsumerWidget {
               onPressed: () {
                 final current = ref.read(lyricOffsetProvider);
                 if (current > -5000) {
-                  ref.read(lyricOffsetProvider.notifier).updateOffset((current - 100).clamp(-5000, 5000));
+                  ref
+                      .read(lyricOffsetProvider.notifier)
+                      .updateOffset((current - 100).clamp(-5000, 5000));
                 }
               },
             ),
             InkWell(
-              onTap: () => ref.read(lyricOffsetProvider.notifier).updateOffset(0),
+              onTap: () =>
+                  ref.read(lyricOffsetProvider.notifier).updateOffset(0),
               borderRadius: BorderRadius.circular(8),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                 child: Text(
                   '${offset > 0 ? '+' : ''}${(offset / 1000).toStringAsFixed(1)}s',
                   style: theme.textTheme.labelLarge?.copyWith(
@@ -795,7 +825,9 @@ class _OffsetControls extends ConsumerWidget {
               onPressed: () {
                 final current = ref.read(lyricOffsetProvider);
                 if (current < 5000) {
-                  ref.read(lyricOffsetProvider.notifier).updateOffset((current + 100).clamp(-5000, 5000));
+                  ref
+                      .read(lyricOffsetProvider.notifier)
+                      .updateOffset((current + 100).clamp(-5000, 5000));
                 }
               },
             ),
@@ -806,7 +838,9 @@ class _OffsetControls extends ConsumerWidget {
               onPressed: () {
                 final current = ref.read(lyricOffsetProvider);
                 if (current < 5000) {
-                  ref.read(lyricOffsetProvider.notifier).updateOffset((current + 1000).clamp(-5000, 5000));
+                  ref
+                      .read(lyricOffsetProvider.notifier)
+                      .updateOffset((current + 1000).clamp(-5000, 5000));
                 }
               },
             ),

@@ -11,8 +11,8 @@ import '../providers/navigation_providers.dart';
 import '../widgets/mini_player.dart';
 import 'for_you_screen.dart';
 import 'library/library_hub_screen.dart';
-import 'library/songs_screen.dart';
 import 'now_playing_screen.dart';
+import 'search_screen.dart';
 
 typedef _NavDestination = ({
   String label,
@@ -21,14 +21,26 @@ typedef _NavDestination = ({
 });
 
 const _destinations = <_NavDestination>[
-  (label: 'For You', icon: PhosphorIconsRegular.heart, selectedIcon: PhosphorIconsFill.heart),
-  (label: 'Search', icon: PhosphorIconsRegular.magnifyingGlass, selectedIcon: PhosphorIconsFill.magnifyingGlass),
-  (label: 'Library', icon: PhosphorIconsRegular.books, selectedIcon: PhosphorIconsFill.books),
+  (
+    label: 'For You',
+    icon: PhosphorIconsRegular.heart,
+    selectedIcon: PhosphorIconsFill.heart
+  ),
+  (
+    label: 'Search',
+    icon: PhosphorIconsRegular.magnifyingGlass,
+    selectedIcon: PhosphorIconsFill.magnifyingGlass
+  ),
+  (
+    label: 'Library',
+    icon: PhosphorIconsRegular.books,
+    selectedIcon: PhosphorIconsFill.books
+  ),
 ];
 
 const _screens = <Widget>[
   ForYouScreen(),
-  SongsScreen(),
+  SearchScreen(),
   LibraryHubScreen(),
 ];
 
@@ -41,11 +53,9 @@ class HomeShell extends ConsumerStatefulWidget {
   ConsumerState<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProviderStateMixin {
+class _HomeShellState extends ConsumerState<HomeShell>
+    with SingleTickerProviderStateMixin {
   late AnimationController _playerAnim;
-  
-  // FIX: GlobalKey prevents the IndexedStack from losing state when LayoutBuilder 
-  // switches between Row (wide) and Stack (narrow) layouts on rotation.
   final GlobalKey _indexedStackKey = GlobalKey();
 
   @override
@@ -56,8 +66,6 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
       duration: const Duration(milliseconds: 350),
     );
 
-    // FIX: Ensure POST_NOTIFICATIONS is requested for Android 13+ in case 
-    // the user skipped onboarding or updated from an older version.
     if (Platform.isAndroid) {
       Permission.notification.request();
     }
@@ -84,7 +92,7 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
 
   void _handleDragEnd(DragEndDetails details) {
     if (_playerAnim.isDismissed || _playerAnim.isCompleted) return;
-    
+
     if (details.primaryVelocity! < -300) {
       _playerAnim.forward();
     } else if (details.primaryVelocity! > 300) {
@@ -118,11 +126,10 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= HomeShell._wideBreakpoint;
-        
-        // FIX: Applied the GlobalKey here
+
         final body = IndexedStack(
-          key: _indexedStackKey, 
-          index: selectedIndex, 
+          key: _indexedStackKey,
+          index: selectedIndex,
           children: _screens,
         );
 
@@ -134,8 +141,11 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
           children: [
             if (progress != null)
               LinearProgressIndicator(
-                value: progress.total == 0 ? null : progress.current / progress.total,
-                backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                value: progress.total == 0
+                    ? null
+                    : progress.current / progress.total,
+                backgroundColor:
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
               ),
             AnimatedBuilder(
               animation: _playerAnim,
@@ -181,7 +191,9 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
                     children: [
                       body,
                       Positioned(
-                        bottom: 0, left: 0, right: 0,
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
                         child: miniPlayerWithProgress,
                       ),
                     ],
@@ -196,7 +208,9 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
               children: [
                 body,
                 Positioned(
-                  bottom: 0, left: 0, right: 0,
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
                   child: miniPlayerWithProgress,
                 ),
               ],
@@ -232,7 +246,10 @@ class _HomeShellState extends ConsumerState<HomeShell> with SingleTickerProvider
                   child!,
                   if (_playerAnim.value > 0)
                     Transform.translate(
-                      offset: Offset(0, constraints.maxHeight * (1 - _playerAnim.value)),
+                      offset: Offset(
+                        0,
+                        constraints.maxHeight * (1 - _playerAnim.value),
+                      ),
                       child: NowPlayingScreen(
                         onClose: _togglePlayer,
                         onVerticalDragUpdate: _handleDragUpdate,
