@@ -36,10 +36,11 @@ class _AnimatedInteractionButtonState extends State<AnimatedInteractionButton>
       duration: const Duration(milliseconds: 400),
     );
 
+    // FIX: Softened the bounce effect (changed elasticOut to easeOutBack and reduced peak scale to 1.15)
     _scaleAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.6).chain(CurveTween(curve: Curves.easeOut)), weight: 20),
-      TweenSequenceItem(tween: Tween(begin: 0.6, end: 1.3).chain(CurveTween(curve: Curves.elasticOut)), weight: 50),
-      TweenSequenceItem(tween: Tween(begin: 1.3, end: 1.0).chain(CurveTween(curve: Curves.elasticOut)), weight: 30),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.8).chain(CurveTween(curve: Curves.easeOut)), weight: 20),
+      TweenSequenceItem(tween: Tween(begin: 0.8, end: 1.15).chain(CurveTween(curve: Curves.easeOutBack)), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.15, end: 1.0).chain(CurveTween(curve: Curves.easeOutBack)), weight: 30),
     ]).animate(_scaleController);
 
     _burstController = AnimationController(
@@ -68,7 +69,6 @@ class _AnimatedInteractionButtonState extends State<AnimatedInteractionButton>
 
   @override
   Widget build(BuildContext context) {
-    // FIX: Strict SizedBox prevents layout shifts when the burst is added/removed
     return SizedBox(
       width: 48,
       height: 48,

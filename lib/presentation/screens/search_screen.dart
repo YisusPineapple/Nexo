@@ -8,6 +8,8 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import '../../domain/entities/queue_source.dart';
 import '../providers/library_providers.dart';
 import '../providers/playback_providers.dart';
+import 'library/albums_screen.dart';
+import 'library/artists_screen.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -136,6 +138,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   ),
                                   title: Text(artist),
                                   subtitle: const Text('Artist'),
+                                  onTap: () {
+                                    // FIX: Navigate to ArtistDetailScreen
+                                    Navigator.of(context)
+                                        .push(MaterialPageRoute(
+                                      builder: (_) => ArtistDetailScreen(
+                                        artist: (
+                                          name: artist,
+                                          songCount: 0,
+                                          albumCount: 0,
+                                          collaborationCount: 0,
+                                          coverArtPath: null
+                                        ),
+                                      ),
+                                    ));
+                                  },
                                 ),
                               const Divider(),
                             ],
@@ -160,11 +177,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     height: 48,
                                     decoration: BoxDecoration(
                                       color: theme
-                                          .colorScheme
-                                          .surfaceContainerHighest,
+                                          .colorScheme.surfaceContainerHighest,
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: const Icon(PhosphorIconsRegular.disc),
+                                    child:
+                                        const Icon(PhosphorIconsRegular.disc),
                                   ),
                                   title: Text(
                                     album,
@@ -172,6 +189,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   subtitle: const Text('Album'),
+                                  onTap: () {
+                                    // FIX: Navigate to AlbumDetailScreen
+                                    final artistName = songs
+                                        .firstWhere(
+                                            (s) => s.albumId?.value == album)
+                                        .trackArtistId
+                                        .value;
+                                    Navigator.of(context)
+                                        .push(MaterialPageRoute(
+                                      builder: (_) => AlbumDetailScreen(
+                                        album: (
+                                          id: album,
+                                          name: album,
+                                          artist: artistName,
+                                          coverArtPath: null,
+                                          songCount: 0
+                                        ),
+                                      ),
+                                    ));
+                                  },
                                 ),
                               const Divider(),
                             ],
@@ -202,8 +239,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                       : Container(
                                           width: 48,
                                           height: 48,
-                                          color: theme
-                                              .colorScheme
+                                          color: theme.colorScheme
                                               .surfaceContainerHighest,
                                           child: const Icon(
                                             PhosphorIconsRegular.musicNotes,

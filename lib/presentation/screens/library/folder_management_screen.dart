@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import '../../../core/error/failures.dart';
 import '../../providers/library_folder_providers.dart';
+import '../../providers/library_providers.dart';
 
 class FolderManagementScreen extends ConsumerWidget {
   const FolderManagementScreen({super.key});
@@ -48,6 +49,11 @@ class FolderManagementScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final indexedAsync = ref.watch(indexedFoldersProvider);
     final excludedAsync = ref.watch(excludedFoldersProvider);
+    
+    // FIX: Watch the scanning state to disable buttons
+    final indexState = ref.watch(indexDirectoriesControllerProvider);
+    final isScanning = indexState is AsyncLoading || (indexState is AsyncData && indexState.value != null);
+    
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -104,9 +110,9 @@ class FolderManagementScreen extends ConsumerWidget {
                       trailing: IconButton(
                         icon: Icon(
                           PhosphorIconsRegular.trash,
-                          color: theme.colorScheme.error,
+                          color: isScanning ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.error,
                         ),
-                        onPressed: () async {
+                        onPressed: isScanning ? null : () async {
                           final error = await ref
                               .read(folderManagementControllerProvider)
                               .removeIndexedFolder(folder.path);
@@ -131,9 +137,9 @@ class FolderManagementScreen extends ConsumerWidget {
             },
           ),
           FilledButton.icon(
-            onPressed: () => _pickFolder(context, ref, isExclusion: false),
+            onPressed: isScanning ? null : () => _pickFolder(context, ref, isExclusion: false),
             icon: const Icon(PhosphorIconsRegular.folderPlus),
-            label: const Text('Add Music Folder'),
+            label: Text(isScanning ? 'Scanning in progress...' : 'Add Music Folder'),
           ),
           const Divider(height: 40),
           Text(
@@ -185,9 +191,9 @@ class FolderManagementScreen extends ConsumerWidget {
                       trailing: IconButton(
                         icon: Icon(
                           PhosphorIconsRegular.trash,
-                          color: theme.colorScheme.error,
+                          color: isScanning ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.error,
                         ),
-                        onPressed: () async {
+                        onPressed: isScanning ? null : () async {
                           final error = await ref
                               .read(folderManagementControllerProvider)
                               .removeExcludedFolder(folder.path);
@@ -212,7 +218,7 @@ class FolderManagementScreen extends ConsumerWidget {
             },
           ),
           OutlinedButton.icon(
-            onPressed: () => _pickFolder(context, ref, isExclusion: true),
+            onPressed: isScanning ? null : () => _pickFolder(context, ref, isExclusion: true),
             icon: const Icon(PhosphorIconsRegular.folderNotchPlus),
             label: const Text('Add Exclusion'),
           ),

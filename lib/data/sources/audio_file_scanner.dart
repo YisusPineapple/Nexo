@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import '../../domain/entities/audio_format.dart';
 
@@ -7,16 +8,11 @@ class AudioFileScanner {
 
   static const _extensionToFormat = <String, AudioFormat>{
     '.mp3': AudioFormat.mp3, '.m4a': AudioFormat.aac, '.aac': AudioFormat.aac,
-    '.flac': AudioFormat.flac, '.opus': AudioFormat.opus,
-    '.ogg': AudioFormat.vorbis,
-    '.oga': AudioFormat.vorbis, '.wav': AudioFormat.wav,
-    '.wma': AudioFormat.wma,
-    '.aiff': AudioFormat.aiff, '.aif': AudioFormat.aiff,
-    '.eac3': AudioFormat.eac3,
-    '.ec3': AudioFormat.eac3, '.ac4': AudioFormat.ac4,
-    '.webm': AudioFormat.webm,
-    '.alac': AudioFormat.aac, '.m4b': AudioFormat.aac,
-    '.mp4': AudioFormat.aac, // FIX: Added more formats
+    '.flac': AudioFormat.flac, '.opus': AudioFormat.opus, '.ogg': AudioFormat.vorbis,
+    '.oga': AudioFormat.vorbis, '.wav': AudioFormat.wav, '.wma': AudioFormat.wma,
+    '.aiff': AudioFormat.aiff, '.aif': AudioFormat.aiff, '.eac3': AudioFormat.eac3,
+    '.ec3': AudioFormat.eac3, '.ac4': AudioFormat.ac4, '.webm': AudioFormat.webm,
+    '.alac': AudioFormat.aac, '.m4b': AudioFormat.aac, '.mp4': AudioFormat.aac,
   };
 
   Future<List<(String path, AudioFormat format)>> scan(
@@ -25,7 +21,7 @@ class AudioFileScanner {
   }) async {
     final dir = Directory(directoryPath);
     if (!await dir.exists()) return const [];
-
+    
     final results = <(String, AudioFormat)>[];
     await _scanRecursive(dir, excludedPaths, results);
     return results;
@@ -38,13 +34,19 @@ class AudioFileScanner {
   ) async {
     if (excludedPaths.contains(dir.path)) return;
 
-    await for (final entity in dir.list(recursive: false, followLinks: false)) {
-      if (entity is Directory) {
-        await _scanRecursive(entity, excludedPaths, results);
-      } else if (entity is File) {
-        final format = formatForPath(entity.path);
-        if (format != null) results.add((entity.path, format));
+    try {
+      await for (final entity in dir.list(recursive: false, followLinks: false)) {
+        if (entity is Directory) {
+          await _scanRecursive(entity, excludedPaths, results);
+        } else if (entity is File) {
+          final format = formatForPath(entity.path);
+          if (format != null) results.add((entity.path, format));
+        }
       }
+    } catch (e) {
+      // FIX: Catch filesystem errors (like permission denied on a specific subfolder)
+      // so it doesn't abort the entire scanning process.
+      debugPrint('Skipping directory ${dir.path} due to error: $e');
     }
   }
 

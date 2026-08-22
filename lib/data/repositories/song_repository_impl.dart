@@ -18,37 +18,23 @@ import '../local/mappers/song_mapper.dart';
 import '../sources/audio_file_scanner.dart';
 import '../sources/song_metadata_reader.dart';
 
-sealed class _IndexingMessage {
-  const _IndexingMessage();
-}
-
+sealed class _IndexingMessage { const _IndexingMessage(); }
 final class _IndexingProgress extends _IndexingMessage {
   const _IndexingProgress(this.current, this.total, this.song);
-  final int current;
-  final int total;
-  final Song? song;
+  final int current; final int total; final Song? song;
 }
-
-final class _IndexingDone extends _IndexingMessage {
-  const _IndexingDone();
-}
-
+final class _IndexingDone extends _IndexingMessage { const _IndexingDone(); }
 final class _IndexingFailed extends _IndexingMessage {
-  const _IndexingFailed(this.message);
-  final String message;
+  const _IndexingFailed(this.message); final String message;
 }
 
 class _IndexingIsolateArgs {
   const _IndexingIsolateArgs({
-    required this.directoryPaths,
-    required this.coverArtCacheDirectory,
-    required this.sendPort,
-    required this.excludedPaths,
+    required this.directoryPaths, required this.coverArtCacheDirectory,
+    required this.sendPort, required this.excludedPaths,
   });
-  final List<String> directoryPaths;
-  final String coverArtCacheDirectory;
-  final SendPort sendPort;
-  final Set<String> excludedPaths;
+  final List<String> directoryPaths; final String coverArtCacheDirectory;
+  final SendPort sendPort; final Set<String> excludedPaths;
 }
 
 Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
@@ -58,10 +44,7 @@ Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
   try {
     final foundMap = <String, AudioFormat>{};
     for (final directoryPath in args.directoryPaths) {
-      final scanned = await scanner.scan(
-        directoryPath,
-        excludedPaths: args.excludedPaths,
-      );
+      final scanned = await scanner.scan(directoryPath, excludedPaths: args.excludedPaths);
       for (final (path, format) in scanned) {
         foundMap[path] = format;
       }
@@ -76,9 +59,9 @@ Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
       Song? song;
       try {
         song = await _buildSong(
-          path,
-          format,
-          metadataReader: metadataReader,
+          path, 
+          format, 
+          metadataReader: metadataReader, 
           coverArtCacheDirectory: args.coverArtCacheDirectory,
         );
       } catch (_) {}
@@ -90,12 +73,7 @@ Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
   }
 }
 
-Future<Song?> _buildSong(
-  String path,
-  AudioFormat format, {
-  required SongMetadataReader metadataReader,
-  required String coverArtCacheDirectory,
-}) async {
+Future<Song?> _buildSong(String path, AudioFormat format, {required SongMetadataReader metadataReader, required String coverArtCacheDirectory}) async {
   final file = File(path);
   final stat = await file.stat();
   final id = SongId(path);
@@ -122,10 +100,13 @@ Future<Song?> _buildSong(
     year = extracted.year;
 
     if (extracted.coverArtBytes != null) {
+      // FIX: Deduplicate covers by hashing the Album + Artist instead of the Song ID.
+      // This saves hundreds of MBs in large libraries.
+      final coverHash = '${album ?? 'unknown'}_${extracted.albumArtist ?? artist}'.hashCode.toRadixString(16);
       coverArtPath = await metadataReader.cacheCoverArt(
         coverBytes: extracted.coverArtBytes!,
         cacheDirectory: coverArtCacheDirectory,
-        songId: id.value.hashCode.toRadixString(16),
+        coverId: coverHash,
       );
     }
   } catch (e) {
@@ -133,20 +114,12 @@ Future<Song?> _buildSong(
   }
 
   return Song.create(
-    id: id,
-    title: title,
-    trackArtistId: ArtistId(artist),
+    id: id, title: title, trackArtistId: ArtistId(artist),
     albumId: album == null ? null : AlbumId(album),
-    trackNumber: trackNumber,
-    discNumber: discNumber,
-    duration: duration,
-    filePath: path,
-    format: format,
-    fileSizeBytes: stat.size,
-    genreNames: genres,
-    year: year,
-    coverArtPath: coverArtPath,
-    dateAddedUtc: DateTime.now().toUtc(),
+    trackNumber: trackNumber, discNumber: discNumber,
+    duration: duration, filePath: path, format: format,
+    fileSizeBytes: stat.size, genreNames: genres, year: year,
+    coverArtPath: coverArtPath, dateAddedUtc: DateTime.now().toUtc(),
   ).valueOrNull;
 }
 
@@ -178,9 +151,7 @@ class SongRepositoryImpl implements SongRepository {
   Future<Result<void, Failure>> refresh() async {
     final foldersResult = await _libraryFolderRepository.getIndexedFolders();
     if (foldersResult.isErr) {
-      return Err(
-        foldersResult.when(ok: (_) => throw Exception(), err: (e) => e),
-      );
+      return Err(foldersResult.when(ok: (_) => throw Exception(), err: (e) => e));
     }
     final paths = foldersResult.valueOrNull!.map((f) => f.path).toList();
     return _scanAndPersist(paths);
@@ -191,13 +162,14 @@ class SongRepositoryImpl implements SongRepository {
     void Function(int current, int total)? onProgress,
   }) async {
     if (_isScanning) {
-      return const Ok(null);
+      // FIX: Explicitly return an error so the UI knows it was rejected,
+      // instead of silently returning Ok(null) and breaking the UI state.
+      return const Err(ValidationFailure('A scan is already in progress. Please wait.'));
     }
     _isScanning = true;
 
     final excludedResult = await _libraryFolderRepository.getExcludedFolders();
-    final excludedPaths =
-        excludedResult.valueOrNull?.map((e) => e.path).toSet() ?? {};
+    final excludedPaths = excludedResult.valueOrNull?.map((e) => e.path).toSet() ?? {};
 
     final receivePort = ReceivePort();
     final exitPort = ReceivePort();
@@ -206,16 +178,11 @@ class SongRepositoryImpl implements SongRepository {
     bool isDoneReceived = false;
 
     Future<void> flushBatch() async {
-      if (batchSongs.isEmpty) {
-        return;
-      }
+      if (batchSongs.isEmpty) return;
       final toInsert = List<Song>.of(batchSongs);
       batchSongs.clear();
       await _db.batch((batch) {
-        batch.insertAllOnConflictUpdate(
-          _db.songs,
-          toInsert.map((s) => _mapper.toCompanion(s)),
-        );
+        batch.insertAllOnConflictUpdate(_db.songs, toInsert.map((s) => _mapper.toCompanion(s)));
       });
     }
 
@@ -232,9 +199,7 @@ class SongRepositoryImpl implements SongRepository {
           case _IndexingProgress(:final current, :final total, :final song):
             if (song != null) {
               batchSongs.add(song);
-              if (batchSongs.length >= 50) {
-                await flushBatch();
-              }
+              if (batchSongs.length >= 50) await flushBatch();
             }
             onProgress?.call(current, total);
           case _IndexingDone():
@@ -251,11 +216,7 @@ class SongRepositoryImpl implements SongRepository {
 
     exitPort.listen((_) {
       if (!isDoneReceived) {
-        finish(
-          const Err(
-            UnexpectedFailure('Indexing isolate exited unexpectedly.'),
-          ),
-        );
+        finish(const Err(UnexpectedFailure('Indexing isolate exited unexpectedly.')));
       }
     });
 
@@ -263,10 +224,8 @@ class SongRepositoryImpl implements SongRepository {
       await Isolate.spawn(
         _indexingIsolateEntry,
         _IndexingIsolateArgs(
-          directoryPaths: directoryPaths,
-          coverArtCacheDirectory: _coverArtCacheDirectory,
-          sendPort: receivePort.sendPort,
-          excludedPaths: excludedPaths,
+          directoryPaths: directoryPaths, coverArtCacheDirectory: _coverArtCacheDirectory,
+          sendPort: receivePort.sendPort, excludedPaths: excludedPaths,
         ),
         onExit: exitPort.sendPort,
       );
@@ -281,72 +240,44 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   @override
-  Future<Result<List<Song>, Failure>> getAllSongs() async =>
-      _mapRows(await _db.select(_db.songs).get());
+  Future<Result<List<Song>, Failure>> getAllSongs() async => _mapRows(await _db.select(_db.songs).get());
 
   @override
   Future<Result<Song, Failure>> getSongById(SongId id) async {
-    final row = await (_db.select(_db.songs)
-          ..where((t) => t.id.equals(id.value)))
-        .getSingleOrNull();
-    if (row == null) {
-      return Err(NotFoundFailure('No song found with id "${id.value}".'));
-    }
+    final row = await (_db.select(_db.songs)..where((t) => t.id.equals(id.value))).getSingleOrNull();
+    if (row == null) return Err(NotFoundFailure('No song found with id "${id.value}".'));
     return _mapper.toEntity(row);
   }
 
   @override
   Future<Result<List<Song>, Failure>> getSongsByArtist(ArtistId artistId) async =>
-      _mapRows(
-        await (_db.select(_db.songs)
-              ..where((t) => t.trackArtistId.equals(artistId.value)))
-            .get(),
-      );
+      _mapRows(await (_db.select(_db.songs)..where((t) => t.trackArtistId.equals(artistId.value))).get());
 
   @override
   Future<Result<List<Song>, Failure>> getSongsByAlbum(AlbumId albumId) async =>
-      _mapRows(
-        await (_db.select(_db.songs)
-              ..where((t) => t.albumId.equals(albumId.value)))
-            .get(),
-      );
+      _mapRows(await (_db.select(_db.songs)..where((t) => t.albumId.equals(albumId.value))).get());
 
   @override
   Future<Result<List<Song>, Failure>> getSongsByFolder(String folderPath) async =>
-      _mapRows(
-        (await _db.select(_db.songs).get())
-            .where((row) => row.filePath.startsWith(folderPath))
-            .toList(),
-      );
+      _mapRows((await _db.select(_db.songs).get()).where((row) => row.filePath.startsWith(folderPath)).toList());
 
   @override
   Future<Result<List<Song>, Failure>> searchSongs(String query) async {
     final normalized = query.toLowerCase();
-    return _mapRows(
-      (await _db.select(_db.songs).get())
-          .where(
-            (row) =>
-                row.title.toLowerCase().contains(normalized) ||
-                row.trackArtistId.toLowerCase().contains(normalized) ||
-                (row.albumId?.toLowerCase().contains(normalized) ?? false),
-          )
-          .toList(),
-    );
+    return _mapRows((await _db.select(_db.songs).get()).where((row) =>
+        row.title.toLowerCase().contains(normalized) ||
+        row.trackArtistId.toLowerCase().contains(normalized) ||
+        (row.albumId?.toLowerCase().contains(normalized) ?? false)).toList());
   }
 
   @override
-  Future<Result<void, Failure>> updateLyricOffset(
-    SongId id,
-    int offsetMs,
-  ) async {
+  Future<Result<void, Failure>> updateLyricOffset(SongId id, int offsetMs) async {
     try {
       await (_db.update(_db.songs)..where((t) => t.id.equals(id.value)))
           .write(SongsCompanion(lyricOffsetMs: Value(offsetMs)));
       return const Ok(null);
     } catch (e) {
-      return Err(
-        UnexpectedFailure('Failed to update lyric offset.', cause: e),
-      );
+      return Err(UnexpectedFailure('Failed to update lyric offset.', cause: e));
     }
   }
 
@@ -354,9 +285,7 @@ class SongRepositoryImpl implements SongRepository {
     final songs = <Song>[];
     for (final row in rows) {
       final result = _mapper.toEntity(row);
-      if (result.isErr) {
-        return result.when(ok: (_) => const Ok([]), err: Err.new);
-      }
+      if (result.isErr) return result.when(ok: (_) => const Ok([]), err: Err.new);
       songs.add(result.valueOrNull!);
     }
     return Ok(songs);

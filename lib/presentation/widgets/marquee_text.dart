@@ -76,9 +76,8 @@ class _MarqueeTextState extends State<MarqueeText> {
         return;
       }
 
-      timer.cancel(); // Pause the periodic timer while we animate
+      timer.cancel();
       
-      // Wait at the beginning
       await Future.delayed(widget.pauseDuration);
       if (!mounted || !_scrollController.hasClients) return;
 
@@ -86,7 +85,6 @@ class _MarqueeTextState extends State<MarqueeText> {
         milliseconds: (maxScroll / widget.scrollVelocity * 1000).toInt(),
       );
 
-      // Scroll to the end
       await _scrollController.animateTo(
         maxScroll,
         duration: duration,
@@ -95,11 +93,9 @@ class _MarqueeTextState extends State<MarqueeText> {
 
       if (!mounted || !_scrollController.hasClients) return;
       
-      // Wait at the end
       await Future.delayed(widget.pauseDuration);
       if (!mounted || !_scrollController.hasClients) return;
       
-      // Scroll back to the beginning (Ping-Pong effect)
       await _scrollController.animateTo(
         0,
         duration: duration,
@@ -107,7 +103,7 @@ class _MarqueeTextState extends State<MarqueeText> {
       );
       
       if (mounted && _needsScroll) {
-        _startAnimation(maxScroll); // Loop
+        _startAnimation(maxScroll);
       }
     });
   }
@@ -126,7 +122,6 @@ class _MarqueeTextState extends State<MarqueeText> {
       ),
     );
 
-    // Apply a fade mask at the edges only if scrolling is needed
     if (_needsScroll) {
       return ShaderMask(
         shaderCallback: (Rect bounds) {
@@ -139,7 +134,8 @@ class _MarqueeTextState extends State<MarqueeText> {
               Colors.black,
               Colors.transparent,
             ],
-            stops: [0.0, 0.05, 0.95, 1.0],
+            // FIX: Reduced the fade area so text is more readable at the edges
+            stops: [0.0, 0.02, 0.98, 1.0],
           ).createShader(bounds);
         },
         blendMode: BlendMode.dstIn,
