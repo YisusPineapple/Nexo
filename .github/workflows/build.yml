@@ -22,7 +22,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0' # FIX: Pinned version instead of 'stable' channel
+          channel: 'stable' 
 
       - name: Install dependencies
         run: flutter pub get
@@ -51,7 +51,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0' # FIX: Pinned version
+          channel: 'stable' 
 
       - name: Install dependencies
         run: flutter pub get
@@ -78,7 +78,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0' # FIX: Pinned version
+          channel: 'stable' 
 
       - name: Install dependencies
         run: flutter pub get
