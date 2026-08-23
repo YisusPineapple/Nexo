@@ -24,7 +24,7 @@ class AudioFileScanner {
     if (!await dir.exists()) return const [];
     
     final results = <(String, AudioFormat)>[];
-    final visited = <String>{}; // FIX: Keep track of visited directories
+    final visited = <String>{};
     
     await _scanRecursive(dir, excludedPaths, results, visited);
     return results;
@@ -39,7 +39,6 @@ class AudioFileScanner {
     if (excludedPaths.contains(dir.path)) return;
 
     try {
-      // FIX: Resolve the real path to prevent infinite symlink loops
       final canonicalPath = dir.resolveSymbolicLinksSync();
       if (visited.contains(canonicalPath)) return;
       visited.add(canonicalPath);
@@ -48,8 +47,11 @@ class AudioFileScanner {
         if (entity is Directory) {
           await _scanRecursive(entity, excludedPaths, results, visited);
         } else if (entity is File) {
-          final format = formatForPath(entity.path);
-          if (format != null) results.add((entity.path, format));
+          // FIX: Normalize and absolute the path to prevent duplicates on Linux/Windows
+          // where paths might have trailing slashes or different casing.
+          final normalizedPath = p.normalize(p.absolute(entity.path));
+          final format = formatForPath(normalizedPath);
+          if (format != null) results.add((normalizedPath, format));
         }
       }
     } catch (e) {

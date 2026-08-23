@@ -280,17 +280,9 @@ final class PlaybackQueue {
     if (repeatMode == RepeatMode.all) {
       return withCurrentIndex(0);
     }
-    // RepeatMode.off, reached the natural end.
-    return Ok(PlaybackQueue._(
-      id: id,
-      songs: songs,
-      currentIndex: -1,
-      repeatMode: repeatMode,
-      source: source,
-      shuffleEnabled: shuffleEnabled,
-      preShuffleOrder: preShuffleOrder,
-      preShuffleCurrentIndex: preShuffleCurrentIndex,
-    ));
+    // FIX: RepeatMode.off, reached the natural end.
+    // Return to index 0 instead of -1 to keep the player open.
+    return withCurrentIndex(0);
   }
 
   /// Symmetric to [withAdvancedToNext] for skipping backward. Unlike

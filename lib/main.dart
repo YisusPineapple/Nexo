@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'data/audio/nexo_audio_handler.dart';
 import 'data/local/app_database.dart';
@@ -20,6 +21,10 @@ import 'presentation/theme/app_theme.dart';
 Future<void> main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
+
+    if (Platform.isAndroid) {
+      await Permission.notification.request();
+    }
 
     JustAudioMediaKit.ensureInitialized(
       linux: true,
@@ -50,12 +55,9 @@ Future<void> main() async {
       audioHandler = await AudioService.init(
         builder: () => NexoAudioHandler(),
         config: const AudioServiceConfig(
-          androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio',
+          androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio.v2',
           androidNotificationChannelName: 'Nexo Music Playback',
-          androidNotificationOngoing: true,
-          androidStopForegroundOnPause: true,
           androidShowNotificationBadge: true,
-          // FIX: Reverted to the strict white vector drawable. Adaptive icons crash Android 13+ SystemUI.
           androidNotificationIcon: 'drawable/ic_notification', 
         ),
       );

@@ -43,12 +43,10 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
 
     final handler = ref.read(audioHandlerProvider);
 
-    // Callback for when the engine advances automatically (via crossfade or natural end)
     handler.onQueueAdvanced = (newIndex) async {
       final currentQueue = state.valueOrNull;
       if (currentQueue == null) return;
 
-      // Update the current queue index and persist the new state.
       final updated = currentQueue.withCurrentIndex(newIndex);
       if (updated.isOk) {
         final newQueue = updated.valueOrNull!;
@@ -57,8 +55,20 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
       }
     };
 
-    handler.onQueueEnded = () {
-      state = const AsyncData(null);
+    handler.onQueueEnded = () async {
+      final currentQueue = state.valueOrNull;
+      if (currentQueue == null) return;
+
+      final updated = currentQueue.withCurrentIndex(0);
+      if (updated.isOk) {
+        final newQueue = updated.valueOrNull!;
+        await ref.read(playbackRepositoryProvider).saveQueue(newQueue);
+        state = AsyncData(newQueue);
+        
+        final repo = ref.read(audioPlayerRepositoryProvider);
+        await repo.pause();
+        await repo.seekTo(Duration.zero);
+      }
     };
 
     ref.listen(
@@ -67,8 +77,6 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
         if (next.hasValue && state.valueOrNull != null) {
           final currentSong = state.valueOrNull!.currentSong;
           if (currentSong != null) {
-            // Only log the song play. Do NOT call skipNext() here.
-            // The NexoAudioHandler handles auto-advancing internally now.
             final logUseCase = LogSongPlayUseCase(ref.read(userMetricsRepositoryProvider));
             logUseCase.call(currentSong.id);
           }
@@ -231,8 +239,9 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
       await _setQueueState(result.valueOrNull!);
     }
   }
+
   Future<void> stop() async {
-    await ref.read(audioPlayerRepositoryProvider).stop(); // FIX: Calls real stop()
+    await ref.read(audioPlayerRepositoryProvider).stop();
     state = const AsyncData(null);
   }
 }

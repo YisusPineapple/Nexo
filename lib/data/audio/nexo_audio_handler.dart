@@ -389,12 +389,13 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     
     _currentIndex = nextIndex;
     
-    // FIX: Gapless Bug. The next song is ALREADY loaded in _inactivePlayer.
-    // We just flip the active player and play it immediately.
     _isPlayerAActive = !_isPlayerAActive;
     _switchActivePlayer();
     _currentLoadedSongId = _queue[_currentIndex].id.value;
     
+    // FIX: The inactive player was muted during preload. We MUST restore its volume 
+    // before playing it, otherwise gapless playback is completely silent.
+    _fire(_activePlayer.setVolume(_isPlayerAActive ? _gainA : _gainB));
     _fire(_activePlayer.play());
     
     if (_currentIndex < _queue.length) {
@@ -402,7 +403,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     onQueueAdvanced?.call(_currentIndex);
 
-    // Preload the NEXT next song into the new inactive player
     final nextNextIndex = _getNextIndex();
     if (nextNextIndex != null) {
       _fire(_loadSongIntoPlayer(_inactivePlayer, _queue[nextNextIndex])
