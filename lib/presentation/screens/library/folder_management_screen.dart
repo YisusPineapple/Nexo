@@ -6,26 +6,40 @@ import '../../../core/error/failures.dart';
 import '../../providers/library_folder_providers.dart';
 import '../../providers/library_providers.dart';
 
-class FolderManagementScreen extends ConsumerWidget {
+class FolderManagementScreen extends ConsumerStatefulWidget {
   const FolderManagementScreen({super.key});
 
-  Future<void> _pickFolder(
-    BuildContext context,
-    WidgetRef ref, {
-    required bool isExclusion,
-  }) async {
-    final String? path;
+  @override
+  ConsumerState<FolderManagementScreen> createState() => _FolderManagementScreenState();
+}
+
+class _FolderManagementScreenState extends ConsumerState<FolderManagementScreen> {
+  bool _isPickerOpen = false;
+
+  Future<void> _pickFolder({required bool isExclusion}) async {
+    if (_isPickerOpen) return;
+    
+    setState(() {
+      _isPickerOpen = true;
+    });
+
+    String? path;
     try {
       path = await FilePicker.platform.getDirectoryPath();
     } catch (e) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Folder picker unavailable: $e')),
       );
-      return;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPickerOpen = false;
+        });
+      }
     }
 
-    if (path == null || !context.mounted) return;
+    if (path == null || !mounted) return;
 
     final controller = ref.read(folderManagementControllerProvider);
     final String? error;
@@ -35,7 +49,7 @@ class FolderManagementScreen extends ConsumerWidget {
       error = await controller.addIndexedFolder(path);
     }
 
-    if (!context.mounted) return;
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(error ?? (isExclusion
@@ -46,14 +60,14 @@ class FolderManagementScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final indexedAsync = ref.watch(indexedFoldersProvider);
     final excludedAsync = ref.watch(excludedFoldersProvider);
     
-    // FIX: Watch the scanning state to disable buttons
     final indexState = ref.watch(indexDirectoriesControllerProvider);
     final isScanning = indexState is AsyncLoading || (indexState is AsyncData && indexState.value != null);
     
+    final isBusy = isScanning || _isPickerOpen;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -100,7 +114,7 @@ class FolderManagementScreen extends ConsumerWidget {
                       ),
                       title: Text(
                         folder.path,
-                        maxLines: 1,
+                        maxLines: 3, // FIX: Allow long paths to wrap
                         overflow: TextOverflow.ellipsis,
                       ),
                       subtitle: Text(
@@ -110,9 +124,9 @@ class FolderManagementScreen extends ConsumerWidget {
                       trailing: IconButton(
                         icon: Icon(
                           PhosphorIconsRegular.trash,
-                          color: isScanning ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.error,
+                          color: isBusy ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.error,
                         ),
-                        onPressed: isScanning ? null : () async {
+                        onPressed: isBusy ? null : () async {
                           final error = await ref
                               .read(folderManagementControllerProvider)
                               .removeIndexedFolder(folder.path);
@@ -137,7 +151,7 @@ class FolderManagementScreen extends ConsumerWidget {
             },
           ),
           FilledButton.icon(
-            onPressed: isScanning ? null : () => _pickFolder(context, ref, isExclusion: false),
+            onPressed: isBusy ? null : () => _pickFolder(isExclusion: false),
             icon: const Icon(PhosphorIconsRegular.folderPlus),
             label: Text(isScanning ? 'Scanning in progress...' : 'Add Music Folder'),
           ),
@@ -181,7 +195,7 @@ class FolderManagementScreen extends ConsumerWidget {
                       ),
                       title: Text(
                         folder.path,
-                        maxLines: 1,
+                        maxLines: 3, // FIX: Allow long paths to wrap
                         overflow: TextOverflow.ellipsis,
                       ),
                       subtitle: Text(
@@ -191,9 +205,9 @@ class FolderManagementScreen extends ConsumerWidget {
                       trailing: IconButton(
                         icon: Icon(
                           PhosphorIconsRegular.trash,
-                          color: isScanning ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.error,
+                          color: isBusy ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.error,
                         ),
-                        onPressed: isScanning ? null : () async {
+                        onPressed: isBusy ? null : () async {
                           final error = await ref
                               .read(folderManagementControllerProvider)
                               .removeExcludedFolder(folder.path);
@@ -218,7 +232,7 @@ class FolderManagementScreen extends ConsumerWidget {
             },
           ),
           OutlinedButton.icon(
-            onPressed: isScanning ? null : () => _pickFolder(context, ref, isExclusion: true),
+            onPressed: isBusy ? null : () => _pickFolder(isExclusion: true),
             icon: const Icon(PhosphorIconsRegular.folderNotchPlus),
             label: const Text('Add Exclusion'),
           ),

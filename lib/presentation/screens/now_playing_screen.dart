@@ -738,8 +738,6 @@ class _LyricSegmentChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // FIX: Removed font size and weight changes to prevent layout shifts.
-    // Only color and opacity change.
     return AnimatedDefaultTextStyle(
       duration: const Duration(milliseconds: 150),
       style: theme.textTheme.bodyLarge!.copyWith(
@@ -748,7 +746,7 @@ class _LyricSegmentChip extends StatelessWidget {
             ? theme.colorScheme.primary
             : theme.colorScheme.onSurface.withValues(alpha: 0.5),
         fontSize: fontSize,
-        height: 1.4,
+        height: 2.0, // FIX: Increased line height for better readability
       ),
       child: Text(segment.text),
     );

@@ -53,9 +53,10 @@ Future<void> main() async {
           androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio',
           androidNotificationChannelName: 'Nexo Music Playback',
           androidNotificationOngoing: true,
-          androidStopForegroundOnPause: true, // FIX: Allows dismissing the notification
+          androidStopForegroundOnPause: true,
           androidShowNotificationBadge: true,
-          androidNotificationIcon: 'drawable/ic_notification',
+          // FIX: Using the main app icon to rule out XML vector crashes in Android 13+
+          androidNotificationIcon: 'mipmap/ic_launcher', 
         ),
       );
     } else {
