@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import '../../../core/error/failures.dart';
 import '../../providers/library_folder_providers.dart';
-import '../../providers/library_providers.dart';
 
 class FolderManagementScreen extends ConsumerStatefulWidget {
   const FolderManagementScreen({super.key});
@@ -54,7 +53,7 @@ class _FolderManagementScreenState extends ConsumerState<FolderManagementScreen>
       SnackBar(
         content: Text(error ?? (isExclusion
             ? 'Folder excluded successfully.'
-            : 'Folder added and indexing started.')),
+            : 'Folder added! Run a Library Rescan to update songs.')), // FIX: Updated message
       ),
     );
   }
@@ -63,11 +62,6 @@ class _FolderManagementScreenState extends ConsumerState<FolderManagementScreen>
   Widget build(BuildContext context) {
     final indexedAsync = ref.watch(indexedFoldersProvider);
     final excludedAsync = ref.watch(excludedFoldersProvider);
-    
-    final indexState = ref.watch(indexDirectoriesControllerProvider);
-    final isScanning = indexState is AsyncLoading || (indexState is AsyncData && indexState.value != null);
-    
-    final isBusy = isScanning || _isPickerOpen;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -114,7 +108,7 @@ class _FolderManagementScreenState extends ConsumerState<FolderManagementScreen>
                       ),
                       title: Text(
                         folder.path,
-                        maxLines: 3, // FIX: Allow long paths to wrap
+                        maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                       ),
                       subtitle: Text(
@@ -124,9 +118,9 @@ class _FolderManagementScreenState extends ConsumerState<FolderManagementScreen>
                       trailing: IconButton(
                         icon: Icon(
                           PhosphorIconsRegular.trash,
-                          color: isBusy ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.error,
+                          color: theme.colorScheme.error,
                         ),
-                        onPressed: isBusy ? null : () async {
+                        onPressed: () async {
                           final error = await ref
                               .read(folderManagementControllerProvider)
                               .removeIndexedFolder(folder.path);
@@ -150,10 +144,11 @@ class _FolderManagementScreenState extends ConsumerState<FolderManagementScreen>
               return Text('Error: $msg');
             },
           ),
+          // FIX: Button is no longer disabled by scanning state
           FilledButton.icon(
-            onPressed: isBusy ? null : () => _pickFolder(isExclusion: false),
+            onPressed: _isPickerOpen ? null : () => _pickFolder(isExclusion: false),
             icon: const Icon(PhosphorIconsRegular.folderPlus),
-            label: Text(isScanning ? 'Scanning in progress...' : 'Add Music Folder'),
+            label: const Text('Add Music Folder'),
           ),
           const Divider(height: 40),
           Text(
@@ -195,7 +190,7 @@ class _FolderManagementScreenState extends ConsumerState<FolderManagementScreen>
                       ),
                       title: Text(
                         folder.path,
-                        maxLines: 3, // FIX: Allow long paths to wrap
+                        maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                       ),
                       subtitle: Text(
@@ -205,9 +200,9 @@ class _FolderManagementScreenState extends ConsumerState<FolderManagementScreen>
                       trailing: IconButton(
                         icon: Icon(
                           PhosphorIconsRegular.trash,
-                          color: isBusy ? theme.colorScheme.onSurfaceVariant : theme.colorScheme.error,
+                          color: theme.colorScheme.error,
                         ),
-                        onPressed: isBusy ? null : () async {
+                        onPressed: () async {
                           final error = await ref
                               .read(folderManagementControllerProvider)
                               .removeExcludedFolder(folder.path);
@@ -232,7 +227,7 @@ class _FolderManagementScreenState extends ConsumerState<FolderManagementScreen>
             },
           ),
           OutlinedButton.icon(
-            onPressed: isBusy ? null : () => _pickFolder(isExclusion: true),
+            onPressed: _isPickerOpen ? null : () => _pickFolder(isExclusion: true),
             icon: const Icon(PhosphorIconsRegular.folderNotchPlus),
             label: const Text('Add Exclusion'),
           ),

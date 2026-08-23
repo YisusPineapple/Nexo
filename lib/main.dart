@@ -55,8 +55,8 @@ Future<void> main() async {
           androidNotificationOngoing: true,
           androidStopForegroundOnPause: true,
           androidShowNotificationBadge: true,
-          // FIX: Using the main app icon to rule out XML vector crashes in Android 13+
-          androidNotificationIcon: 'mipmap/ic_launcher', 
+          // FIX: Reverted to the strict white vector drawable. Adaptive icons crash Android 13+ SystemUI.
+          androidNotificationIcon: 'drawable/ic_notification', 
         ),
       );
     } else {

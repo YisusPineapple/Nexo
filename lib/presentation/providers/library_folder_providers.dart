@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/library_folder.dart';
-import 'library_providers.dart';
 import 'repository_providers.dart';
 
 final indexedFoldersProvider = FutureProvider<List<LibraryFolder>>((ref) async {
@@ -30,8 +29,8 @@ class FolderManagementController {
       return addResult.when(ok: (_) => null, err: (e) => e.message);
     }
 
-    // FIX: Use the controller so the UI banner shows progress
-    await _ref.read(indexDirectoriesControllerProvider.notifier).indexDirectory(path);
+    // FIX: We no longer force a scan here. The user can add multiple folders
+    // and then press "Force Library Rescan" manually.
     _ref.invalidate(indexedFoldersProvider);
     return null;
   }

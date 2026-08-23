@@ -13,6 +13,7 @@ class AudioFileScanner {
     '.aiff': AudioFormat.aiff, '.aif': AudioFormat.aiff, '.eac3': AudioFormat.eac3,
     '.ec3': AudioFormat.eac3, '.ac4': AudioFormat.ac4, '.webm': AudioFormat.webm,
     '.alac': AudioFormat.aac, '.m4b': AudioFormat.aac, '.mp4': AudioFormat.aac,
+    '.ape': AudioFormat.wav, '.dsf': AudioFormat.wav, '.m4v': AudioFormat.aac, // FIX: Added more edge-case formats
   };
 
   Future<List<(String path, AudioFormat format)>> scan(
@@ -35,7 +36,8 @@ class AudioFileScanner {
     if (excludedPaths.contains(dir.path)) return;
 
     try {
-      await for (final entity in dir.list(recursive: false, followLinks: false)) {
+      // FIX: followLinks: true is CRITICAL for Android SD cards and emulated storage paths
+      await for (final entity in dir.list(recursive: false, followLinks: true)) {
         if (entity is Directory) {
           await _scanRecursive(entity, excludedPaths, results);
         } else if (entity is File) {
@@ -44,8 +46,6 @@ class AudioFileScanner {
         }
       }
     } catch (e) {
-      // FIX: Catch filesystem errors (like permission denied on a specific subfolder)
-      // so it doesn't abort the entire scanning process.
       debugPrint('Skipping directory ${dir.path} due to error: $e');
     }
   }

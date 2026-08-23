@@ -14,23 +14,19 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _init();
   }
 
-  // --- Players ---
   final ja.AudioPlayer _playerA = ja.AudioPlayer();
   final ja.AudioPlayer _playerB = ja.AudioPlayer();
   bool _isPlayerAActive = true;
 
-  // --- Queue ---
   List<Song> _queue = [];
   int _currentIndex = 0;
   RepeatMode _repeatMode = RepeatMode.off;
   String? _currentLoadedSongId;
 
-  // --- Settings ---
   double _currentSpeed = 1.0;
   double _currentPitch = 1.0;
   CrossfadeConfig _config = CrossfadeConfig.disabled;
 
-  // --- Crossfade State ---
   Timer? _crossfadeTimer;
   bool _isTransitioning = false;
   bool _isSkipping = false;
@@ -39,16 +35,13 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   double _gainA = 1.0;
   double _gainB = 1.0;
 
-  // --- Callbacks for Presentation ---
   void Function(int newIndex)? onQueueAdvanced;
   VoidCallback? onQueueEnded;
 
-  // --- Internal Getters ---
   ja.AudioPlayer get _activePlayer => _isPlayerAActive ? _playerA : _playerB;
   ja.AudioPlayer get _inactivePlayer => _isPlayerAActive ? _playerB : _playerA;
   ja.AudioPlayer get player => _activePlayer;
 
-  // --- Streams ---
   final StreamController<Duration> _positionController =
       StreamController<Duration>.broadcast();
   final StreamController<Duration?> _durationController =
@@ -61,8 +54,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<Duration?>? _durationSub;
   StreamSubscription<bool>? _playingSub;
-  
-  // FIX: Added subscriptions for audio_service state broadcasting
   StreamSubscription<ja.PlaybackEvent>? _playbackEventSub;
   StreamSubscription<bool>? _playingEventSub;
 
@@ -136,7 +127,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _durationSub = _activePlayer.durationStream.listen(_durationController.add);
     _playingSub = _activePlayer.playingStream.listen(_playingController.add);
 
-    // FIX: Ensure audio_service always listens to the currently active player
     _playbackEventSub = _activePlayer.playbackEventStream.listen(_broadcastState);
     _playingEventSub = _activePlayer.playingStream.listen((_) => _broadcastState(_activePlayer.playbackEvent));
 
@@ -396,24 +386,30 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       onQueueEnded?.call();
       return;
     }
+    
     _currentIndex = nextIndex;
-    try {
-      await _loadSongIntoPlayer(_activePlayer, _queue[_currentIndex]);
-      _switchActivePlayer();
-      _fire(_activePlayer.play());
-      if (_currentIndex < _queue.length) {
-        mediaItem.add(queue.value[_currentIndex]);
-      }
-      onQueueAdvanced?.call(_currentIndex);
+    
+    // FIX: Gapless Bug. The next song is ALREADY loaded in _inactivePlayer.
+    // We just flip the active player and play it immediately.
+    _isPlayerAActive = !_isPlayerAActive;
+    _switchActivePlayer();
+    _currentLoadedSongId = _queue[_currentIndex].id.value;
+    
+    _fire(_activePlayer.play());
+    
+    if (_currentIndex < _queue.length) {
+      mediaItem.add(queue.value[_currentIndex]);
+    }
+    onQueueAdvanced?.call(_currentIndex);
 
-      final nextNextIndex = _getNextIndex();
-      if (nextNextIndex != null) {
-        _fire(_loadSongIntoPlayer(_inactivePlayer, _queue[nextNextIndex])
-            .then((_) => _inactivePlayer.pause()));
-        _fire(_inactivePlayer.setVolume(0.0));
-      }
-    } catch (e) {
-      debugPrint('Skip failed: $e');
+    // Preload the NEXT next song into the new inactive player
+    final nextNextIndex = _getNextIndex();
+    if (nextNextIndex != null) {
+      _fire(_loadSongIntoPlayer(_inactivePlayer, _queue[nextNextIndex])
+          .then((_) => _inactivePlayer.pause()));
+      _fire(_inactivePlayer.setVolume(0.0));
+    } else {
+      _fire(_inactivePlayer.stop());
     }
   }
 
@@ -470,6 +466,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final prevIndex = _getPreviousIndex();
     if (prevIndex != null && prevIndex != _currentIndex) {
       _currentIndex = prevIndex;
+      // For previous, it's not preloaded, so we must load it manually
       await _loadSongIntoPlayer(_activePlayer, _queue[_currentIndex]);
       _switchActivePlayer();
       _fire(_activePlayer.play());
