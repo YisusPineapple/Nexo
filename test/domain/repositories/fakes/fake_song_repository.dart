@@ -27,7 +27,9 @@ class FakeSongRepository implements SongRepository {
   }
 
   @override
-  Future<Result<void, Failure>> refresh() async {
+  Future<Result<void, Failure>> refresh({
+    void Function(int current, int total)? onProgress,
+  }) async {
     if (failIndexing) {
       return const Err(UnexpectedFailure('Fake refresh failure.'));
     }

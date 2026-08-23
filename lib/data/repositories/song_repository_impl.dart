@@ -176,7 +176,9 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   @override
-  Future<Result<void, Failure>> refresh() async {
+  Future<Result<void, Failure>> refresh({
+    void Function(int current, int total)? onProgress,
+  }) async {
     final foldersResult = await _libraryFolderRepository.getIndexedFolders();
     if (foldersResult.isErr) {
       return Err(
@@ -184,7 +186,7 @@ class SongRepositoryImpl implements SongRepository {
       );
     }
     final paths = foldersResult.valueOrNull!.map((f) => f.path).toList();
-    return _scanAndPersist(paths);
+    return _scanAndPersist(paths, onProgress: onProgress); // FIX: Pass onProgress down
   }
 
   Future<Result<void, Failure>> _scanAndPersist(

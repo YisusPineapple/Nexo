@@ -4,9 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/crossfade_config.dart';
 import '../../domain/entities/playback_settings.dart';
 import '../../domain/entities/playback_speed.dart';
-import '../../domain/usecases/refresh_library_usecase.dart';
 import '../../domain/usecases/update_playback_settings_usecase.dart';
-import '../../domain/usecases/use_case.dart';
+import 'library_providers.dart';
 import 'repository_providers.dart';
 
 final playbackSettingsProvider = FutureProvider<PlaybackSettings>((ref) async {
@@ -90,9 +89,13 @@ class SettingsController {
   }
 
   Future<String?> forceLibraryRefresh() async {
-    final useCase = RefreshLibraryUseCase(_ref.read(songRepositoryProvider));
-    final result = await useCase.call(const NoParams());
-    return result.when(ok: (_) => null, err: (e) => e.message);
+    try {
+      // FIX: Added 'await' to satisfy the unawaited_futures lint rule
+      await _ref.read(indexDirectoriesControllerProvider.notifier).refreshLibrary();
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
   }
 }
 

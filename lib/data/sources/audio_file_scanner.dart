@@ -13,7 +13,7 @@ class AudioFileScanner {
     '.aiff': AudioFormat.aiff, '.aif': AudioFormat.aiff, '.eac3': AudioFormat.eac3,
     '.ec3': AudioFormat.eac3, '.ac4': AudioFormat.ac4, '.webm': AudioFormat.webm,
     '.alac': AudioFormat.aac, '.m4b': AudioFormat.aac, '.mp4': AudioFormat.aac,
-    '.ape': AudioFormat.wav, '.dsf': AudioFormat.wav, '.m4v': AudioFormat.aac, // FIX: Added more edge-case formats
+    '.ape': AudioFormat.wav, '.dsf': AudioFormat.wav, '.m4v': AudioFormat.aac,
   };
 
   Future<List<(String path, AudioFormat format)>> scan(
@@ -24,7 +24,9 @@ class AudioFileScanner {
     if (!await dir.exists()) return const [];
     
     final results = <(String, AudioFormat)>[];
-    await _scanRecursive(dir, excludedPaths, results);
+    final visited = <String>{}; // FIX: Keep track of visited directories
+    
+    await _scanRecursive(dir, excludedPaths, results, visited);
     return results;
   }
 
@@ -32,14 +34,19 @@ class AudioFileScanner {
     Directory dir,
     Set<String> excludedPaths,
     List<(String, AudioFormat)> results,
+    Set<String> visited,
   ) async {
     if (excludedPaths.contains(dir.path)) return;
 
     try {
-      // FIX: followLinks: true is CRITICAL for Android SD cards and emulated storage paths
+      // FIX: Resolve the real path to prevent infinite symlink loops
+      final canonicalPath = dir.resolveSymbolicLinksSync();
+      if (visited.contains(canonicalPath)) return;
+      visited.add(canonicalPath);
+
       await for (final entity in dir.list(recursive: false, followLinks: true)) {
         if (entity is Directory) {
-          await _scanRecursive(entity, excludedPaths, results);
+          await _scanRecursive(entity, excludedPaths, results, visited);
         } else if (entity is File) {
           final format = formatForPath(entity.path);
           if (format != null) results.add((entity.path, format));

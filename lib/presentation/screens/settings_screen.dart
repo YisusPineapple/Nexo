@@ -458,13 +458,10 @@ class SettingsScreen extends ConsumerWidget {
                     title: const Text('Force Library Rescan'),
                     subtitle: const Text('Check indexed folders for new or deleted files'),
                     onTap: () async {
+                      // FIX: Updated message to guide the user
                       ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Scanning library...')));
-                      final error = await controller.forceLibraryRefresh();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(error ?? 'Library scan complete.')));
-                      }
+                          const SnackBar(content: Text('Scan started. Check Library tab for progress.')));
+                      await controller.forceLibraryRefresh();
                     },
                   ),
                   const _GroupDivider(),

@@ -11,7 +11,10 @@ abstract interface class SongRepository {
     void Function(int current, int total)? onProgress,
   });
 
-  Future<Result<void, Failure>> refresh();
+  // FIX: Added onProgress to refresh
+  Future<Result<void, Failure>> refresh({
+    void Function(int current, int total)? onProgress,
+  });
 
   Future<Result<List<Song>, Failure>> getAllSongs();
 
@@ -25,6 +28,5 @@ abstract interface class SongRepository {
 
   Future<Result<List<Song>, Failure>> searchSongs(String query);
 
-  /// Updates the saved lyric offset for a specific song.
   Future<Result<void, Failure>> updateLyricOffset(SongId id, int offsetMs);
 }

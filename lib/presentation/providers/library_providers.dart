@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/usecases/get_all_songs_usecase.dart';
 import '../../domain/usecases/index_directories_usecase.dart';
+import '../../domain/usecases/refresh_library_usecase.dart';
 import '../../domain/usecases/search_songs_usecase.dart';
 import '../../domain/usecases/use_case.dart';
 import '../utils/song_sort.dart';
@@ -26,6 +27,11 @@ final _indexDirectoriesUseCaseProvider =
   return IndexDirectoriesUseCase(ref.watch(songRepositoryProvider));
 });
 
+// FIX: Added provider for RefreshLibraryUseCase
+final _refreshLibraryUseCaseProvider = Provider<RefreshLibraryUseCase>((ref) {
+  return RefreshLibraryUseCase(ref.watch(songRepositoryProvider));
+});
+
 final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(songSearchQueryProvider);
   final sortOption = ref.watch(songSortOptionProvider);
@@ -44,12 +50,8 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   );
 });
 
-/// null: idle or just finished. Non-null: actively indexing, with how
-/// many of the total have been processed so far.
 typedef IndexingProgress = ({int current, int total});
 
-/// Drives the "pick a folder, index it" action from the UI, now with
-/// real per-file progress instead of an indeterminate spinner.
 final indexDirectoriesControllerProvider =
     AsyncNotifierProvider<IndexDirectoriesController, IndexingProgress?>(
   IndexDirectoriesController.new,
@@ -57,10 +59,10 @@ final indexDirectoriesControllerProvider =
 
 class IndexDirectoriesController extends AsyncNotifier<IndexingProgress?> {
   @override
-  Future<IndexingProgress?> build() async => null; // idle by default
+  Future<IndexingProgress?> build() async => null;
 
   Future<void> indexDirectory(String path) async {
-    state = const AsyncData(null); // clears any previous error
+    state = const AsyncData(null);
 
     final result = await ref.read(_indexDirectoriesUseCaseProvider).call(
       [path],
@@ -72,7 +74,30 @@ class IndexDirectoriesController extends AsyncNotifier<IndexingProgress?> {
     state = result.when(
       ok: (_) {
         ref.invalidate(sortedSongsProvider);
-        return const AsyncData(null); // back to idle
+        return const AsyncData(null);
+      },
+      err: (failure) => AsyncValue<IndexingProgress?>.error(
+        failure,
+        StackTrace.current,
+      ),
+    );
+  }
+
+  // FIX: Added method to trigger a full refresh with UI progress
+  Future<void> refreshLibrary() async {
+    state = const AsyncData(null);
+
+    final result = await ref.read(_refreshLibraryUseCaseProvider).call(
+      const NoParams(),
+      onProgress: (current, total) {
+        state = AsyncData((current: current, total: total));
+      },
+    );
+
+    state = result.when(
+      ok: (_) {
+        ref.invalidate(sortedSongsProvider);
+        return const AsyncData(null);
       },
       err: (failure) => AsyncValue<IndexingProgress?>.error(
         failure,
