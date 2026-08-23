@@ -69,6 +69,25 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   void _init() {
+    // FIX: Emit an initial state immediately. Android 13+ requires the MediaSession
+    // to have a valid state before it allows the notification to be created.
+    playbackState.add(playbackState.value.copyWith(
+      controls: [
+        MediaControl.skipToPrevious,
+        MediaControl.play,
+        MediaControl.stop,
+        MediaControl.skipToNext,
+      ],
+      systemActions: const {
+        MediaAction.seek,
+        MediaAction.seekForward,
+        MediaAction.seekBackward
+      },
+      androidCompactActionIndices: const [0, 1, 3],
+      processingState: AudioProcessingState.idle,
+      playing: false,
+    ));
+
     _playerA.processingStateStream.listen((state) {
       if (state == ja.ProcessingState.completed && !_isTransitioning) {
         _onNaturalEnd();
@@ -82,6 +101,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     _switchActivePlayer();
   }
+
 
   void _broadcastState(ja.PlaybackEvent event) {
     final playing = _activePlayer.playing;

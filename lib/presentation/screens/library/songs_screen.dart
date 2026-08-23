@@ -8,7 +8,10 @@ import '../../../domain/entities/queue_source.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../utils/song_sort.dart';
-import '../../widgets/add_to_playlist_dialog.dart';
+import '../../widgets/alphabetical_scroll_view.dart';
+import '../../widgets/song_context_menu.dart';
+
+const double _songRowExtent = 72;
 
 class SongsScreen extends ConsumerStatefulWidget {
   const SongsScreen({super.key});
@@ -19,12 +22,14 @@ class SongsScreen extends ConsumerStatefulWidget {
 
 class _SongsScreenState extends ConsumerState<SongsScreen> {
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   Timer? _debounce;
 
   @override
   void dispose() {
     _debounce?.cancel();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -41,7 +46,9 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
     final sortOption = ref.watch(songSortOptionProvider);
     final theme = Theme.of(context);
 
-    // FIX: Removed AppBar so it embeds cleanly inside LibraryHubScreen's TabBarView
+    final isAlphabeticalSort = sortOption == SongSortOption.title ||
+        sortOption == SongSortOption.artist;
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -95,50 +102,69 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                           'No songs found. Go to Library to add a folder.'),
                     );
                   }
-                  return Scrollbar(
-                    interactive: true,
-                    thickness: 8,
-                    radius: const Radius.circular(4),
-                    child: ListView.builder(
-                      itemExtent: 72,
-                      itemCount: songs.length,
-                      itemBuilder: (context, index) {
-                        final song = songs[index];
-                        return ListTile(
-                          title: Text(
-                            song.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            '${song.trackArtistId.value} • '
-                            '${_formatDuration(song.duration)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(PhosphorIconsRegular.listPlus),
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (_) =>
-                                    AddToPlaylistDialog(songId: song.id.value),
-                              );
-                            },
-                          ),
-                          onTap: () {
-                            ref
-                                .read(playbackControllerProvider.notifier)
-                                .playSongs(
-                                  queueIdStr: 'library_songs',
-                                  songs: songs,
-                                  startIndex: index,
-                                  source: const ManualQueueSource(),
-                                );
+
+                  final list = ListView.builder(
+                    controller: _scrollController,
+                    itemExtent: _songRowExtent,
+                    itemCount: songs.length,
+                    itemBuilder: (context, index) {
+                      final song = songs[index];
+                      return ListTile(
+                        title: Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '${song.trackArtistId.value} • '
+                          '${_formatDuration(song.duration)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(PhosphorIconsRegular.dotsThreeVertical),
+                          onPressed: () {
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: theme.colorScheme.surface,
+                              builder: (context) => SongContextMenu(song: song),
+                            );
                           },
-                        );
-                      },
-                    ),
+                        ),
+                        onTap: () {
+                          ref
+                              .read(playbackControllerProvider.notifier)
+                              .playSongs(
+                                queueIdStr: 'library_songs',
+                                songs: songs,
+                                startIndex: index,
+                                source: const ManualQueueSource(),
+                              );
+                        },
+                      );
+                    },
+                  );
+
+                  if (!isAlphabeticalSort) {
+                    return Scrollbar(
+                      controller: _scrollController,
+                      interactive: true,
+                      thickness: 8,
+                      radius: const Radius.circular(4),
+                      child: list,
+                    );
+                  }
+
+                  return AlphabeticalScrollView(
+                    controller: _scrollController,
+                    itemCount: songs.length,
+                    itemExtent: _songRowExtent,
+                    version: sortOption,
+                    labelBuilder: (index) => sortOption == SongSortOption.title
+                        ? songs[index].title
+                        : songs[index].trackArtistId.value,
+                    child: list,
                   );
                 },
                 loading: () => const Center(child: CircularProgressIndicator()),
