@@ -65,7 +65,14 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
         await ref.read(playbackRepositoryProvider).saveQueue(newQueue);
         state = AsyncData(newQueue);
         
+        // FIX: Explicitly sync the queue to the handler so it loads song 0,
+        // then pause and seek to zero to ensure it doesn't play.
         final repo = ref.read(audioPlayerRepositoryProvider);
+        await repo.updateQueue(
+          newQueue.songs,
+          currentIndex: 0,
+          repeatMode: newQueue.repeatMode,
+        );
         await repo.pause();
         await repo.seekTo(Duration.zero);
       }

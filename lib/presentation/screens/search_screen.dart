@@ -32,15 +32,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _onQueryChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
-      ref.read(songSearchQueryProvider.notifier).state = value;
+      // FIX: Use the global search provider
+      ref.read(globalSearchQueryProvider.notifier).state = value;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final query = ref.watch(songSearchQueryProvider);
-    final songsAsync = ref.watch(sortedSongsProvider);
+    final query = ref.watch(globalSearchQueryProvider);
+    final songsAsync = ref.watch(globalSearchResultsProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -139,17 +140,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   title: Text(artist),
                                   subtitle: const Text('Artist'),
                                   onTap: () {
-                                    // FIX: Navigate to ArtistDetailScreen
-                                    Navigator.of(context)
-                                        .push(MaterialPageRoute(
+                                    Navigator.of(context).push(MaterialPageRoute(
                                       builder: (_) => ArtistDetailScreen(
-                                        artist: (
-                                          name: artist,
-                                          songCount: 0,
-                                          albumCount: 0,
-                                          collaborationCount: 0,
-                                          coverArtPath: null
-                                        ),
+                                        artist: (name: artist, songCount: 0, albumCount: 0, collaborationCount: 0, coverArtPath: null),
                                       ),
                                     ));
                                   },
@@ -177,11 +170,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     height: 48,
                                     decoration: BoxDecoration(
                                       color: theme
-                                          .colorScheme.surfaceContainerHighest,
+                                          .colorScheme
+                                          .surfaceContainerHighest,
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child:
-                                        const Icon(PhosphorIconsRegular.disc),
+                                    child: const Icon(PhosphorIconsRegular.disc),
                                   ),
                                   title: Text(
                                     album,
@@ -190,22 +183,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   ),
                                   subtitle: const Text('Album'),
                                   onTap: () {
-                                    // FIX: Navigate to AlbumDetailScreen
-                                    final artistName = songs
-                                        .firstWhere(
-                                            (s) => s.albumId?.value == album)
-                                        .trackArtistId
-                                        .value;
-                                    Navigator.of(context)
-                                        .push(MaterialPageRoute(
+                                    final artistName = songs.firstWhere((s) => s.albumId?.value == album).trackArtistId.value;
+                                    Navigator.of(context).push(MaterialPageRoute(
                                       builder: (_) => AlbumDetailScreen(
-                                        album: (
-                                          id: album,
-                                          name: album,
-                                          artist: artistName,
-                                          coverArtPath: null,
-                                          songCount: 0
-                                        ),
+                                        album: (id: album, name: album, artist: artistName, coverArtPath: null, songCount: 0),
                                       ),
                                     ));
                                   },
@@ -239,7 +220,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                       : Container(
                                           width: 48,
                                           height: 48,
-                                          color: theme.colorScheme
+                                          color: theme
+                                              .colorScheme
                                               .surfaceContainerHighest,
                                           child: const Icon(
                                             PhosphorIconsRegular.musicNotes,

@@ -227,17 +227,16 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               artist: song.trackArtistId.value,
               album: song.albumId?.value,
               duration: song.duration,
-              artUri: song.coverArtPath != null
-                  ? Uri.file(song.coverArtPath!)
-                  : null,
+              // FIX: Temporarily set artUri to null to prevent TransactionTooLargeException
+              // which silently crashes Android 13+ notifications if the image is > 1MB.
+              artUri: null, 
             ))
         .toList();
     await updateQueue(items);
     mediaItem.add(items[_currentIndex]);
     
-    if (!isSameSong) {
-      _fire(_activePlayer.play());
-    }
+    // FIX: Removed _fire(_activePlayer.play()) from here. 
+    // syncQueue should only sync state, not force playback.
   }
 
   Future<void> loadDirectly(Song song,
@@ -393,8 +392,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _switchActivePlayer();
     _currentLoadedSongId = _queue[_currentIndex].id.value;
     
-    // FIX: The inactive player was muted during preload. We MUST restore its volume 
-    // before playing it, otherwise gapless playback is completely silent.
     _fire(_activePlayer.setVolume(_isPlayerAActive ? _gainA : _gainB));
     _fire(_activePlayer.play());
     
@@ -466,7 +463,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final prevIndex = _getPreviousIndex();
     if (prevIndex != null && prevIndex != _currentIndex) {
       _currentIndex = prevIndex;
-      // For previous, it's not preloaded, so we must load it manually
       await _loadSongIntoPlayer(_activePlayer, _queue[_currentIndex]);
       _switchActivePlayer();
       _fire(_activePlayer.play());

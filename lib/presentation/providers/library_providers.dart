@@ -9,7 +9,11 @@ import '../../domain/usecases/use_case.dart';
 import '../utils/song_sort.dart';
 import 'repository_providers.dart';
 
+// Used by SongsScreen
 final songSearchQueryProvider = StateProvider<String>((ref) => '');
+
+// FIX: Used by SearchScreen to prevent state collision
+final globalSearchQueryProvider = StateProvider<String>((ref) => '');
 
 final songSortOptionProvider =
     StateProvider<SongSortOption>((ref) => SongSortOption.title);
@@ -27,7 +31,6 @@ final _indexDirectoriesUseCaseProvider =
   return IndexDirectoriesUseCase(ref.watch(songRepositoryProvider));
 });
 
-// FIX: Added provider for RefreshLibraryUseCase
 final _refreshLibraryUseCaseProvider = Provider<RefreshLibraryUseCase>((ref) {
   return RefreshLibraryUseCase(ref.watch(songRepositoryProvider));
 });
@@ -46,6 +49,18 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
         ..sort((a, b) => compareSongs(a, b, sortOption));
       return sorted;
     },
+    err: (failure) => throw failure,
+  );
+});
+
+// FIX: Provider specifically for the global SearchScreen
+final globalSearchResultsProvider = FutureProvider<List<Song>>((ref) async {
+  final query = ref.watch(globalSearchQueryProvider);
+  if (query.isEmpty) return [];
+  
+  final result = await ref.watch(_searchSongsUseCaseProvider).call(query);
+  return result.when(
+    ok: (songs) => songs,
     err: (failure) => throw failure,
   );
 });
@@ -83,7 +98,6 @@ class IndexDirectoriesController extends AsyncNotifier<IndexingProgress?> {
     );
   }
 
-  // FIX: Added method to trigger a full refresh with UI progress
   Future<void> refreshLibrary() async {
     state = const AsyncData(null);
 
