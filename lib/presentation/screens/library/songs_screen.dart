@@ -127,7 +127,8 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                             showModalBottomSheet(
                               context: context,
                               isScrollControlled: true,
-                              backgroundColor: theme.colorScheme.surface,
+                              // FIX: Set to transparent so the floating card design works
+                              backgroundColor: Colors.transparent,
                               builder: (context) => SongContextMenu(song: song),
                             );
                           },

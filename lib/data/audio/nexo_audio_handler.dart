@@ -10,9 +10,8 @@ import '../../domain/entities/repeat_mode.dart';
 import '../../domain/entities/song.dart';
 
 class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
-  NexoAudioHandler() {
-    _init();
-  }
+  // FIX: Removed _init() from constructor to prevent race condition with AudioService.init()
+  NexoAudioHandler();
 
   final ja.AudioPlayer _playerA = ja.AudioPlayer();
   final ja.AudioPlayer _playerB = ja.AudioPlayer();
@@ -68,7 +67,8 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     });
   }
 
-  void _init() {
+  // FIX: Renamed to public init() so it can be called manually from main.dart
+  void init() {
     playbackState.add(playbackState.value.copyWith(
       controls: [
         MediaControl.skipToPrevious,
@@ -261,8 +261,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _switchActivePlayer();
     await _playerB.stop();
 
-    // FIX: Crucial missing lines. loadDirectly was never notifying audio_service 
-    // of the song metadata, causing Android 13+ to reject the notification!
     final item = MediaItem(
       id: song.id.value,
       title: song.title,

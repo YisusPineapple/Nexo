@@ -65,8 +65,6 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
         await ref.read(playbackRepositoryProvider).saveQueue(newQueue);
         state = AsyncData(newQueue);
         
-        // FIX: Explicitly sync the queue to the handler so it loads song 0,
-        // then pause and seek to zero to ensure it doesn't play.
         final repo = ref.read(audioPlayerRepositoryProvider);
         await repo.updateQueue(
           newQueue.songs,
@@ -146,6 +144,32 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
           .read(playbackRepositoryProvider)
           .saveQueue(queueResult.valueOrNull!);
       await playQueue(queueId);
+    }
+  }
+
+  // FIX: Added Play Next functionality
+  Future<void> addSongNext(Song song) async {
+    final currentQueue = state.valueOrNull;
+    if (currentQueue == null) return;
+
+    final updated = currentQueue.withSongAddedNext(song);
+    if (updated.isOk) {
+      final newQueue = updated.valueOrNull!;
+      await ref.read(playbackRepositoryProvider).saveQueue(newQueue);
+      await _setQueueState(newQueue);
+    }
+  }
+
+  // FIX: Added Add to Queue functionality
+  Future<void> addSongLast(Song song) async {
+    final currentQueue = state.valueOrNull;
+    if (currentQueue == null) return;
+
+    final updated = currentQueue.withSongAddedLast(song);
+    if (updated.isOk) {
+      final newQueue = updated.valueOrNull!;
+      await ref.read(playbackRepositoryProvider).saveQueue(newQueue);
+      await _setQueueState(newQueue);
     }
   }
 

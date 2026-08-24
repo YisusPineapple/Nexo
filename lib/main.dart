@@ -52,20 +52,23 @@ Future<void> main() async {
 
     final NexoAudioHandler audioHandler;
     if (Platform.isAndroid || Platform.isIOS) {
+      // FIX: Removed the unnecessary cast 'as NexoAudioHandler'
       audioHandler = await AudioService.init(
         builder: () => NexoAudioHandler(),
         config: const AudioServiceConfig(
-          // FIX: Bumped to v3 to force Android to forget previous broken states
-          androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio.v3',
+          androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio.v4',
           androidNotificationChannelName: 'Nexo Music Playback',
-          androidNotificationOngoing: true, // FIX: Restored to keep notification alive
+          androidNotificationOngoing: true,
           androidStopForegroundOnPause: true,
           androidShowNotificationBadge: true,
           androidNotificationIcon: 'drawable/ic_notification', 
         ),
       );
+      
+      audioHandler.init();
     } else {
       audioHandler = NexoAudioHandler();
+      audioHandler.init();
     }
 
     runApp(
