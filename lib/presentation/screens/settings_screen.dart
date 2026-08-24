@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../../domain/entities/app_preferences.dart';
@@ -104,7 +105,7 @@ class SettingsScreen extends ConsumerWidget {
             FilledButton(
               onPressed: () {
                 Navigator.pop(dialogCtx);
-                
+
                 unawaited(
                   showDialog(
                     context: context,
@@ -130,7 +131,8 @@ class SettingsScreen extends ConsumerWidget {
                             SizedBox(height: 8),
                             Text(
                               'This may take a few minutes depending on your library size.',
-                              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                              style: TextStyle(
+                                  fontSize: 12, fontStyle: FontStyle.italic),
                               textAlign: TextAlign.center,
                             ),
                           ],
@@ -236,7 +238,8 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
       appBar: AppBar(
-        title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Settings',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: theme.colorScheme.surfaceContainerLowest,
         surfaceTintColor: Colors.transparent,
       ),
@@ -253,7 +256,8 @@ class SettingsScreen extends ConsumerWidget {
                     leading: const Icon(PhosphorIconsRegular.slidersHorizontal),
                     title: const Text('Equalizer'),
                     subtitle: const Text('10-band EQ and presets'),
-                    trailing: const Icon(PhosphorIconsRegular.caretRight, size: 16),
+                    trailing:
+                        const Icon(PhosphorIconsRegular.caretRight, size: 16),
                     onTap: () {
                       unawaited(Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => const EqualizerScreen())));
@@ -267,17 +271,21 @@ class SettingsScreen extends ConsumerWidget {
                     trailing: DropdownButton<CrossfadeMode>(
                       value: settings.crossfade.mode,
                       underline: const SizedBox(),
-                      icon: const Icon(PhosphorIconsRegular.caretDown, size: 16),
+                      icon:
+                          const Icon(PhosphorIconsRegular.caretDown, size: 16),
                       items: CrossfadeMode.values
-                          .map((mode) =>
-                              DropdownMenuItem(value: mode, child: Text(mode.name)))
+                          .map((mode) => DropdownMenuItem(
+                              value: mode, child: Text(mode.name)))
                           .toList(),
                       onChanged: (mode) {
                         if (mode != null) {
-                          // FIX: Force isAutoDuration to false if the new mode doesn't support it
-                          final supportsAuto = mode == CrossfadeMode.intelligent || mode == CrossfadeMode.autoMix;
-                          final isAuto = supportsAuto ? settings.crossfade.isAutoDuration : false;
-                          
+                          final supportsAuto =
+                              mode == CrossfadeMode.intelligent ||
+                                  mode == CrossfadeMode.autoMix;
+                          final isAuto = supportsAuto
+                              ? settings.crossfade.isAutoDuration
+                              : false;
+
                           unawaited(controller.updateCrossfade(
                               mode, settings.crossfade.duration,
                               isAutoDuration: isAuto));
@@ -291,8 +299,10 @@ class SettingsScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (settings.crossfade.mode == CrossfadeMode.intelligent ||
-                              settings.crossfade.mode == CrossfadeMode.autoMix) ...[
+                          if (settings.crossfade.mode ==
+                                  CrossfadeMode.intelligent ||
+                              settings.crossfade.mode ==
+                                  CrossfadeMode.autoMix) ...[
                             Row(
                               children: [
                                 const Text('Duration control: '),
@@ -300,43 +310,52 @@ class SettingsScreen extends ConsumerWidget {
                                 ChoiceChip(
                                   label: const Text('Manual'),
                                   selected: !settings.crossfade.isAutoDuration,
-                                  onSelected: (_) => unawaited(controller.updateCrossfade(
-                                      settings.crossfade.mode,
-                                      settings.crossfade.duration,
-                                      isAutoDuration: false)),
+                                  onSelected: (_) => unawaited(
+                                      controller.updateCrossfade(
+                                          settings.crossfade.mode,
+                                          settings.crossfade.duration,
+                                          isAutoDuration: false)),
                                 ),
                                 const SizedBox(width: 8),
                                 ChoiceChip(
                                   label: const Text('Auto'),
                                   selected: settings.crossfade.isAutoDuration,
-                                  onSelected: (_) => unawaited(controller.updateCrossfade(
-                                      settings.crossfade.mode,
-                                      settings.crossfade.duration,
-                                      isAutoDuration: true)),
+                                  onSelected: (_) => unawaited(
+                                      controller.updateCrossfade(
+                                          settings.crossfade.mode,
+                                          settings.crossfade.duration,
+                                          isAutoDuration: true)),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
                           ],
                           if (!settings.crossfade.isAutoDuration) ...[
-                            Text('Crossfade Duration: ${settings.crossfade.duration.inSeconds}s'),
+                            Text(
+                                'Crossfade Duration: ${settings.crossfade.duration.inSeconds}s'),
                             Slider(
-                              value: settings.crossfade.duration.inSeconds.toDouble(),
+                              value: settings.crossfade.duration.inSeconds
+                                  .toDouble(),
                               min: 0,
                               max: 12,
                               divisions: 12,
-                              label: '${settings.crossfade.duration.inSeconds}s',
-                              onChanged: (val) => unawaited(controller.updateCrossfade(
-                                  settings.crossfade.mode,
-                                  Duration(seconds: val.toInt()),
-                                  isAutoDuration: settings.crossfade.isAutoDuration)),
+                              label:
+                                  '${settings.crossfade.duration.inSeconds}s',
+                              onChanged: (val) => unawaited(
+                                  controller.updateCrossfade(
+                                      settings.crossfade.mode,
+                                      Duration(seconds: val.toInt()),
+                                      isAutoDuration:
+                                          settings.crossfade.isAutoDuration)),
                             ),
                           ] else ...[
                             const Padding(
                               padding: EdgeInsets.only(top: 8.0),
                               child: Text(
                                   'The system will automatically choose the optimal duration.',
-                                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontStyle: FontStyle.italic)),
                             ),
                           ],
                         ],
@@ -347,7 +366,8 @@ class SettingsScreen extends ConsumerWidget {
                   ListTile(
                     leading: const Icon(PhosphorIconsRegular.gauge),
                     title: const Text('Playback Speed'),
-                    subtitle: Text('${settings.speed.multiplier.toStringAsFixed(2)}x'),
+                    subtitle: Text(
+                        '${settings.speed.multiplier.toStringAsFixed(2)}x'),
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(56, 0, 16, 8),
@@ -364,14 +384,14 @@ class SettingsScreen extends ConsumerWidget {
                   SwitchListTile(
                     contentPadding: const EdgeInsets.only(left: 56, right: 16),
                     title: const Text('Pitch Correction'),
-                    subtitle: const Text('Keep original pitch when changing speed'),
+                    subtitle:
+                        const Text('Keep original pitch when changing speed'),
                     value: settings.speed.pitchCorrectionEnabled,
-                    onChanged: (val) =>
-                        unawaited(controller.updateSpeed(settings.speed.multiplier, val)),
+                    onChanged: (val) => unawaited(controller.updateSpeed(
+                        settings.speed.multiplier, val)),
                   ),
                 ],
               ),
-
               _SettingsGroup(
                 title: 'Lyrics & Display',
                 children: [
@@ -381,10 +401,12 @@ class SettingsScreen extends ConsumerWidget {
                     trailing: DropdownButton<LyricsAlignment>(
                       value: prefs.lyricsAlignment,
                       underline: const SizedBox(),
-                      icon: const Icon(PhosphorIconsRegular.caretDown, size: 16),
+                      icon:
+                          const Icon(PhosphorIconsRegular.caretDown, size: 16),
                       items: LyricsAlignment.values
                           .map((align) => DropdownMenuItem(
-                              value: align, child: Text(align.name.toUpperCase())))
+                              value: align,
+                              child: Text(align.name.toUpperCase())))
                           .toList(),
                       onChanged: (align) {
                         if (align != null) {
@@ -402,10 +424,12 @@ class SettingsScreen extends ConsumerWidget {
                     trailing: DropdownButton<LyricsFontSize>(
                       value: prefs.lyricsFontSize,
                       underline: const SizedBox(),
-                      icon: const Icon(PhosphorIconsRegular.caretDown, size: 16),
+                      icon:
+                          const Icon(PhosphorIconsRegular.caretDown, size: 16),
                       items: LyricsFontSize.values
                           .map((size) => DropdownMenuItem(
-                              value: size, child: Text(size.name.toUpperCase())))
+                              value: size,
+                              child: Text(size.name.toUpperCase())))
                           .toList(),
                       onChanged: (size) {
                         if (size != null) {
@@ -420,7 +444,8 @@ class SettingsScreen extends ConsumerWidget {
                   SwitchListTile(
                     secondary: const Icon(PhosphorIconsRegular.sparkle),
                     title: const Text('3D Depth & Blur Effect'),
-                    subtitle: const Text('Blurs inactive lyric lines. Disable on older hardware for maximum FPS'),
+                    subtitle: const Text(
+                        'Blurs inactive lyric lines. Disable on older hardware for maximum FPS'),
                     value: prefs.lyricsBlurEnabled,
                     onChanged: (val) => unawaited(ref
                         .read(appPreferencesProvider.notifier)
@@ -430,7 +455,8 @@ class SettingsScreen extends ConsumerWidget {
                   SwitchListTile(
                     secondary: const Icon(PhosphorIconsRegular.textAa),
                     title: const Text('Word-by-Word Sync'),
-                    subtitle: const Text('Highlights individual syllables when available in Enhanced LRC'),
+                    subtitle: const Text(
+                        'Highlights individual syllables when available in Enhanced LRC'),
                     value: prefs.lyricsHighlightWords,
                     onChanged: (val) => unawaited(ref
                         .read(appPreferencesProvider.notifier)
@@ -438,15 +464,16 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-
               _SettingsGroup(
                 title: 'Library & Data',
                 children: [
                   ListTile(
                     leading: const Icon(PhosphorIconsRegular.folderNotchMinus),
                     title: const Text('Manage Folders'),
-                    subtitle: const Text('Add music folders or exclude directories'),
-                    trailing: const Icon(PhosphorIconsRegular.caretRight, size: 16),
+                    subtitle:
+                        const Text('Add music folders or exclude directories'),
+                    trailing:
+                        const Icon(PhosphorIconsRegular.caretRight, size: 16),
                     onTap: () {
                       unawaited(Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => const FolderManagementScreen())));
@@ -456,11 +483,12 @@ class SettingsScreen extends ConsumerWidget {
                   ListTile(
                     leading: const Icon(PhosphorIconsRegular.arrowsClockwise),
                     title: const Text('Force Library Rescan'),
-                    subtitle: const Text('Check indexed folders for new or deleted files'),
+                    subtitle: const Text(
+                        'Check indexed folders for new or deleted files'),
                     onTap: () async {
-                      // FIX: Updated message to guide the user
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Scan started. Check Library tab for progress.')));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text(
+                              'Scan started. Check Library tab for progress.')));
                       await controller.forceLibraryRefresh();
                     },
                   ),
@@ -468,21 +496,24 @@ class SettingsScreen extends ConsumerWidget {
                   ListTile(
                     leading: const Icon(PhosphorIconsRegular.export),
                     title: const Text('Export Backup'),
-                    subtitle: const Text('Create a backup of your library, playlists, and settings'),
-                    trailing: const Icon(PhosphorIconsRegular.caretRight, size: 16),
+                    subtitle: const Text(
+                        'Create a backup of your library, playlists, and settings'),
+                    trailing:
+                        const Icon(PhosphorIconsRegular.caretRight, size: 16),
                     onTap: () => unawaited(_showBackupDialog(context, ref)),
                   ),
                   const _GroupDivider(),
                   ListTile(
                     leading: const Icon(PhosphorIconsRegular.downloadSimple),
                     title: const Text('Restore Backup'),
-                    subtitle: const Text('Restore from a previously exported backup'),
-                    trailing: const Icon(PhosphorIconsRegular.caretRight, size: 16),
+                    subtitle: const Text(
+                        'Restore from a previously exported backup'),
+                    trailing:
+                        const Icon(PhosphorIconsRegular.caretRight, size: 16),
                     onTap: () => unawaited(_handleImportBackup(context, ref)),
                   ),
                 ],
               ),
-
               _SettingsGroup(
                 title: 'Appearance & Performance',
                 children: [
@@ -492,10 +523,11 @@ class SettingsScreen extends ConsumerWidget {
                     trailing: DropdownButton<AppThemeMode>(
                       value: prefs.themeMode,
                       underline: const SizedBox(),
-                      icon: const Icon(PhosphorIconsRegular.caretDown, size: 16),
+                      icon:
+                          const Icon(PhosphorIconsRegular.caretDown, size: 16),
                       items: AppThemeMode.values
-                          .map((mode) =>
-                              DropdownMenuItem(value: mode, child: Text(mode.name)))
+                          .map((mode) => DropdownMenuItem(
+                              value: mode, child: Text(mode.name)))
                           .toList(),
                       onChanged: (mode) {
                         if (mode != null) {
@@ -513,7 +545,8 @@ class SettingsScreen extends ConsumerWidget {
                     trailing: DropdownButton<PerformanceProfile>(
                       value: prefs.performanceProfile,
                       underline: const SizedBox(),
-                      icon: const Icon(PhosphorIconsRegular.caretDown, size: 16),
+                      icon:
+                          const Icon(PhosphorIconsRegular.caretDown, size: 16),
                       items: PerformanceProfile.values
                           .map((profile) => DropdownMenuItem(
                               value: profile, child: Text(profile.name)))
@@ -523,37 +556,38 @@ class SettingsScreen extends ConsumerWidget {
                           unawaited(ref
                               .read(appPreferencesProvider.notifier)
                               .updateProfile(profile));
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                              content: Text('Restart the app to fully apply RAM limits.'),
-                              duration: Duration(seconds: 3)));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text(
+                                      'Restart the app to fully apply RAM limits.'),
+                                  duration: Duration(seconds: 3)));
                         }
                       },
                     ),
                   ),
                 ],
               ),
-
               _SettingsGroup(
                 title: 'System & Permissions',
                 children: [
                   ListTile(
                     leading: const Icon(PhosphorIconsRegular.bellRinging),
                     title: const Text('Notification Access'),
-                    subtitle: const Text('Configure lockscreen & playback controls in Android settings'),
-                    trailing: const Icon(PhosphorIconsRegular.arrowSquareOut, size: 16),
+                    subtitle: const Text(
+                        'Configure lockscreen & playback controls in Android settings'),
+                    trailing:
+                        const Icon(PhosphorIconsRegular.arrowSquareOut, size: 16),
                     onTap: () async {
-                      // FIX: Directly opens HiOS settings for Nexo so the user can unblock the channel
                       await openAppSettings();
                     },
                   ),
                 ],
               ),
-              
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32.0),
                 child: Center(
                   child: Text(
-                    'Nexo Music Player\nVersion 0.0.10-beta+15',
+                    'Nexo Music Player\nVersion 0.0.10-beta+23',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
@@ -573,7 +607,7 @@ class SettingsScreen extends ConsumerWidget {
 
 class _SettingsGroup extends StatelessWidget {
   const _SettingsGroup({required this.title, required this.children});
-  
+
   final String title;
   final List<Widget> children;
 
@@ -628,7 +662,8 @@ class _GroupDivider extends StatelessWidget {
       height: 1,
       indent: 56,
       endIndent: 16,
-      color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+      color:
+          Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
     );
   }
 }
