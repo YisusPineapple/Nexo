@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as reader;
 import 'package:flutter/foundation.dart';
@@ -46,8 +45,6 @@ class SongMetadataReader {
       coverBytes = metadata.pictures.first.bytes;
     }
 
-    // FIX: Ultra-fast byte scan for ReplayGain tags without heavy dependencies.
-    // Reads the first 128KB where ID3v2 and Vorbis Comments are stored.
     double? trackGain;
     double? albumGain;
     try {
@@ -55,7 +52,6 @@ class SongMetadataReader {
       final bytes = await raf.read(131072); // 128 KB
       await raf.close();
       
-      // Convert bytes to string ignoring malformed characters
       final headerStr = String.fromCharCodes(bytes);
       
       final trackMatch = RegExp(r'REPLAYGAIN_TRACK_GAIN.*?([-+0-9.]+)', caseSensitive: false).firstMatch(headerStr);

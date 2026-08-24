@@ -104,6 +104,12 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
   }
 
   @override
+  Future<Result<void, Failure>> setSleepTimer(Duration? duration) async {
+    if (failWith != null) return Err(failWith!);
+    return const Ok(null);
+  }
+
+  @override
   Stream<Duration> get positionStream => Stream.value(Duration.zero);
 
   @override
@@ -114,4 +120,7 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
 
   @override
   Stream<void> get completedStream => const Stream.empty();
+
+  @override
+  Stream<Duration?> get sleepTimerStream => const Stream.empty();
 }
