@@ -15,6 +15,7 @@ import '../providers/backup_providers.dart';
 import '../providers/settings_providers.dart';
 import 'equalizer_screen.dart';
 import 'library/folder_management_screen.dart';
+import 'notification_diagnostics_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -581,13 +582,27 @@ class SettingsScreen extends ConsumerWidget {
                       await openAppSettings();
                     },
                   ),
+                  const _GroupDivider(),
+                  ListTile(
+                    leading: const Icon(PhosphorIconsRegular.info),
+                    title: const Text('Notification Diagnostics'),
+                    subtitle: const Text(
+                        'Check the real notification state without ADB'),
+                    trailing:
+                        const Icon(PhosphorIconsRegular.caretRight, size: 16),
+                    onTap: () {
+                      unawaited(Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) =>
+                              const NotificationDiagnosticsScreen())));
+                    },
+                  ),
                 ],
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32.0),
                 child: Center(
                   child: Text(
-                    'Nexo Music Player\nVersion 0.0.10-beta+23',
+                    'Nexo Music Player\nVersion 0.0.10-beta+24',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
