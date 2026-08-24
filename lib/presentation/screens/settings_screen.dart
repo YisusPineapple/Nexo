@@ -532,6 +532,22 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+
+              _SettingsGroup(
+                title: 'System & Permissions',
+                children: [
+                  ListTile(
+                    leading: const Icon(PhosphorIconsRegular.bellRinging),
+                    title: const Text('Notification Access'),
+                    subtitle: const Text('Configure lockscreen & playback controls in Android settings'),
+                    trailing: const Icon(PhosphorIconsRegular.arrowSquareOut, size: 16),
+                    onTap: () async {
+                      // FIX: Directly opens HiOS settings for Nexo so the user can unblock the channel
+                      await openAppSettings();
+                    },
+                  ),
+                ],
+              ),
               
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32.0),

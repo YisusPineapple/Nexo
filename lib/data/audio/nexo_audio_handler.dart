@@ -69,8 +69,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   void _init() {
-    // FIX: Emit an initial state immediately. Android 13+ requires the MediaSession
-    // to have a valid state before it allows the notification to be created.
     playbackState.add(playbackState.value.copyWith(
       controls: [
         MediaControl.skipToPrevious,
@@ -101,7 +99,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     _switchActivePlayer();
   }
-
 
   void _broadcastState(ja.PlaybackEvent event) {
     final playing = _activePlayer.playing;
@@ -247,16 +244,11 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               artist: song.trackArtistId.value,
               album: song.albumId?.value,
               duration: song.duration,
-              // FIX: Temporarily set artUri to null to prevent TransactionTooLargeException
-              // which silently crashes Android 13+ notifications if the image is > 1MB.
               artUri: null, 
             ))
         .toList();
     await updateQueue(items);
     mediaItem.add(items[_currentIndex]);
-    
-    // FIX: Removed _fire(_activePlayer.play()) from here. 
-    // syncQueue should only sync state, not force playback.
   }
 
   Future<void> loadDirectly(Song song,
@@ -268,6 +260,19 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _isPlayerAActive = true;
     _switchActivePlayer();
     await _playerB.stop();
+
+    // FIX: Crucial missing lines. loadDirectly was never notifying audio_service 
+    // of the song metadata, causing Android 13+ to reject the notification!
+    final item = MediaItem(
+      id: song.id.value,
+      title: song.title,
+      artist: song.trackArtistId.value,
+      album: song.albumId?.value,
+      duration: song.duration,
+      artUri: null,
+    );
+    await updateQueue([item]);
+    mediaItem.add(item);
   }
 
   void _onNaturalEnd() {
