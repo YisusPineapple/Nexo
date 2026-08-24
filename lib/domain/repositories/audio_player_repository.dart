@@ -9,10 +9,7 @@ abstract interface class AudioPlayerRepository {
   Future<Result<void, Failure>> load(Song song, {Duration startAt = Duration.zero});
   Future<Result<void, Failure>> resume();
   Future<Result<void, Failure>> pause();
-  
-  /// NEW: Completely stops playback and clears OS notifications.
   Future<Result<void, Failure>> stop();
-  
   Future<Result<void, Failure>> seekTo(Duration position);
   Future<Result<void, Failure>> setSpeed(PlaybackSpeed speed);
   Future<Result<void, Failure>> setCrossfade(CrossfadeConfig config);
@@ -26,8 +23,12 @@ abstract interface class AudioPlayerRepository {
 
   Future<Result<void, Failure>> advanceToNext();
 
+  // FIX: Added Sleep Timer methods
+  Future<Result<void, Failure>> setSleepTimer(Duration? duration);
+
   Stream<Duration> get positionStream;
   Stream<Duration?> get durationStream;
   Stream<bool> get playingStream;
   Stream<void> get completedStream;
+  Stream<Duration?> get sleepTimerStream;
 }

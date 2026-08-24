@@ -25,6 +25,11 @@ final playingStreamProvider = StreamProvider<bool>((ref) {
   return ref.watch(audioPlayerRepositoryProvider).playingStream;
 });
 
+// FIX: Expose Sleep Timer Stream
+final sleepTimerProvider = StreamProvider<Duration?>((ref) {
+  return ref.watch(audioPlayerRepositoryProvider).sleepTimerStream;
+});
+
 final playbackControllerProvider =
     AsyncNotifierProvider<PlaybackController, PlaybackQueue?>(
   PlaybackController.new,
@@ -147,7 +152,6 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     }
   }
 
-  // FIX: Added Play Next functionality
   Future<void> addSongNext(Song song) async {
     final currentQueue = state.valueOrNull;
     if (currentQueue == null) return;
@@ -160,7 +164,6 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     }
   }
 
-  // FIX: Added Add to Queue functionality
   Future<void> addSongLast(Song song) async {
     final currentQueue = state.valueOrNull;
     if (currentQueue == null) return;
@@ -269,6 +272,11 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     if (result.isOk) {
       await _setQueueState(result.valueOrNull!);
     }
+  }
+
+  // FIX: Added Sleep Timer control
+  Future<void> setSleepTimer(Duration? duration) async {
+    await ref.read(audioPlayerRepositoryProvider).setSleepTimer(duration);
   }
 
   Future<void> stop() async {

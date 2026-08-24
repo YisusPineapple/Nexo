@@ -153,6 +153,13 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
     }
   }
 
+  // FIX: Sleep Timer implementation
+  @override
+  Future<Result<void, Failure>> setSleepTimer(Duration? duration) async {
+    _handler.setSleepTimer(duration);
+    return const Ok(null);
+  }
+
   @override
   Stream<Duration> get positionStream => _handler.positionStream;
   @override
@@ -161,6 +168,8 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
   Stream<bool> get playingStream => _handler.playingStream;
   @override
   Stream<void> get completedStream => _handler.completedStream;
+  @override
+  Stream<Duration?> get sleepTimerStream => _handler.sleepTimerStream;
 
   Future<void> dispose() async {
     await _handler.stop();

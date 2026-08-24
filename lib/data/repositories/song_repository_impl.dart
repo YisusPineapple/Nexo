@@ -109,6 +109,8 @@ Future<Song?> _buildSong(
   List<String> genres = const [];
   int? year;
   String? coverArtPath;
+  double? replayGainTrackDb;
+  double? replayGainAlbumDb;
 
   try {
     final extracted = await metadataReader.read(file);
@@ -120,6 +122,10 @@ Future<Song?> _buildSong(
     duration = extracted.duration;
     genres = extracted.genres;
     year = extracted.year;
+    
+    // FIX: Assign extracted ReplayGain values
+    replayGainTrackDb = extracted.replayGainTrackDb;
+    replayGainAlbumDb = extracted.replayGainAlbumDb;
 
     if (extracted.coverArtBytes != null) {
       final coverHash = '${album ?? 'unknown'}_${extracted.albumArtist ?? artist}'.hashCode.toRadixString(16);
@@ -147,6 +153,8 @@ Future<Song?> _buildSong(
     genreNames: genres,
     year: year,
     coverArtPath: coverArtPath,
+    replayGainTrackDb: replayGainTrackDb,
+    replayGainAlbumDb: replayGainAlbumDb,
     dateAddedUtc: DateTime.now().toUtc(),
   ).valueOrNull;
 }

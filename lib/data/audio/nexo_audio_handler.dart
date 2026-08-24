@@ -10,7 +10,6 @@ import '../../domain/entities/repeat_mode.dart';
 import '../../domain/entities/song.dart';
 
 class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
-  // FIX: Removed _init() from constructor to prevent race condition with AudioService.init()
   NexoAudioHandler();
 
   final ja.AudioPlayer _playerA = ja.AudioPlayer();
@@ -33,6 +32,10 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   double _frozenProgress = 0.0;
   double _gainA = 1.0;
   double _gainB = 1.0;
+
+  // FIX: Sleep Timer State
+  Timer? _sleepTimer;
+  final StreamController<Duration?> _sleepTimerController = StreamController<Duration?>.broadcast();
 
   void Function(int newIndex)? onQueueAdvanced;
   VoidCallback? onQueueEnded;
@@ -60,6 +63,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Stream<Duration?> get durationStream => _durationController.stream;
   Stream<bool> get playingStream => _playingController.stream;
   Stream<void> get completedStream => _completedController.stream;
+  Stream<Duration?> get sleepTimerStream => _sleepTimerController.stream;
 
   void _fire(Future<dynamic> f) {
     f.catchError((e) {
@@ -67,7 +71,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     });
   }
 
-  // FIX: Renamed to public init() so it can be called manually from main.dart
   void init() {
     playbackState.add(playbackState.value.copyWith(
       controls: [
@@ -433,6 +436,29 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
+  // FIX: Sleep Timer Logic
+  void setSleepTimer(Duration? duration) {
+    _sleepTimer?.cancel();
+    if (duration == null || duration.inMinutes <= 0) {
+      _sleepTimerController.add(null);
+      return;
+    }
+    
+    final endTime = DateTime.now().add(duration);
+    _sleepTimerController.add(duration);
+    
+    _sleepTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final remaining = endTime.difference(DateTime.now());
+      if (remaining.isNegative) {
+        timer.cancel();
+        _sleepTimerController.add(null);
+        pause(); // Pause playback when timer ends
+      } else {
+        _sleepTimerController.add(remaining);
+      }
+    });
+  }
+
   @override
   Future<void> play() async {
     if (_frozenProgress > 0.0) {
@@ -530,10 +556,12 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   Future<void> dispose() async {
     _abortCrossfade();
+    _sleepTimer?.cancel();
     await _positionController.close();
     await _durationController.close();
     await _playingController.close();
     await _completedController.close();
+    await _sleepTimerController.close();
     await _positionSub?.cancel();
     await _durationSub?.cancel();
     await _playingSub?.cancel();

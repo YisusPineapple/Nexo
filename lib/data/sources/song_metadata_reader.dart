@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as reader;
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 class ExtractedMetadata {
@@ -16,11 +17,13 @@ class ExtractedMetadata {
     required this.genres,
     required this.year,
     required this.coverArtBytes,
+    required this.replayGainTrackDb,
+    required this.replayGainAlbumDb,
   });
 
   final String? title;
   final String? artist;
-  final String? albumArtist; // FIX: Added albumArtist to help with deduplication
+  final String? albumArtist;
   final String? album;
   final int? trackNumber;
   final int? discNumber;
@@ -28,6 +31,8 @@ class ExtractedMetadata {
   final List<String> genres;
   final int? year;
   final Uint8List? coverArtBytes;
+  final double? replayGainTrackDb;
+  final double? replayGainAlbumDb;
 }
 
 class SongMetadataReader {
@@ -41,10 +46,31 @@ class SongMetadataReader {
       coverBytes = metadata.pictures.first.bytes;
     }
 
+    // FIX: Ultra-fast byte scan for ReplayGain tags without heavy dependencies.
+    // Reads the first 128KB where ID3v2 and Vorbis Comments are stored.
+    double? trackGain;
+    double? albumGain;
+    try {
+      final raf = await file.open();
+      final bytes = await raf.read(131072); // 128 KB
+      await raf.close();
+      
+      // Convert bytes to string ignoring malformed characters
+      final headerStr = String.fromCharCodes(bytes);
+      
+      final trackMatch = RegExp(r'REPLAYGAIN_TRACK_GAIN.*?([-+0-9.]+)', caseSensitive: false).firstMatch(headerStr);
+      if (trackMatch != null) trackGain = double.tryParse(trackMatch.group(1)!);
+      
+      final albumMatch = RegExp(r'REPLAYGAIN_ALBUM_GAIN.*?([-+0-9.]+)', caseSensitive: false).firstMatch(headerStr);
+      if (albumMatch != null) albumGain = double.tryParse(albumMatch.group(1)!);
+    } catch (e) {
+      debugPrint('ReplayGain parse error for ${file.path}: $e');
+    }
+
     return ExtractedMetadata(
       title: metadata.title,
       artist: metadata.artist,
-      albumArtist: null, // audio_metadata_reader doesn't expose TPE2 yet
+      albumArtist: null,
       album: metadata.album,
       trackNumber: metadata.trackNumber,
       discNumber: metadata.discNumber,
@@ -52,18 +78,19 @@ class SongMetadataReader {
       genres: metadata.genres,
       year: metadata.year?.year,
       coverArtBytes: coverBytes,
+      replayGainTrackDb: trackGain,
+      replayGainAlbumDb: albumGain,
     );
   }
 
   Future<String?> cacheCoverArt({
     required Uint8List coverBytes,
     required String cacheDirectory,
-    required String coverId, // FIX: Renamed from songId to coverId
+    required String coverId,
   }) async {
     final outPath = p.join(cacheDirectory, '$coverId.jpg');
     final file = File(outPath);
     
-    // FIX: Deduplication. If the cover already exists for this album, skip writing.
     if (await file.exists()) {
       return outPath;
     }
