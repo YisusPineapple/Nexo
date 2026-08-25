@@ -312,9 +312,11 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_config.isAutoDuration || _config.mode == CrossfadeMode.intelligent || _config.mode == CrossfadeMode.autoMix) {
       final totalSilence = outSong.silenceTrim.trailingSilenceMs +
           inSong.silenceTrim.leadingSilenceMs;
-      if (totalSilence > 4000) calculated = const Duration(seconds: 2);
-      else if (totalSilence < 500) calculated = const Duration(seconds: 8);
-      else {
+      if (totalSilence > 4000) {
+        calculated = const Duration(seconds: 2);
+      } else if (totalSilence < 500) {
+        calculated = const Duration(seconds: 8);
+      } else {
         final ratio = 1 - ((totalSilence - 500) / 3500);
         calculated = Duration(milliseconds: (2000 + (6000 * ratio)).round());
       }
