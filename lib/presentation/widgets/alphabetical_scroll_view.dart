@@ -9,8 +9,9 @@ class AlphabeticalScrollView extends StatefulWidget {
     required this.itemCount,
     required this.itemExtent,
     required this.labelBuilder,
+    this.crossAxisCount = 1, // FIX: Added support for GridViews
     this.version,
-    this.railWidth = 40, // FIX: Increased from 20 to 40 for a much better touch target
+    this.railWidth = 40,
     this.topPadding = 0,
     this.bottomPadding = 0,
   });
@@ -20,29 +21,29 @@ class AlphabeticalScrollView extends StatefulWidget {
   final int itemCount;
   final double itemExtent;
   final String Function(int index) labelBuilder;
+  final int crossAxisCount;
   final Object? version;
   final double railWidth;
   final double topPadding;
   final double bottomPadding;
 
   @override
-  State<AlphabeticalScrollView> createState() =>
-      _AlphabeticalScrollViewState();
+  State<AlphabeticalScrollView> createState() => _AlphabeticalScrollViewState();
 }
 
 class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
-  List<String> _letters = const [];
-  Map<String, int> _firstIndexForLetter = const {};
+  List<String> _sections = const [];
+  Map<String, int> _firstIndexForSection = const {};
 
-  final ValueNotifier<String?> _activeLetter = ValueNotifier(null);
+  final ValueNotifier<String?> _activeSection = ValueNotifier(null);
   int? _lastPointerBucket;
 
   @override
   void initState() {
     super.initState();
     final index = _computeIndex();
-    _letters = index.$1;
-    _firstIndexForLetter = index.$2;
+    _sections = index.$1;
+    _firstIndexForSection = index.$2;
   }
 
   @override
@@ -52,15 +53,15 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
         oldWidget.version != widget.version) {
       final index = _computeIndex();
       setState(() {
-        _letters = index.$1;
-        _firstIndexForLetter = index.$2;
+        _sections = index.$1;
+        _firstIndexForSection = index.$2;
       });
     }
   }
 
   @override
   void dispose() {
-    _activeLetter.dispose();
+    _activeSection.dispose();
     super.dispose();
   }
 
@@ -79,41 +80,41 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
       final raw = widget.labelBuilder(i);
       if (raw.isEmpty) continue;
       
-      final char = _removeDiacritics(raw[0].toUpperCase());
-      final key = RegExp(r'[A-Z]').hasMatch(char) ? char : '#';
+      // FIX: We no longer force A-Z. We accept numbers, dates, etc.
+      final key = _removeDiacritics(raw);
       firstIndex.putIfAbsent(key, () => i);
     }
-    final letters = firstIndex.keys.toList()
-      ..sort((a, b) {
-        if (a == '#') return -1;
-        if (b == '#') return 1;
-        return a.compareTo(b);
-      });
-    return (letters, firstIndex);
+    // FIX: Do NOT sort the keys alphabetically. Keep the natural order 
+    // of the list (which is already sorted by the provider).
+    final sections = firstIndex.keys.toList();
+    return (sections, firstIndex);
   }
 
   void _handlePointer(Offset localPosition, double railHeight) {
-    if (_letters.isEmpty || railHeight <= 0) return;
+    if (_sections.isEmpty || railHeight <= 0) return;
     final ratio = (localPosition.dy / railHeight).clamp(0.0, 0.999);
-    final bucket = (ratio * _letters.length).floor();
+    final bucket = (ratio * _sections.length).floor();
     if (bucket == _lastPointerBucket) return; 
     _lastPointerBucket = bucket;
 
-    final letter = _letters[bucket];
-    _activeLetter.value = letter;
+    final section = _sections[bucket];
+    _activeSection.value = section;
     HapticFeedback.selectionClick();
 
-    final targetIndex = _firstIndexForLetter[letter]!;
+    final targetIndex = _firstIndexForSection[section]!;
+    // FIX: Calculate row index to support GridViews
+    final rowIndex = targetIndex ~/ widget.crossAxisCount;
+    
     final maxExtent = widget.controller.hasClients
         ? widget.controller.position.maxScrollExtent
         : double.infinity;
-    final offset = (targetIndex * widget.itemExtent).clamp(0.0, maxExtent);
+    final offset = (rowIndex * widget.itemExtent).clamp(0.0, maxExtent);
     widget.controller.jumpTo(offset);
   }
 
   void _endDrag() {
     _lastPointerBucket = null;
-    _activeLetter.value = null;
+    _activeSection.value = null;
   }
 
   @override
@@ -123,7 +124,7 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
     return Stack(
       children: [
         RepaintBoundary(child: widget.child),
-        if (_letters.isNotEmpty)
+        if (_sections.isNotEmpty)
           Positioned(
             right: 0,
             top: widget.topPadding,
@@ -144,20 +145,20 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
                       _handlePointer(d.localPosition, railHeight),
                   onTapUp: (_) => _endDrag(),
                   child: ValueListenableBuilder<String?>(
-                    valueListenable: _activeLetter,
+                    valueListenable: _activeSection,
                     builder: (context, active, _) {
                       return Column(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          for (final letter in _letters)
+                          for (final section in _sections)
                             Text(
-                              letter,
+                              section,
                               style: theme.textTheme.labelSmall?.copyWith(
                                 fontSize: 10,
-                                fontWeight: letter == active
+                                fontWeight: section == active
                                     ? FontWeight.bold
                                     : FontWeight.normal,
-                                color: letter == active
+                                color: section == active
                                     ? theme.colorScheme.primary
                                     : theme.colorScheme.onSurfaceVariant,
                               ),
@@ -173,7 +174,7 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
         IgnorePointer(
           child: Center(
             child: ValueListenableBuilder<String?>(
-              valueListenable: _activeLetter,
+              valueListenable: _activeSection,
               builder: (context, active, _) {
                 return AnimatedOpacity(
                   duration: const Duration(milliseconds: 100),
@@ -183,8 +184,7 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
                     height: 80,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color:
-                          theme.colorScheme.primary.withValues(alpha: 0.92),
+                      color: theme.colorScheme.primary.withValues(alpha: 0.92),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(

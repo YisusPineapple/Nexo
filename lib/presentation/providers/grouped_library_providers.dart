@@ -13,8 +13,10 @@ import 'repository_providers.dart';
 enum AlbumSortOption { name, artist, songCount }
 enum ArtistSortOption { name, songCount, albumCount }
 
-final albumSortOptionProvider = StateProvider<AlbumSortOption>((ref) => AlbumSortOption.name);
-final artistSortOptionProvider = StateProvider<ArtistSortOption>((ref) => ArtistSortOption.name);
+final albumSortProvider = StateProvider<SortConfig<AlbumSortOption>>(
+    (ref) => const SortConfig(AlbumSortOption.name));
+final artistSortProvider = StateProvider<SortConfig<ArtistSortOption>>(
+    (ref) => const SortConfig(ArtistSortOption.name));
 
 typedef AlbumUiModel = ({String id, String name, String artist, String? coverArtPath, int songCount});
 typedef ArtistUiModel = ({String name, int songCount, int albumCount, int collaborationCount, String? coverArtPath});
@@ -23,7 +25,7 @@ typedef FolderUiModel = ({String path, String name, int songCount});
 
 final albumsProvider = FutureProvider<List<AlbumUiModel>>((ref) async {
   final songs = await ref.watch(sortedSongsProvider.future);
-  final sortOption = ref.watch(albumSortOptionProvider);
+  final sortConfig = ref.watch(albumSortProvider);
   
   return Isolate.run(() {
     final map = <String, AlbumUiModel>{};
@@ -39,11 +41,13 @@ final albumsProvider = FutureProvider<List<AlbumUiModel>>((ref) async {
     }
     final list = map.values.toList();
     list.sort((a, b) {
-      switch (sortOption) {
-        case AlbumSortOption.name: return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        case AlbumSortOption.artist: return a.artist.toLowerCase().compareTo(b.artist.toLowerCase());
-        case AlbumSortOption.songCount: return b.songCount.compareTo(a.songCount);
+      int res;
+      switch (sortConfig.option) {
+        case AlbumSortOption.name: res = a.name.toLowerCase().compareTo(b.name.toLowerCase()); break;
+        case AlbumSortOption.artist: res = a.artist.toLowerCase().compareTo(b.artist.toLowerCase()); break;
+        case AlbumSortOption.songCount: res = a.songCount.compareTo(b.songCount); break;
       }
+      return sortConfig.isAscending ? res : -res;
     });
     return list;
   });
@@ -51,7 +55,7 @@ final albumsProvider = FutureProvider<List<AlbumUiModel>>((ref) async {
 
 final artistsProvider = FutureProvider<List<ArtistUiModel>>((ref) async {
   final songs = await ref.watch(sortedSongsProvider.future);
-  final sortOption = ref.watch(artistSortOptionProvider);
+  final sortConfig = ref.watch(artistSortProvider);
   
   return Isolate.run(() {
     final map = <String, ({String displayName, int songCount, Set<String> albums, int collabCount, String? coverArtPath})>{};
@@ -72,11 +76,13 @@ final artistsProvider = FutureProvider<List<ArtistUiModel>>((ref) async {
     }
     final list = map.values.map((e) => (name: e.displayName, songCount: e.songCount, albumCount: e.albums.where((a) => a.isNotEmpty).length, collaborationCount: e.collabCount, coverArtPath: e.coverArtPath)).toList();
     list.sort((a, b) {
-      switch (sortOption) {
-        case ArtistSortOption.name: return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        case ArtistSortOption.songCount: return b.songCount.compareTo(a.songCount);
-        case ArtistSortOption.albumCount: return b.albumCount.compareTo(a.albumCount);
+      int res;
+      switch (sortConfig.option) {
+        case ArtistSortOption.name: res = a.name.toLowerCase().compareTo(b.name.toLowerCase()); break;
+        case ArtistSortOption.songCount: res = a.songCount.compareTo(b.songCount); break;
+        case ArtistSortOption.albumCount: res = a.albumCount.compareTo(b.albumCount); break;
       }
+      return sortConfig.isAscending ? res : -res;
     });
     return list;
   });

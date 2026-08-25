@@ -1,7 +1,5 @@
 import '../../domain/entities/song.dart';
 
-/// How LIBRARY's Songs view orders its list. The six options named
-/// in PART A (title, artist, album, year, duration, dateAdded).
 enum SongSortOption {
   title('Title'),
   artist('Artist'),
@@ -15,32 +13,47 @@ enum SongSortOption {
   final String label;
 }
 
-/// Ascending comparator for [option]. Nullable fields ([Song.year],
-/// [Song.albumId]) sort last when absent, rather than crashing a
-/// whole-list sort over one untagged file.
-int compareSongs(Song a, Song b, SongSortOption option) {
+int compareSongs(Song a, Song b, SongSortOption option, bool isAscending) {
+  int result;
   switch (option) {
     case SongSortOption.title:
-      return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      result = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      break;
     case SongSortOption.artist:
-      return a.trackArtistId.value
+      result = a.trackArtistId.value
           .toLowerCase()
           .compareTo(b.trackArtistId.value.toLowerCase());
+      break;
     case SongSortOption.album:
       final albumA = a.albumId?.value.toLowerCase() ?? '';
       final albumB = b.albumId?.value.toLowerCase() ?? '';
-      if (albumA.isEmpty && albumB.isEmpty) return 0;
-      if (albumA.isEmpty) return 1;
-      if (albumB.isEmpty) return -1;
-      return albumA.compareTo(albumB);
+      if (albumA.isEmpty && albumB.isEmpty) {
+        result = 0;
+      } else if (albumA.isEmpty) {
+        result = 1;
+      } else if (albumB.isEmpty) {
+        result = -1;
+      } else {
+        result = albumA.compareTo(albumB);
+      }
+      break;
     case SongSortOption.year:
-      if (a.year == null && b.year == null) return 0;
-      if (a.year == null) return 1;
-      if (b.year == null) return -1;
-      return a.year!.compareTo(b.year!);
+      if (a.year == null && b.year == null) {
+        result = 0;
+      } else if (a.year == null) {
+        result = 1;
+      } else if (b.year == null) {
+        result = -1;
+      } else {
+        result = a.year!.compareTo(b.year!);
+      }
+      break;
     case SongSortOption.duration:
-      return a.duration.compareTo(b.duration);
+      result = a.duration.compareTo(b.duration);
+      break;
     case SongSortOption.dateAdded:
-      return a.dateAddedUtc.compareTo(b.dateAddedUtc);
+      result = a.dateAddedUtc.compareTo(b.dateAddedUtc);
+      break;
   }
+  return isAscending ? result : -result;
 }

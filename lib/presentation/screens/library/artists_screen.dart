@@ -33,37 +33,52 @@ class _ArtistsScreenState extends ConsumerState<ArtistsScreen> {
   @override
   Widget build(BuildContext context) {
     final artistsAsync = ref.watch(artistsProvider);
-    final sortOption = ref.watch(artistSortOptionProvider);
+    final sortConfig = ref.watch(artistSortProvider);
     final theme = Theme.of(context);
 
-    final isAlphabeticalSort = sortOption == ArtistSortOption.name;
-
     return Scaffold(
-      floatingActionButton: FloatingActionButton.small(
-        onPressed: () {
-          showModalBottomSheet(
-            context: context,
-            builder: (context) => SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: ArtistSortOption.values.map((option) {
-                  return ListTile(
-                    title: Text('Sort by ${option.name}'),
-                    trailing: sortOption == option
-                        ? const Icon(PhosphorIconsRegular.check)
-                        : null,
-                    onTap: () {
-                      ref.read(artistSortOptionProvider.notifier).state =
-                          option;
-                      Navigator.pop(context);
-                    },
-                  );
-                }).toList(),
-              ),
-            ),
-          );
-        },
-        child: const Icon(PhosphorIconsRegular.arrowsDownUp),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'artist_order_btn',
+            onPressed: () {
+              ref.read(artistSortProvider.notifier).state =
+                  sortConfig.copyWith(isAscending: !sortConfig.isAscending);
+            },
+            child: Icon(sortConfig.isAscending
+                ? PhosphorIconsRegular.sortAscending
+                : PhosphorIconsRegular.sortDescending),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: 'artist_sort_btn',
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                builder: (context) => SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: ArtistSortOption.values.map((option) {
+                      return ListTile(
+                        title: Text('Sort by ${option.name}'),
+                        trailing: sortConfig.option == option
+                            ? const Icon(PhosphorIconsRegular.check)
+                            : null,
+                        onTap: () {
+                          ref.read(artistSortProvider.notifier).state =
+                              sortConfig.copyWith(option: option);
+                          Navigator.pop(context);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            },
+            child: const Icon(PhosphorIconsRegular.arrowsDownUp),
+          ),
+        ],
       ),
       body: artistsAsync.when(
         data: (artists) {
@@ -138,22 +153,22 @@ class _ArtistsScreenState extends ConsumerState<ArtistsScreen> {
             },
           );
 
-          if (!isAlphabeticalSort) {
-            return Scrollbar(
-              controller: _scrollController,
-              interactive: true,
-              thickness: 8,
-              radius: const Radius.circular(4),
-              child: list,
-            );
-          }
-
           return AlphabeticalScrollView(
             controller: _scrollController,
             itemCount: artists.length,
             itemExtent: _artistRowExtent,
-            version: sortOption,
-            labelBuilder: (index) => artists[index].name,
+            version: sortConfig,
+            labelBuilder: (index) {
+              final artist = artists[index];
+              switch (sortConfig.option) {
+                case ArtistSortOption.name:
+                  return artist.name.isNotEmpty ? artist.name[0].toUpperCase() : '#';
+                case ArtistSortOption.songCount:
+                  return '${artist.songCount}';
+                case ArtistSortOption.albumCount:
+                  return '${artist.albumCount}';
+              }
+            },
             child: list,
           );
         },

@@ -43,11 +43,8 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
   @override
   Widget build(BuildContext context) {
     final songsAsync = ref.watch(sortedSongsProvider);
-    final sortOption = ref.watch(songSortOptionProvider);
+    final sortConfig = ref.watch(songSortProvider);
     final theme = Theme.of(context);
-
-    final isAlphabeticalSort = sortOption == SongSortOption.title ||
-        sortOption == SongSortOption.artist;
 
     return Scaffold(
       body: SafeArea(
@@ -78,13 +75,23 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
+                  IconButton(
+                    icon: Icon(sortConfig.isAscending
+                        ? PhosphorIconsRegular.sortAscending
+                        : PhosphorIconsRegular.sortDescending),
+                    tooltip: 'Toggle Order',
+                    onPressed: () {
+                      ref.read(songSortProvider.notifier).state =
+                          sortConfig.copyWith(isAscending: !sortConfig.isAscending);
+                    },
+                  ),
                   PopupMenuButton<SongSortOption>(
-                    initialValue: sortOption,
+                    initialValue: sortConfig.option,
                     tooltip: 'Sort by',
                     icon: const Icon(PhosphorIconsRegular.arrowsDownUp),
                     onSelected: (option) => ref
-                        .read(songSortOptionProvider.notifier)
-                        .state = option,
+                        .read(songSortProvider.notifier)
+                        .state = sortConfig.copyWith(option: option),
                     itemBuilder: (context) => [
                       for (final option in SongSortOption.values)
                         PopupMenuItem(value: option, child: Text(option.label)),
@@ -127,7 +134,6 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                             showModalBottomSheet(
                               context: context,
                               isScrollControlled: true,
-                              // FIX: Set to transparent so the floating card design works
                               backgroundColor: Colors.transparent,
                               builder: (context) => SongContextMenu(song: song),
                             );
@@ -147,24 +153,28 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                     },
                   );
 
-                  if (!isAlphabeticalSort) {
-                    return Scrollbar(
-                      controller: _scrollController,
-                      interactive: true,
-                      thickness: 8,
-                      radius: const Radius.circular(4),
-                      child: list,
-                    );
-                  }
-
                   return AlphabeticalScrollView(
                     controller: _scrollController,
                     itemCount: songs.length,
                     itemExtent: _songRowExtent,
-                    version: sortOption,
-                    labelBuilder: (index) => sortOption == SongSortOption.title
-                        ? songs[index].title
-                        : songs[index].trackArtistId.value,
+                    version: sortConfig,
+                    labelBuilder: (index) {
+                      final song = songs[index];
+                      switch (sortConfig.option) {
+                        case SongSortOption.title:
+                          return song.title.isNotEmpty ? song.title[0].toUpperCase() : '#';
+                        case SongSortOption.artist:
+                          return song.trackArtistId.value.isNotEmpty ? song.trackArtistId.value[0].toUpperCase() : '#';
+                        case SongSortOption.album:
+                          return song.albumId?.value.isNotEmpty == true ? song.albumId!.value[0].toUpperCase() : '#';
+                        case SongSortOption.year:
+                          return song.year?.toString() ?? '?';
+                        case SongSortOption.duration:
+                          return '${song.duration.inMinutes}m';
+                        case SongSortOption.dateAdded:
+                          return '${song.dateAddedUtc.year}-${song.dateAddedUtc.month.toString().padLeft(2, '0')}';
+                      }
+                    },
                     child: list,
                   );
                 },

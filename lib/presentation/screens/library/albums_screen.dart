@@ -8,50 +8,102 @@ import '../../../domain/entities/queue_source.dart';
 import '../../../domain/value_objects/album_id.dart';
 import '../../providers/grouped_library_providers.dart';
 import '../../providers/playback_providers.dart';
+import '../../widgets/alphabetical_scroll_view.dart';
 
-class AlbumsScreen extends ConsumerWidget {
+class AlbumsScreen extends ConsumerStatefulWidget {
   const AlbumsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AlbumsScreen> createState() => _AlbumsScreenState();
+}
+
+class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final albumsAsync = ref.watch(albumsProvider);
-    final sortOption = ref.watch(albumSortOptionProvider);
+    final sortConfig = ref.watch(albumSortProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.small(
-        onPressed: () {
-          showModalBottomSheet(
-            context: context,
-            builder: (context) => SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: AlbumSortOption.values.map((option) {
-                  return ListTile(
-                    title: Text('Sort by ${option.name}'),
-                    trailing: sortOption == option ? const Icon(PhosphorIconsRegular.check) : null,
-                    onTap: () {
-                      ref.read(albumSortOptionProvider.notifier).state = option;
-                      Navigator.pop(context);
-                    },
-                  );
-                }).toList(),
-              ),
-            ),
-          );
-        },
-        child: const Icon(PhosphorIconsRegular.arrowsDownUp),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'album_order_btn',
+            onPressed: () {
+              ref.read(albumSortProvider.notifier).state =
+                  sortConfig.copyWith(isAscending: !sortConfig.isAscending);
+            },
+            child: Icon(sortConfig.isAscending
+                ? PhosphorIconsRegular.sortAscending
+                : PhosphorIconsRegular.sortDescending),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: 'album_sort_btn',
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                builder: (context) => SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: AlbumSortOption.values.map((option) {
+                      return ListTile(
+                        title: Text('Sort by ${option.name}'),
+                        trailing: sortConfig.option == option
+                            ? const Icon(PhosphorIconsRegular.check)
+                            : null,
+                        onTap: () {
+                          ref.read(albumSortProvider.notifier).state =
+                              sortConfig.copyWith(option: option);
+                          Navigator.pop(context);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            },
+            child: const Icon(PhosphorIconsRegular.arrowsDownUp),
+          ),
+        ],
       ),
       body: albumsAsync.when(
         data: (albums) {
           if (albums.isEmpty) return const Center(child: Text('No albums found.'));
+          
           final crossAxisCount = (MediaQuery.of(context).size.width / 160).floor().clamp(2, 10);
+          final screenWidth = MediaQuery.of(context).size.width;
+          final availableWidth = screenWidth - 32 - ((crossAxisCount - 1) * 16);
+          final itemWidth = availableWidth / crossAxisCount;
+          final itemHeight = (itemWidth / 0.75) + 16; // 0.75 ratio + 16 mainAxisSpacing
 
-          return Scrollbar(
-            interactive: true,
-            thickness: 8,
-            radius: const Radius.circular(4),
+          return AlphabeticalScrollView(
+            controller: _scrollController,
+            itemCount: albums.length,
+            itemExtent: itemHeight,
+            crossAxisCount: crossAxisCount,
+            version: sortConfig,
+            labelBuilder: (index) {
+              final album = albums[index];
+              return switch (sortConfig.option) {
+                AlbumSortOption.name =>
+                  album.name.isNotEmpty ? album.name[0].toUpperCase() : '#',
+                AlbumSortOption.artist =>
+                  album.artist.isNotEmpty ? album.artist[0].toUpperCase() : '#',
+                AlbumSortOption.songCount => '${album.songCount}',
+              };
+            },
             child: GridView.builder(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: crossAxisCount,

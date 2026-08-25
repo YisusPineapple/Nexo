@@ -9,14 +9,24 @@ import '../../domain/usecases/use_case.dart';
 import '../utils/song_sort.dart';
 import 'repository_providers.dart';
 
-// Used by SongsScreen
-final songSearchQueryProvider = StateProvider<String>((ref) => '');
+class SortConfig<T> {
+  const SortConfig(this.option, {this.isAscending = true});
+  final T option;
+  final bool isAscending;
 
-// FIX: Used by SearchScreen to prevent state collision
+  SortConfig<T> copyWith({T? option, bool? isAscending}) {
+    return SortConfig<T>(
+      option ?? this.option,
+      isAscending: isAscending ?? this.isAscending,
+    );
+  }
+}
+
+final songSearchQueryProvider = StateProvider<String>((ref) => '');
 final globalSearchQueryProvider = StateProvider<String>((ref) => '');
 
-final songSortOptionProvider =
-    StateProvider<SongSortOption>((ref) => SongSortOption.title);
+final songSortProvider = StateProvider<SortConfig<SongSortOption>>(
+    (ref) => const SortConfig(SongSortOption.title));
 
 final _getAllSongsUseCaseProvider = Provider<GetAllSongsUseCase>((ref) {
   return GetAllSongsUseCase(ref.watch(songRepositoryProvider));
@@ -37,7 +47,7 @@ final _refreshLibraryUseCaseProvider = Provider<RefreshLibraryUseCase>((ref) {
 
 final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(songSearchQueryProvider);
-  final sortOption = ref.watch(songSortOptionProvider);
+  final sortConfig = ref.watch(songSortProvider);
 
   final result = query.isEmpty
       ? await ref.watch(_getAllSongsUseCaseProvider).call(const NoParams())
@@ -46,14 +56,13 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   return result.when(
     ok: (songs) {
       final sorted = List<Song>.of(songs)
-        ..sort((a, b) => compareSongs(a, b, sortOption));
+        ..sort((a, b) => compareSongs(a, b, sortConfig.option, sortConfig.isAscending));
       return sorted;
     },
     err: (failure) => throw failure,
   );
 });
 
-// FIX: Provider specifically for the global SearchScreen
 final globalSearchResultsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(globalSearchQueryProvider);
   if (query.isEmpty) return [];
