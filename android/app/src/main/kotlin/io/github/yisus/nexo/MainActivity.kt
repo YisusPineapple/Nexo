@@ -12,8 +12,9 @@ class MainActivity : AudioServiceActivity() {
     companion object {
         private const val DIAGNOSTICS_CHANNEL =
             "io.github.yisus.nexo/notification_diagnostics"
+        // FIX: Updated to v4 to match the Dart side exactly!
         private const val AUDIO_CHANNEL_ID =
-            "io.github.yisus.nexo.channel.audio.v3"
+            "io.github.yisus.nexo.channel.audio.v4"
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

@@ -8,6 +8,7 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import '../../core/error/failures.dart';
 import '../providers/library_providers.dart';
 import '../providers/navigation_providers.dart';
+import '../providers/playback_providers.dart'; // FIX: Added to watch queue state
 import '../widgets/mini_player.dart';
 import 'for_you_screen.dart';
 import 'library/library_hub_screen.dart';
@@ -108,6 +109,10 @@ class _HomeShellState extends ConsumerState<HomeShell>
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(selectedNavIndexProvider);
     final indexState = ref.watch(indexDirectoriesControllerProvider);
+    
+    // FIX: Watch the queue to know if the MiniPlayer is visible
+    final queueAsync = ref.watch(playbackControllerProvider);
+    final hasQueue = queueAsync.valueOrNull != null;
 
     ref.listen(indexDirectoriesControllerProvider, (previous, next) {
       if (next case AsyncError(:final error)) {
@@ -127,10 +132,15 @@ class _HomeShellState extends ConsumerState<HomeShell>
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= HomeShell._wideBreakpoint;
 
-        final body = IndexedStack(
-          key: _indexedStackKey,
-          index: selectedIndex,
-          children: _screens,
+        // FIX: Dynamic bottom padding. 80px reserves space for the MiniPlayer (68px height + 12px margin)
+        // This single source of truth prevents the MiniPlayer from covering the last items in ANY screen.
+        final body = Padding(
+          padding: EdgeInsets.only(bottom: hasQueue ? 80.0 : 0.0),
+          child: IndexedStack(
+            key: _indexedStackKey,
+            index: selectedIndex,
+            children: _screens,
+          ),
         );
 
         void onSelect(int i) =>
