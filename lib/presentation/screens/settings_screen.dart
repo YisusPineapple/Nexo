@@ -230,6 +230,16 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
+  // FIX: Helper to simplify the Crossfade UI
+  String _getCrossfadeLabel(CrossfadeMode mode) {
+    switch (mode) {
+      case CrossfadeMode.disabled: return 'DISABLED';
+      case CrossfadeMode.fixed: return 'MANUAL';
+      case CrossfadeMode.intelligent: return 'AUTO';
+      case CrossfadeMode.autoMix: return 'AUTOMIX';
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(playbackSettingsProvider);
@@ -247,6 +257,13 @@ class SettingsScreen extends ConsumerWidget {
       body: settingsAsync.when(
         data: (settings) {
           final controller = ref.read(settingsControllerProvider);
+          
+          // Determine the effective UI mode
+          CrossfadeMode effectiveMode = settings.crossfade.mode;
+          if (effectiveMode == CrossfadeMode.autoMix) {
+            effectiveMode = CrossfadeMode.intelligent; // Collapse AutoMix into Auto
+          }
+
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             children: [
@@ -268,99 +285,59 @@ class SettingsScreen extends ConsumerWidget {
                   ListTile(
                     leading: const Icon(PhosphorIconsRegular.waveSine),
                     title: const Text('Crossfade Mode'),
-                    subtitle: Text(settings.crossfade.mode.name.toUpperCase()),
+                    subtitle: Text(_getCrossfadeLabel(effectiveMode)),
                     trailing: DropdownButton<CrossfadeMode>(
-                      value: settings.crossfade.mode,
+                      value: effectiveMode,
                       underline: const SizedBox(),
-                      icon:
-                          const Icon(PhosphorIconsRegular.caretDown, size: 16),
-                      items: CrossfadeMode.values
+                      icon: const Icon(PhosphorIconsRegular.caretDown, size: 16),
+                      // FIX: Only show Disabled, Manual, and Auto
+                      items: [CrossfadeMode.disabled, CrossfadeMode.fixed, CrossfadeMode.intelligent]
                           .map((mode) => DropdownMenuItem(
-                              value: mode, child: Text(mode.name)))
+                              value: mode, child: Text(_getCrossfadeLabel(mode))))
                           .toList(),
                       onChanged: (mode) {
                         if (mode != null) {
-                          final supportsAuto =
-                              mode == CrossfadeMode.intelligent ||
-                                  mode == CrossfadeMode.autoMix;
-                          final isAuto = supportsAuto
-                              ? settings.crossfade.isAutoDuration
-                              : false;
-
                           unawaited(controller.updateCrossfade(
                               mode, settings.crossfade.duration,
-                              isAutoDuration: isAuto));
+                              isAutoDuration: mode == CrossfadeMode.intelligent));
                         }
                       },
                     ),
                   ),
-                  if (settings.crossfade.mode != CrossfadeMode.disabled) ...[
+                  if (effectiveMode == CrossfadeMode.fixed) ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(56, 0, 16, 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (settings.crossfade.mode ==
-                                  CrossfadeMode.intelligent ||
-                              settings.crossfade.mode ==
-                                  CrossfadeMode.autoMix) ...[
-                            Row(
-                              children: [
-                                const Text('Duration control: '),
-                                const Spacer(),
-                                ChoiceChip(
-                                  label: const Text('Manual'),
-                                  selected: !settings.crossfade.isAutoDuration,
-                                  onSelected: (_) => unawaited(
-                                      controller.updateCrossfade(
-                                          settings.crossfade.mode,
-                                          settings.crossfade.duration,
-                                          isAutoDuration: false)),
-                                ),
-                                const SizedBox(width: 8),
-                                ChoiceChip(
-                                  label: const Text('Auto'),
-                                  selected: settings.crossfade.isAutoDuration,
-                                  onSelected: (_) => unawaited(
-                                      controller.updateCrossfade(
-                                          settings.crossfade.mode,
-                                          settings.crossfade.duration,
-                                          isAutoDuration: true)),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-                          if (!settings.crossfade.isAutoDuration) ...[
-                            Text(
-                                'Crossfade Duration: ${settings.crossfade.duration.inSeconds}s'),
-                            Slider(
-                              value: settings.crossfade.duration.inSeconds
-                                  .toDouble(),
-                              min: 0,
-                              max: 12,
-                              divisions: 12,
-                              label:
-                                  '${settings.crossfade.duration.inSeconds}s',
-                              onChanged: (val) => unawaited(
-                                  controller.updateCrossfade(
-                                      settings.crossfade.mode,
-                                      Duration(seconds: val.toInt()),
-                                      isAutoDuration:
-                                          settings.crossfade.isAutoDuration)),
-                            ),
-                          ] else ...[
-                            const Padding(
-                              padding: EdgeInsets.only(top: 8.0),
-                              child: Text(
-                                  'The system will automatically choose the optimal duration.',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      fontStyle: FontStyle.italic)),
-                            ),
-                          ],
+                          Text(
+                              'Crossfade Duration: ${settings.crossfade.duration.inSeconds}s'),
+                          Slider(
+                            value: settings.crossfade.duration.inSeconds
+                                .toDouble(),
+                            min: 0,
+                            max: 12,
+                            divisions: 12,
+                            label:
+                                '${settings.crossfade.duration.inSeconds}s',
+                            onChanged: (val) => unawaited(
+                                controller.updateCrossfade(
+                                    CrossfadeMode.fixed,
+                                    Duration(seconds: val.toInt()),
+                                    isAutoDuration: false)),
+                          ),
                         ],
                       ),
+                    ),
+                  ],
+                  if (effectiveMode == CrossfadeMode.intelligent) ...[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(56, 0, 16, 16),
+                      child: Text(
+                          'The system will automatically choose the optimal duration based on silence.',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic)),
                     ),
                   ],
                   const _GroupDivider(),
@@ -602,7 +579,7 @@ class SettingsScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(vertical: 32.0),
                 child: Center(
                   child: Text(
-                    'Nexo Music Player\nVersion 0.0.10-beta+24',
+                    'Nexo Music Player\nVersion 0.0.10-beta+27',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,

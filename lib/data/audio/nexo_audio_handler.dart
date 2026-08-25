@@ -33,7 +33,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   double _gainA = 1.0;
   double _gainB = 1.0;
 
-  // FIX: Sleep Timer State
   Timer? _sleepTimer;
   final StreamController<Duration?> _sleepTimerController = StreamController<Duration?>.broadcast();
 
@@ -224,7 +223,26 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     _currentIndex = currentIndex;
 
+    // FIX: Broadcast items IMMEDIATELY so Android 13+ doesn't kill the notification
+    // due to ForegroundServiceStartNotAllowedException.
+    final items = _queue
+        .map((song) => MediaItem(
+              id: song.id.value,
+              title: song.title,
+              artist: song.trackArtistId.value,
+              album: song.albumId?.value,
+              duration: song.duration,
+              artUri: null, 
+            ))
+        .toList();
+    await updateQueue(items);
+    mediaItem.add(items[_currentIndex]);
+
     if (!isSameSong) {
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.loading,
+      ));
+      
       _abortCrossfade();
       await _loadSongIntoPlayer(_playerA, newCurrentSong);
       _isPlayerAActive = true;
@@ -239,19 +257,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     } else {
       await _inactivePlayer.stop();
     }
-
-    final items = _queue
-        .map((song) => MediaItem(
-              id: song.id.value,
-              title: song.title,
-              artist: song.trackArtistId.value,
-              album: song.albumId?.value,
-              duration: song.duration,
-              artUri: null, 
-            ))
-        .toList();
-    await updateQueue(items);
-    mediaItem.add(items[_currentIndex]);
   }
 
   Future<void> loadDirectly(Song song,
@@ -259,11 +264,8 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _abortCrossfade();
     _queue = [song];
     _currentIndex = 0;
-    await _loadSongIntoPlayer(_playerA, song, startAt: startAt);
-    _isPlayerAActive = true;
-    _switchActivePlayer();
-    await _playerB.stop();
 
+    // FIX: Broadcast IMMEDIATELY before doing any heavy I/O
     final item = MediaItem(
       id: song.id.value,
       title: song.title,
@@ -274,6 +276,15 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
     await updateQueue([item]);
     mediaItem.add(item);
+
+    playbackState.add(playbackState.value.copyWith(
+      processingState: AudioProcessingState.loading,
+    ));
+
+    await _loadSongIntoPlayer(_playerA, song, startAt: startAt);
+    _isPlayerAActive = true;
+    _switchActivePlayer();
+    await _playerB.stop();
   }
 
   void _onNaturalEnd() {
@@ -284,21 +295,34 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Duration _getActualCrossfadeDuration() {
-    if (_config.isAutoDuration &&
-        (_config.mode == CrossfadeMode.autoMix ||
-            _config.mode == CrossfadeMode.intelligent)) {
-      final nextIndex = _getNextIndex();
-      if (nextIndex == null) return Duration.zero;
-      final outSong = _queue[_currentIndex];
-      final inSong = _queue[nextIndex];
+    if (_config.mode == CrossfadeMode.disabled) return Duration.zero;
+
+    final nextIndex = _getNextIndex();
+    if (nextIndex == null) return Duration.zero;
+    
+    final outSong = _queue[_currentIndex];
+    final inSong = _queue[nextIndex];
+    
+    // FIX: Clamp crossfade to max 30% of the shortest song to prevent weird behavior on short tracks
+    final maxAllowed = Duration(milliseconds: 
+      (min(outSong.duration.inMilliseconds, inSong.duration.inMilliseconds) * 0.3).toInt()
+    );
+
+    Duration calculated;
+    if (_config.isAutoDuration || _config.mode == CrossfadeMode.intelligent || _config.mode == CrossfadeMode.autoMix) {
       final totalSilence = outSong.silenceTrim.trailingSilenceMs +
           inSong.silenceTrim.leadingSilenceMs;
-      if (totalSilence > 4000) return const Duration(seconds: 2);
-      if (totalSilence < 500) return const Duration(seconds: 8);
-      final ratio = 1 - ((totalSilence - 500) / 3500);
-      return Duration(milliseconds: (2000 + (6000 * ratio)).round());
+      if (totalSilence > 4000) calculated = const Duration(seconds: 2);
+      else if (totalSilence < 500) calculated = const Duration(seconds: 8);
+      else {
+        final ratio = 1 - ((totalSilence - 500) / 3500);
+        calculated = Duration(milliseconds: (2000 + (6000 * ratio)).round());
+      }
+    } else {
+      calculated = _config.duration;
     }
-    return _config.duration;
+
+    return calculated > maxAllowed ? maxAllowed : calculated;
   }
 
   void _checkCrossfadeTrigger(Duration pos) {
@@ -436,7 +460,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
-  // FIX: Sleep Timer Logic
   void setSleepTimer(Duration? duration) {
     _sleepTimer?.cancel();
     if (duration == null || duration.inMinutes <= 0) {
@@ -452,7 +475,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (remaining.isNegative) {
         timer.cancel();
         _sleepTimerController.add(null);
-        pause(); // Pause playback when timer ends
+        pause(); 
       } else {
         _sleepTimerController.add(remaining);
       }

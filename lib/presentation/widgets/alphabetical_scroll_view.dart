@@ -10,7 +10,7 @@ class AlphabeticalScrollView extends StatefulWidget {
     required this.itemExtent,
     required this.labelBuilder,
     this.version,
-    this.railWidth = 20,
+    this.railWidth = 40, // FIX: Increased from 20 to 40 for a much better touch target
     this.topPadding = 0,
     this.bottomPadding = 0,
   });
@@ -64,7 +64,6 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
     super.dispose();
   }
 
-  // FIX: Helper to remove diacritics so "Ángel" goes to "A" instead of "#"
   String _removeDiacritics(String str) {
     const withDia = 'ÀÁÂÃÄÅàáâãäåÒÓÔÕÕÖØòóôõöøÈÉÊËèéêëðÇçÐÌÍÎÏìíîïÙÚÛÜùúûüÑñŠšŸÿýŽž';
     const withoutDia = 'AAAAAAaaaaaaOOOOOOOooooooEEEEeeeeeCcDIIIIiiiiUUUUuuuuNnSsYyyZz';
@@ -80,7 +79,6 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
       final raw = widget.labelBuilder(i);
       if (raw.isEmpty) continue;
       
-      // FIX: Apply diacritics removal before checking the letter
       final char = _removeDiacritics(raw[0].toUpperCase());
       final key = RegExp(r'[A-Z]').hasMatch(char) ? char : '#';
       firstIndex.putIfAbsent(key, () => i);
