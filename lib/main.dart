@@ -52,14 +52,14 @@ Future<void> main() async {
 
     final NexoAudioHandler audioHandler;
     if (Platform.isAndroid || Platform.isIOS) {
-      // FIX: Removed the unnecessary cast 'as NexoAudioHandler'
       audioHandler = await AudioService.init(
         builder: () => NexoAudioHandler(),
         config: const AudioServiceConfig(
-          androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio.v4',
+          androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio.v5',
           androidNotificationChannelName: 'Nexo Music Playback',
-          androidNotificationOngoing: true,
-          androidStopForegroundOnPause: true,
+          // Valid configuration: androidNotificationOngoing is false when androidStopForegroundOnPause is false
+          androidNotificationOngoing: false,
+          androidStopForegroundOnPause: false,
           androidShowNotificationBadge: true,
           androidNotificationIcon: 'drawable/ic_notification', 
         ),

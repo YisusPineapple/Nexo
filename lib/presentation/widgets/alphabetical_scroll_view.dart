@@ -9,11 +9,11 @@ class AlphabeticalScrollView extends StatefulWidget {
     required this.itemCount,
     required this.itemExtent,
     required this.labelBuilder,
-    this.crossAxisCount = 1, // FIX: Added support for GridViews
+    this.crossAxisCount = 1,
     this.version,
-    this.railWidth = 40,
-    this.topPadding = 0,
-    this.bottomPadding = 0,
+    this.railWidth = 32,
+    this.topPadding = 8,
+    this.bottomPadding = 88, // Prevents overlapping with navigation & mini player
   });
 
   final Widget child;
@@ -65,27 +65,41 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
     super.dispose();
   }
 
-  String _removeDiacritics(String str) {
-    const withDia = 'ÀÁÂÃÄÅàáâãäåÒÓÔÕÕÖØòóôõöøÈÉÊËèéêëðÇçÐÌÍÎÏìíîïÙÚÛÜùúûüÑñŠšŸÿýŽž';
-    const withoutDia = 'AAAAAAaaaaaaOOOOOOOooooooEEEEeeeeeCcDIIIIiiiiUUUUuuuuNnSsYyyZz';
-    for (int i = 0; i < withDia.length; i++) {
-      str = str.replaceAll(withDia[i], withoutDia[i]);
+  String _cleanSectionKey(String raw) {
+    if (raw.isEmpty) return '#';
+    final firstChar = raw.trim().characters.first.toUpperCase();
+
+    // Group all numbers under '#'
+    if (RegExp(r'[0-9]').hasMatch(firstChar)) {
+      return '#';
     }
-    return str;
+
+    // Latin A-Z normalization
+    const withDia = 'ÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜÑ';
+    const withoutDia = 'AAAAAAEEEEIIIIOOOOOUUUUN';
+    final diaIndex = withDia.indexOf(firstChar);
+    if (diaIndex != -1) {
+      return withoutDia[diaIndex];
+    }
+
+    // Latin A-Z or Cyrillic letters
+    if (RegExp(r'[A-ZА-Я]').hasMatch(firstChar)) {
+      return firstChar;
+    }
+
+    // Fallback for special symbols (¿, ¡, etc.)
+    return '#';
   }
 
   (List<String>, Map<String, int>) _computeIndex() {
     final firstIndex = <String, int>{};
     for (var i = 0; i < widget.itemCount; i++) {
       final raw = widget.labelBuilder(i);
-      if (raw.isEmpty) continue;
-      
-      // FIX: We no longer force A-Z. We accept numbers, dates, etc.
-      final key = _removeDiacritics(raw);
+      final key = _cleanSectionKey(raw);
       firstIndex.putIfAbsent(key, () => i);
     }
-    // FIX: Do NOT sort the keys alphabetically. Keep the natural order 
-    // of the list (which is already sorted by the provider).
+    
+    // Natural order from the sorted collection
     final sections = firstIndex.keys.toList();
     return (sections, firstIndex);
   }
@@ -102,7 +116,6 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
     HapticFeedback.selectionClick();
 
     final targetIndex = _firstIndexForSection[section]!;
-    // FIX: Calculate row index to support GridViews
     final rowIndex = targetIndex ~/ widget.crossAxisCount;
     
     final maxExtent = widget.controller.hasClients
@@ -124,9 +137,9 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
     return Stack(
       children: [
         RepaintBoundary(child: widget.child),
-        if (_sections.isNotEmpty)
+        if (_sections.length > 1)
           Positioned(
-            right: 0,
+            right: 2,
             top: widget.topPadding,
             bottom: widget.bottomPadding,
             width: widget.railWidth,
@@ -144,61 +157,80 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
                   onTapDown: (d) =>
                       _handlePointer(d.localPosition, railHeight),
                   onTapUp: (_) => _endDrag(),
-                  child: ValueListenableBuilder<String?>(
-                    valueListenable: _activeSection,
-                    builder: (context, active, _) {
-                      return Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          for (final section in _sections)
-                            Text(
-                              section,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                fontSize: 10,
-                                fontWeight: section == active
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: section == active
-                                    ? theme.colorScheme.primary
-                                    : theme.colorScheme.onSurfaceVariant,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: ValueListenableBuilder<String?>(
+                      valueListenable: _activeSection,
+                      builder: (context, active, _) {
+                        return Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            for (final section in _sections)
+                              Text(
+                                section,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontSize: _sections.length > 25 ? 8 : 10,
+                                  fontWeight: section == active
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  color: section == active
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurfaceVariant
+                                          .withValues(alpha: 0.8),
+                                ),
                               ),
-                            ),
-                        ],
-                      );
-                    },
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 );
               },
             ),
           ),
+        
+        // M3 Expressive / Soft UI Indicator Card
         IgnorePointer(
           child: Center(
             child: ValueListenableBuilder<String?>(
               valueListenable: _activeSection,
               builder: (context, active, _) {
-                return AnimatedOpacity(
-                  duration: const Duration(milliseconds: 100),
-                  opacity: active == null ? 0 : 1,
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.92),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+                return AnimatedScale(
+                  duration: const Duration(milliseconds: 150),
+                  scale: active == null ? 0.6 : 1.0,
+                  curve: Curves.easeOutBack,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 100),
+                    opacity: active == null ? 0.0 : 1.0,
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                          width: 2,
                         ),
-                      ],
-                    ),
-                    child: Text(
-                      active ?? '',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        color: theme.colorScheme.onPrimary,
-                        fontWeight: FontWeight.bold,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        active ?? '',
+                        style: theme.textTheme.displaySmall?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),

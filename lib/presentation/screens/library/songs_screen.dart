@@ -160,20 +160,14 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                     version: sortConfig,
                     labelBuilder: (index) {
                       final song = songs[index];
-                      switch (sortConfig.option) {
-                        case SongSortOption.title:
-                          return song.title.isNotEmpty ? song.title[0].toUpperCase() : '#';
-                        case SongSortOption.artist:
-                          return song.trackArtistId.value.isNotEmpty ? song.trackArtistId.value[0].toUpperCase() : '#';
-                        case SongSortOption.album:
-                          return song.albumId?.value.isNotEmpty == true ? song.albumId!.value[0].toUpperCase() : '#';
-                        case SongSortOption.year:
-                          return song.year?.toString() ?? '?';
-                        case SongSortOption.duration:
-                          return '${song.duration.inMinutes}m';
-                        case SongSortOption.dateAdded:
-                          return '${song.dateAddedUtc.year}-${song.dateAddedUtc.month.toString().padLeft(2, '0')}';
-                      }
+                      return switch (sortConfig.option) {
+                        SongSortOption.title => song.title,
+                        SongSortOption.artist => song.trackArtistId.value,
+                        SongSortOption.album => song.albumId?.value ?? '#',
+                        SongSortOption.year => song.year?.toString() ?? '#',
+                        SongSortOption.duration => '${song.duration.inMinutes}m',
+                        SongSortOption.dateAdded => '${song.dateAddedUtc.year}',
+                      };
                     },
                     child: list,
                   );

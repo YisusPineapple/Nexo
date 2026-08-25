@@ -10,15 +10,30 @@ import '../../../domain/entities/playlist.dart';
 import '../../../domain/entities/queue_source.dart';
 import '../../providers/playback_providers.dart';
 import '../../providers/playlist_providers.dart';
+import '../../widgets/alphabetical_scroll_view.dart';
 
 enum _PlaylistAction { rename, export, delete }
 
-class PlaylistsScreen extends ConsumerWidget {
+const double _playlistRowExtent = 76.0;
+
+class PlaylistsScreen extends ConsumerStatefulWidget {
   const PlaylistsScreen({super.key});
 
+  @override
+  ConsumerState<PlaylistsScreen> createState() => _PlaylistsScreenState();
+}
+
+class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   Future<void> _showCreateOrRenameDialog(
-    BuildContext context,
-    WidgetRef ref, {
+    BuildContext context, {
     Playlist? existingPlaylist,
   }) async {
     final controller = TextEditingController(text: existingPlaylist?.name ?? '');
@@ -58,7 +73,7 @@ class PlaylistsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleExport(BuildContext context, WidgetRef ref, Playlist playlist) async {
+  Future<void> _handleExport(BuildContext context, Playlist playlist) async {
     final String? path = await FilePicker.platform.getDirectoryPath();
     if (path == null || !context.mounted) return;
 
@@ -70,7 +85,7 @@ class PlaylistsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleImport(BuildContext context, WidgetRef ref) async {
+  Future<void> _handleImport(BuildContext context) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['m3u', 'm3u8'],
@@ -88,81 +103,109 @@ class PlaylistsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final playlistsAsync = ref.watch(playlistsProvider);
 
     return Scaffold(
-      body: playlistsAsync.when(
-        data: (playlists) {
-          if (playlists.isEmpty) {
-            return const Center(child: Text('No playlists yet.'));
-          }
-          return ListView.builder(
-            itemCount: playlists.length,
-            itemBuilder: (context, index) {
-              final playlist = playlists[index];
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                leading: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(PhosphorIconsFill.playlist, color: Theme.of(context).colorScheme.onPrimaryContainer),
-                ),
-                title: Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
-                trailing: PopupMenuButton<_PlaylistAction>(
-                  icon: const Icon(PhosphorIconsRegular.dotsThreeVertical),
-                  onSelected: (action) {
-                    switch (action) {
-                      case _PlaylistAction.rename:
-                        _showCreateOrRenameDialog(context, ref, existingPlaylist: playlist);
-                      case _PlaylistAction.export:
-                        _handleExport(context, ref, playlist);
-                      case _PlaylistAction.delete:
-                        ref.read(playlistControllerProvider).deletePlaylist(playlist.id.value);
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: _PlaylistAction.rename, child: Text('Rename')),
-                    PopupMenuItem(value: _PlaylistAction.export, child: Text('Export (.m3u8)')),
-                    PopupMenuItem(value: _PlaylistAction.delete, child: Text('Delete')),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PlaylistDetailScreen(playlist: playlist),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  Text(
+                    'Playlists',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(PhosphorIconsRegular.downloadSimple),
+                    tooltip: 'Import Playlist (.m3u/.m3u8)',
+                    onPressed: () => _handleImport(context),
+                  ),
+                  IconButton(
+                    icon: const Icon(PhosphorIconsRegular.plus),
+                    tooltip: 'New Playlist',
+                    onPressed: () => _showCreateOrRenameDialog(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: playlistsAsync.when(
+                data: (playlists) {
+                  if (playlists.isEmpty) {
+                    return const Center(child: Text('No playlists yet.'));
+                  }
+
+                  final list = ListView.builder(
+                    controller: _scrollController,
+                    itemExtent: _playlistRowExtent,
+                    itemCount: playlists.length,
+                    itemBuilder: (context, index) {
+                      final playlist = playlists[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        leading: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(PhosphorIconsFill.playlist, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                        ),
+                        title: Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        trailing: PopupMenuButton<_PlaylistAction>(
+                          icon: const Icon(PhosphorIconsRegular.dotsThreeVertical),
+                          onSelected: (action) {
+                            switch (action) {
+                              case _PlaylistAction.rename:
+                                _showCreateOrRenameDialog(context, existingPlaylist: playlist);
+                              case _PlaylistAction.export:
+                                _handleExport(context, playlist);
+                              case _PlaylistAction.delete:
+                                ref.read(playlistControllerProvider).deletePlaylist(playlist.id.value);
+                            }
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(value: _PlaylistAction.rename, child: Text('Rename')),
+                            PopupMenuItem(value: _PlaylistAction.export, child: Text('Export (.m3u8)')),
+                            PopupMenuItem(value: _PlaylistAction.delete, child: Text('Delete')),
+                          ],
+                        ),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => PlaylistDetailScreen(playlist: playlist),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+
+                  return AlphabeticalScrollView(
+                    controller: _scrollController,
+                    itemCount: playlists.length,
+                    itemExtent: _playlistRowExtent,
+                    labelBuilder: (index) => playlists[index].name,
+                    child: list,
                   );
                 },
-              );
-            },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) {
-          final msg = e is Failure ? e.message : e.toString();
-          return Center(child: Text('Error: $msg'));
-        },
-      ),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton.small(
-            heroTag: 'import_btn',
-            onPressed: () => _handleImport(context, ref),
-            child: const Icon(PhosphorIconsRegular.downloadSimple),
-          ),
-          const SizedBox(height: 16),
-          FloatingActionButton(
-            heroTag: 'add_btn',
-            onPressed: () => _showCreateOrRenameDialog(context, ref),
-            child: const Icon(PhosphorIconsRegular.plus),
-          ),
-        ],
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, st) {
+                  final msg = e is Failure ? e.message : e.toString();
+                  return Center(child: Text('Error: $msg'));
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

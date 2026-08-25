@@ -5,12 +5,28 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import '../../../domain/entities/queue_source.dart';
 import '../../providers/grouped_library_providers.dart';
 import '../../providers/playback_providers.dart';
+import '../../widgets/alphabetical_scroll_view.dart';
 
-class FoldersScreen extends ConsumerWidget {
+const double _folderRowExtent = 76.0;
+
+class FoldersScreen extends ConsumerStatefulWidget {
   const FoldersScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FoldersScreen> createState() => _FoldersScreenState();
+}
+
+class _FoldersScreenState extends ConsumerState<FoldersScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final foldersAsync = ref.watch(foldersProvider);
     final theme = Theme.of(context);
 
@@ -20,8 +36,10 @@ class FoldersScreen extends ConsumerWidget {
           return const Center(child: Text('No folders found.'));
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+        final list = ListView.builder(
+          controller: _scrollController,
+          itemExtent: _folderRowExtent,
+          padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: folders.length,
           itemBuilder: (context, index) {
             final folder = folders[index];
@@ -64,6 +82,7 @@ class FoldersScreen extends ConsumerWidget {
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(folder.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
                             const SizedBox(height: 2),
@@ -81,6 +100,14 @@ class FoldersScreen extends ConsumerWidget {
               ),
             );
           },
+        );
+
+        return AlphabeticalScrollView(
+          controller: _scrollController,
+          itemCount: folders.length,
+          itemExtent: _folderRowExtent,
+          labelBuilder: (index) => folders[index].name,
+          child: list,
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),

@@ -33,145 +33,145 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton.small(
-            heroTag: 'album_order_btn',
-            onPressed: () {
-              ref.read(albumSortProvider.notifier).state =
-                  sortConfig.copyWith(isAscending: !sortConfig.isAscending);
-            },
-            child: Icon(sortConfig.isAscending
-                ? PhosphorIconsRegular.sortAscending
-                : PhosphorIconsRegular.sortDescending),
-          ),
-          const SizedBox(height: 16),
-          FloatingActionButton(
-            heroTag: 'album_sort_btn',
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                builder: (context) => SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: AlbumSortOption.values.map((option) {
-                      return ListTile(
-                        title: Text('Sort by ${option.name}'),
-                        trailing: sortConfig.option == option
-                            ? const Icon(PhosphorIconsRegular.check)
-                            : null,
-                        onTap: () {
-                          ref.read(albumSortProvider.notifier).state =
-                              sortConfig.copyWith(option: option);
-                          Navigator.pop(context);
-                        },
-                      );
-                    }).toList(),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  Text(
+                    'Albums',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
-                ),
-              );
-            },
-            child: const Icon(PhosphorIconsRegular.arrowsDownUp),
-          ),
-        ],
-      ),
-      body: albumsAsync.when(
-        data: (albums) {
-          if (albums.isEmpty) return const Center(child: Text('No albums found.'));
-          
-          final crossAxisCount = (MediaQuery.of(context).size.width / 160).floor().clamp(2, 10);
-          final screenWidth = MediaQuery.of(context).size.width;
-          final availableWidth = screenWidth - 32 - ((crossAxisCount - 1) * 16);
-          final itemWidth = availableWidth / crossAxisCount;
-          final itemHeight = (itemWidth / 0.75) + 16; // 0.75 ratio + 16 mainAxisSpacing
-
-          return AlphabeticalScrollView(
-            controller: _scrollController,
-            itemCount: albums.length,
-            itemExtent: itemHeight,
-            crossAxisCount: crossAxisCount,
-            version: sortConfig,
-            labelBuilder: (index) {
-              final album = albums[index];
-              return switch (sortConfig.option) {
-                AlbumSortOption.name =>
-                  album.name.isNotEmpty ? album.name[0].toUpperCase() : '#',
-                AlbumSortOption.artist =>
-                  album.artist.isNotEmpty ? album.artist[0].toUpperCase() : '#',
-                AlbumSortOption.songCount => '${album.songCount}',
-              };
-            },
-            child: GridView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 0.75,
-              ),
-              itemCount: albums.length,
-              itemBuilder: (context, index) {
-                final album = albums[index];
-                return Container(
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
+                  const Spacer(),
+                  IconButton(
+                    icon: Icon(sortConfig.isAscending
+                        ? PhosphorIconsRegular.sortAscending
+                        : PhosphorIconsRegular.sortDescending),
+                    tooltip: 'Toggle Order',
+                    onPressed: () {
+                      ref.read(albumSortProvider.notifier).state =
+                          sortConfig.copyWith(isAscending: !sortConfig.isAscending);
+                    },
+                  ),
+                  PopupMenuButton<AlbumSortOption>(
+                    initialValue: sortConfig.option,
+                    tooltip: 'Sort by',
+                    icon: const Icon(PhosphorIconsRegular.arrowsDownUp),
+                    onSelected: (option) => ref
+                        .read(albumSortProvider.notifier)
+                        .state = sortConfig.copyWith(option: option),
+                    itemBuilder: (context) => [
+                      for (final option in AlbumSortOption.values)
+                        PopupMenuItem(value: option, child: Text('Sort by ${option.name}')),
                     ],
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AlbumDetailScreen(album: album))),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        AspectRatio(
-                          aspectRatio: 1,
-                          child: Container(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            child: album.coverArtPath != null
-                                ? Image.file(File(album.coverArtPath!), fit: BoxFit.cover, cacheWidth: 400)
-                                : const Icon(Icons.album, size: 48),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                album.name, 
-                                maxLines: 1, 
-                                overflow: TextOverflow.ellipsis, 
-                                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                album.artist, 
-                                maxLines: 1, 
-                                overflow: TextOverflow.ellipsis, 
-                                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)
+                ],
+              ),
+            ),
+            Expanded(
+              child: albumsAsync.when(
+                data: (albums) {
+                  if (albums.isEmpty) return const Center(child: Text('No albums found.'));
+                  
+                  final crossAxisCount = (MediaQuery.of(context).size.width / 160).floor().clamp(2, 10);
+                  final screenWidth = MediaQuery.of(context).size.width;
+                  final availableWidth = screenWidth - 32 - ((crossAxisCount - 1) * 16);
+                  final itemWidth = availableWidth / crossAxisCount;
+                  final itemHeight = (itemWidth / 0.75) + 16;
+
+                  return AlphabeticalScrollView(
+                    controller: _scrollController,
+                    itemCount: albums.length,
+                    itemExtent: itemHeight,
+                    crossAxisCount: crossAxisCount,
+                    version: sortConfig,
+                    labelBuilder: (index) {
+                      final album = albums[index];
+                      return switch (sortConfig.option) {
+                        AlbumSortOption.name => album.name,
+                        AlbumSortOption.artist => album.artist,
+                        AlbumSortOption.songCount => '${album.songCount}',
+                      };
+                    },
+                    child: GridView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 0.75,
+                      ),
+                      itemCount: albums.length,
+                      itemBuilder: (context, index) {
+                        final album = albums[index];
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AlbumDetailScreen(album: album))),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                AspectRatio(
+                                  aspectRatio: 1,
+                                  child: Container(
+                                    color: theme.colorScheme.surfaceContainerHighest,
+                                    child: album.coverArtPath != null
+                                        ? Image.file(File(album.coverArtPath!), fit: BoxFit.cover, cacheWidth: 400)
+                                        : const Icon(Icons.album, size: 48),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        album.name, 
+                                        maxLines: 1, 
+                                        overflow: TextOverflow.ellipsis, 
+                                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        album.artist, 
+                                        maxLines: 1, 
+                                        overflow: TextOverflow.ellipsis, 
+                                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, st) => Center(child: Text('Error: $e')),
+              ),
             ),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('Error: $e')),
+          ],
+        ),
       ),
     );
   }
