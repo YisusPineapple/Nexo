@@ -1,7 +1,9 @@
 package io.github.yisus.nexo
 
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import android.os.Bundle
 import androidx.core.app.NotificationManagerCompat
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -15,6 +17,28 @@ class MainActivity : AudioServiceActivity() {
         // FIX: Updated to v4 to match the Dart side exactly!
         private const val AUDIO_CHANNEL_ID =
             "io.github.yisus.nexo.channel.audio.v4"
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // FIX: Manually create the NotificationChannel before Flutter/audio_service starts.
+        // This bypasses aggressive background-service restrictions on HiOS/MIUI.
+        createNotificationChannel()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "Nexo Music Playback"
+            val descriptionText = "Media playback controls"
+            val importance = NotificationManager.IMPORTANCE_LOW
+            val channel = NotificationChannel(AUDIO_CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+                setShowBadge(true)
+            }
+            val notificationManager: NotificationManager =
+                getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

@@ -10,15 +10,33 @@ import '../../../domain/value_objects/artist_id.dart';
 import '../../providers/grouped_library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../utils/artist_splitter.dart';
+import '../../widgets/alphabetical_scroll_view.dart';
 
-class ArtistsScreen extends ConsumerWidget {
+const double _artistRowExtent = 92.0;
+
+class ArtistsScreen extends ConsumerStatefulWidget {
   const ArtistsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ArtistsScreen> createState() => _ArtistsScreenState();
+}
+
+class _ArtistsScreenState extends ConsumerState<ArtistsScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final artistsAsync = ref.watch(artistsProvider);
     final sortOption = ref.watch(artistSortOptionProvider);
     final theme = Theme.of(context);
+
+    final isAlphabeticalSort = sortOption == ArtistSortOption.name;
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.small(
@@ -52,74 +70,91 @@ class ArtistsScreen extends ConsumerWidget {
           if (artists.isEmpty) {
             return const Center(child: Text('No artists found.'));
           }
-          return Scrollbar(
-            interactive: true,
-            thickness: 8,
-            radius: const Radius.circular(4),
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              itemCount: artists.length,
-              itemBuilder: (context, index) {
-                final artist = artists[index];
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => ArtistDetailScreen(artist: artist))),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Row(
-                        children: [
-                          _ArtistAvatar(
-                              name: artist.name, coverArtPath: artist.coverArtPath),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(artist.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Text('${artist.songCount} songs', style: theme.textTheme.bodySmall),
-                                    if (artist.albumCount > 0) ...[
-                                      Text(' • ', style: theme.textTheme.bodySmall),
-                                      Text('${artist.albumCount} albums', style: theme.textTheme.bodySmall)
-                                    ],
-                                    if (artist.collaborationCount > 0) ...[
-                                      Text(' • ', style: theme.textTheme.bodySmall),
-                                      Text('${artist.collaborationCount} collabs',
-                                          style: theme.textTheme.bodySmall?.copyWith(
-                                              color: theme.colorScheme.primary))
-                                    ],
+
+          final list = ListView.builder(
+            controller: _scrollController,
+            itemExtent: _artistRowExtent,
+            itemCount: artists.length,
+            itemBuilder: (context, index) {
+              final artist = artists[index];
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ArtistDetailScreen(artist: artist))),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      children: [
+                        _ArtistAvatar(
+                            name: artist.name, coverArtPath: artist.coverArtPath),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(artist.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Text('${artist.songCount} songs', style: theme.textTheme.bodySmall),
+                                  if (artist.albumCount > 0) ...[
+                                    Text(' • ', style: theme.textTheme.bodySmall),
+                                    Text('${artist.albumCount} albums', style: theme.textTheme.bodySmall)
                                   ],
-                                ),
-                              ],
-                            ),
+                                  if (artist.collaborationCount > 0) ...[
+                                    Text(' • ', style: theme.textTheme.bodySmall),
+                                    Text('${artist.collaborationCount} collabs',
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                            color: theme.colorScheme.primary))
+                                  ],
+                                ],
+                              ),
+                            ],
                           ),
-                          const Icon(PhosphorIconsRegular.caretRight, size: 16),
-                        ],
-                      ),
+                        ),
+                        const Icon(PhosphorIconsRegular.caretRight, size: 16),
+                      ],
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
+          );
+
+          if (!isAlphabeticalSort) {
+            return Scrollbar(
+              controller: _scrollController,
+              interactive: true,
+              thickness: 8,
+              radius: const Radius.circular(4),
+              child: list,
+            );
+          }
+
+          return AlphabeticalScrollView(
+            controller: _scrollController,
+            itemCount: artists.length,
+            itemExtent: _artistRowExtent,
+            version: sortOption,
+            labelBuilder: (index) => artists[index].name,
+            child: list,
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
