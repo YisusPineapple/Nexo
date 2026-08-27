@@ -3,8 +3,11 @@ package io.github.yisus.nexo
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -15,7 +18,6 @@ class MainActivity : AudioServiceActivity() {
     companion object {
         private const val DIAGNOSTICS_CHANNEL =
             "io.github.yisus.nexo/notification_diagnostics"
-        // Upgraded to v5 with IMPORTANCE_DEFAULT to force HiOS/Android 13 to show media controls
         private const val AUDIO_CHANNEL_ID =
             "io.github.yisus.nexo.channel.audio.v5"
     }
@@ -29,7 +31,6 @@ class MainActivity : AudioServiceActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = "Nexo Music Playback"
             val descriptionText = "Media playback controls and lockscreen widget"
-            // IMPORTANCE_DEFAULT is mandatory for HiOS/Tecno to render notifications in status bar and lockscreen
             val importance = NotificationManager.IMPORTANCE_DEFAULT
             val channel = NotificationChannel(AUDIO_CHANNEL_ID, name, importance).apply {
                 description = descriptionText
@@ -49,9 +50,45 @@ class MainActivity : AudioServiceActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "getNotificationDiagnostics" -> result.success(collectDiagnostics())
+                    "openAutostartSettings" -> result.success(openAutostartSettings())
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun openAutostartSettings(): Boolean {
+        try {
+            // Attempt 1: Explicit intent to Transsion's Phone Master
+            val intent = Intent()
+            intent.setClassName("com.transsion.phonemanager", "com.transsion.phonemanager.MainActivity")
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            return true
+        } catch (e: Exception) {
+            try {
+                // Attempt 2: Let the system resolve the launcher intent for the package
+                val intent = packageManager.getLaunchIntentForPackage("com.transsion.phonemanager")
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    return true
+                }
+            } catch (e2: Exception) {
+                // Ignore and proceed to fallback
+            }
+            
+            try {
+                // Attempt 3: Fallback to standard Android App Details Settings
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                intent.data = Uri.parse("package:$packageName")
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                return true
+            } catch (e3: Exception) {
+                return false
+            }
+        }
+        return false
     }
 
     private fun collectDiagnostics(): Map<String, Any?> {

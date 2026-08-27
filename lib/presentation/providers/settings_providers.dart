@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../domain/entities/crossfade_config.dart';
 import '../../domain/entities/playback_settings.dart';
@@ -21,6 +25,8 @@ final settingsControllerProvider = Provider<SettingsController>((ref) {
 class SettingsController {
   SettingsController(this._ref);
   final Ref _ref;
+
+  static const _channel = MethodChannel('io.github.yisus.nexo/notification_diagnostics');
 
   Future<void> updateCrossfade(
     CrossfadeMode mode,
@@ -90,11 +96,25 @@ class SettingsController {
 
   Future<String?> forceLibraryRefresh() async {
     try {
-      // FIX: Added 'await' to satisfy the unawaited_futures lint rule
       await _ref.read(indexDirectoriesControllerProvider.notifier).refreshLibrary();
       return null;
     } catch (e) {
       return e.toString();
+    }
+  }
+
+  Future<bool> requestBatteryOptimizationExemption() async {
+    final status = await Permission.ignoreBatteryOptimizations.request();
+    return status.isGranted;
+  }
+
+  Future<bool> openAutostartSettings() async {
+    try {
+      final result = await _channel.invokeMethod<bool>('openAutostartSettings');
+      return result ?? false;
+    } catch (e) {
+      debugPrint('Failed to open autostart settings: $e');
+      return false;
     }
   }
 }

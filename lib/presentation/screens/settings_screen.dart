@@ -230,7 +230,6 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
-  // FIX: Helper to simplify the Crossfade UI
   String _getCrossfadeLabel(CrossfadeMode mode) {
     switch (mode) {
       case CrossfadeMode.disabled: return 'DISABLED';
@@ -258,10 +257,9 @@ class SettingsScreen extends ConsumerWidget {
         data: (settings) {
           final controller = ref.read(settingsControllerProvider);
           
-          // Determine the effective UI mode
           CrossfadeMode effectiveMode = settings.crossfade.mode;
           if (effectiveMode == CrossfadeMode.autoMix) {
-            effectiveMode = CrossfadeMode.intelligent; // Collapse AutoMix into Auto
+            effectiveMode = CrossfadeMode.intelligent;
           }
 
           return ListView(
@@ -290,7 +288,6 @@ class SettingsScreen extends ConsumerWidget {
                       value: effectiveMode,
                       underline: const SizedBox(),
                       icon: const Icon(PhosphorIconsRegular.caretDown, size: 16),
-                      // FIX: Only show Disabled, Manual, and Auto
                       items: [CrossfadeMode.disabled, CrossfadeMode.fixed, CrossfadeMode.intelligent]
                           .map((mode) => DropdownMenuItem(
                               value: mode, child: Text(_getCrossfadeLabel(mode))))
@@ -548,6 +545,47 @@ class SettingsScreen extends ConsumerWidget {
               _SettingsGroup(
                 title: 'System & Permissions',
                 children: [
+                  if (Platform.isAndroid) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Text(
+                        'If the player notification does not appear, your device manufacturer (like Tecno, Xiaomi, or Oppo) might be restricting background execution.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(PhosphorIconsRegular.batteryWarning),
+                      title: const Text('Disable Battery Restrictions'),
+                      trailing: const Icon(PhosphorIconsRegular.caretRight, size: 16),
+                      onTap: () async {
+                        final success = await controller.requestBatteryOptimizationExemption();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(success ? 'Exemption granted' : 'Exemption denied or already granted')),
+                          );
+                        }
+                      },
+                    ),
+                    const _GroupDivider(),
+                    ListTile(
+                      leading: const Icon(PhosphorIconsRegular.rocketLaunch),
+                      title: const Text('Open Autostart Settings'),
+                      subtitle: const Text('Allow Nexo to run in the background'),
+                      trailing: const Icon(PhosphorIconsRegular.arrowSquareOut, size: 16),
+                      onTap: () async {
+                        final success = await controller.openAutostartSettings();
+                        if (!success && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Could not open Autostart settings automatically.')),
+                          );
+                        }
+                      },
+                    ),
+                    const _GroupDivider(),
+                  ],
                   ListTile(
                     leading: const Icon(PhosphorIconsRegular.bellRinging),
                     title: const Text('Notification Access'),
@@ -579,7 +617,7 @@ class SettingsScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(vertical: 32.0),
                 child: Center(
                   child: Text(
-                    'Nexo Music Player\nVersion 0.0.10-beta+27',
+                    'Nexo Music Player\nVersion 0.0.10-beta+34',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
