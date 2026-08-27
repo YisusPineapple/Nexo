@@ -104,6 +104,12 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   void _broadcastState(ja.PlaybackEvent event) {
     final playing = _activePlayer.playing;
+    
+    // NEXO_DEBUG: Log to check timing of playing state broadcast
+    if (playing) {
+      debugPrint('NEXO_DEBUG: playbackState playing=true broadcast at ${DateTime.now()}');
+    }
+
     playbackState.add(playbackState.value.copyWith(
       controls: [
         MediaControl.skipToPrevious,
@@ -223,8 +229,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     _currentIndex = currentIndex;
 
-    // FIX: Broadcast items IMMEDIATELY so Android 13+ doesn't kill the notification
-    // due to ForegroundServiceStartNotAllowedException.
     final items = _queue
         .map((song) => MediaItem(
               id: song.id.value,
@@ -265,7 +269,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _queue = [song];
     _currentIndex = 0;
 
-    // FIX: Broadcast IMMEDIATELY before doing any heavy I/O
     final item = MediaItem(
       id: song.id.value,
       title: song.title,
@@ -303,7 +306,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final outSong = _queue[_currentIndex];
     final inSong = _queue[nextIndex];
     
-    // FIX: Clamp crossfade to max 30% of the shortest song to prevent weird behavior on short tracks
     final maxAllowed = Duration(milliseconds: 
       (min(outSong.duration.inMilliseconds, inSong.duration.inMilliseconds) * 0.3).toInt()
     );
@@ -486,6 +488,9 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> play() async {
+    // NEXO_DEBUG: Log to check timing of play() call
+    debugPrint('NEXO_DEBUG: play() called at ${DateTime.now()}');
+    
     if (_frozenProgress > 0.0) {
       final crossfadeDur = _getActualCrossfadeDuration();
       _startCrossfade(crossfadeDur);
