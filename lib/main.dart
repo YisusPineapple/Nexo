@@ -57,9 +57,8 @@ Future<void> main() async {
         config: const AudioServiceConfig(
           androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio.v5',
           androidNotificationChannelName: 'Nexo Music Playback',
-          // Valid configuration: androidNotificationOngoing is false when androidStopForegroundOnPause is false
-          androidNotificationOngoing: false,
-          androidStopForegroundOnPause: false,
+          androidNotificationOngoing: true,
+          androidStopForegroundOnPause: true,
           androidShowNotificationBadge: true,
           androidNotificationIcon: 'drawable/ic_notification', 
         ),
