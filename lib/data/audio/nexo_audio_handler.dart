@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
@@ -66,7 +66,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   void _fire(Future<dynamic> f) {
     f.catchError((e) {
-      debugPrint('AudioHandler async error suppressed: $e');
+      developer.log('AudioHandler async error suppressed: $e', name: 'nexo.audio');
     });
   }
 
@@ -105,9 +105,8 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   void _broadcastState(ja.PlaybackEvent event) {
     final playing = _activePlayer.playing;
     
-    // NEXO_DEBUG: Log to check timing of playing state broadcast
     if (playing) {
-      debugPrint('NEXO_DEBUG: playbackState playing=true broadcast at ${DateTime.now()}');
+      developer.log('playbackState playing=true broadcast at ${DateTime.now()}', name: 'nexo.audio');
     }
 
     playbackState.add(playbackState.value.copyWith(
@@ -207,7 +206,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         _currentLoadedSongId = song.id.value;
       }
     } catch (e) {
-      debugPrint('Error loading song ${song.title}: $e');
+      developer.log('Error loading song ${song.title}: $e', name: 'nexo.audio');
       rethrow;
     }
   }
@@ -488,8 +487,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> play() async {
-    // NEXO_DEBUG: Log to check timing of play() call
-    debugPrint('NEXO_DEBUG: play() called at ${DateTime.now()}');
+    developer.log('play() called at ${DateTime.now()}', name: 'nexo.audio');
     
     if (_frozenProgress > 0.0) {
       final crossfadeDur = _getActualCrossfadeDuration();
