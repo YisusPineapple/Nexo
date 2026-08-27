@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart' as ja;
 
 import '../../domain/entities/crossfade_config.dart';
