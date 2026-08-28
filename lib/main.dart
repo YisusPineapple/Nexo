@@ -60,9 +60,10 @@ Future<void> main() async {
           androidNotificationOngoing: true,
           androidStopForegroundOnPause: true,
           androidShowNotificationBadge: true,
-          // FIX: Changed to mipmap to avoid strict vector drawable rejections on Android 13
-          androidNotificationIcon: 'mipmap/ic_launcher',
-          // FIX: Explicitly declare intent behavior
+          // FIX: Reverted to drawable/ic_notification. 
+          // mipmap/ic_launcher is an Adaptive Icon XML in modern Flutter, 
+          // which causes a silent crash in Android's setSmallIcon().
+          androidNotificationIcon: 'drawable/ic_notification',
           androidNotificationClickStartsActivity: true,
         ),
       );
