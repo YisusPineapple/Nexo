@@ -60,7 +60,10 @@ Future<void> main() async {
           androidNotificationOngoing: true,
           androidStopForegroundOnPause: true,
           androidShowNotificationBadge: true,
-          androidNotificationIcon: 'drawable/ic_notification', 
+          // FIX: Changed to mipmap to avoid strict vector drawable rejections on Android 13
+          androidNotificationIcon: 'mipmap/ic_launcher',
+          // FIX: Explicitly declare intent behavior
+          androidNotificationClickStartsActivity: true,
         ),
       );
       

@@ -212,6 +212,15 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
+  // FIX: Helper to ensure artUri is never null for Android 13 Media Controls
+  Uri _getArtUri(String? coverArtPath) {
+    if (coverArtPath != null && coverArtPath.isNotEmpty) {
+      return Uri.file(coverArtPath);
+    }
+    // Fallback to the app icon if no cover is available
+    return Uri.parse('asset:///assets/icon.png');
+  }
+
   Future<void> syncQueue(
       List<Song> songs, int currentIndex, RepeatMode repeatMode) async {
     _queue = songs;
@@ -236,7 +245,8 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               artist: song.trackArtistId.value,
               album: song.albumId?.value,
               duration: song.duration,
-              artUri: null, 
+              // FIX: Provide a valid URI always
+              artUri: _getArtUri(song.coverArtPath), 
             ))
         .toList();
     await updateQueue(items);
@@ -275,7 +285,8 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       artist: song.trackArtistId.value,
       album: song.albumId?.value,
       duration: song.duration,
-      artUri: null,
+      // FIX: Provide a valid URI always
+      artUri: _getArtUri(song.coverArtPath),
     );
     await updateQueue([item]);
     mediaItem.add(item);
