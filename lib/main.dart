@@ -59,12 +59,9 @@ Future<void> main() async {
           androidNotificationChannelName: 'Nexo Music Playback',
           androidNotificationOngoing: true,
           androidStopForegroundOnPause: true,
-          androidShowNotificationBadge: true,
-          // FIX: Reverted to drawable/ic_notification. 
-          // mipmap/ic_launcher is an Adaptive Icon XML in modern Flutter, 
-          // which causes a silent crash in Android's setSmallIcon().
+          // FIX: Disable badges to prevent HiOS launcher conflicts
+          androidShowNotificationBadge: false,
           androidNotificationIcon: 'drawable/ic_notification',
-          androidNotificationClickStartsActivity: true,
         ),
       );
       
