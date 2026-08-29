@@ -1,9 +1,12 @@
 package io.github.yisus.nexo
 
+import android.app.Notification
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -15,9 +18,32 @@ class MainActivity : AudioServiceActivity() {
     companion object {
         private const val DIAGNOSTICS_CHANNEL =
             "io.github.yisus.nexo/notification_diagnostics"
-        // FIX: Bumped to v6 for a clean slate
+        // FIX: Bumped to v7 for the ultimate clean slate
         private const val AUDIO_CHANNEL_ID =
-            "io.github.yisus.nexo.channel.audio.v6"
+            "io.github.yisus.nexo.channel.audio.v7"
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        createNotificationChannel()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "Nexo Music Playback"
+            val descriptionText = "Media playback controls"
+            // CRITICAL: audio_service hardcodes IMPORTANCE_LOW.
+            // HiOS hides LOW importance notifications. We MUST create it manually with DEFAULT.
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel(AUDIO_CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            }
+            val notificationManager: NotificationManager =
+                getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
