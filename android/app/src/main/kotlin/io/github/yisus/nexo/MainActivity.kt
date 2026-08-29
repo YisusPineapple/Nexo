@@ -1,12 +1,9 @@
 package io.github.yisus.nexo
 
-import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.os.Bundle
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -18,29 +15,9 @@ class MainActivity : AudioServiceActivity() {
     companion object {
         private const val DIAGNOSTICS_CHANNEL =
             "io.github.yisus.nexo/notification_diagnostics"
+        // FIX: Bumped to v6 for a clean slate
         private const val AUDIO_CHANNEL_ID =
-            "io.github.yisus.nexo.channel.audio.v5"
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        createNotificationChannel()
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "Nexo Music Playback"
-            val descriptionText = "Media playback controls and lockscreen widget"
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(AUDIO_CHANNEL_ID, name, importance).apply {
-                description = descriptionText
-                setShowBadge(true)
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            }
-            val notificationManager: NotificationManager =
-                getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-        }
+            "io.github.yisus.nexo.channel.audio.v6"
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -58,7 +35,6 @@ class MainActivity : AudioServiceActivity() {
 
     private fun openAutostartSettings(): Boolean {
         try {
-            // Attempt 1: Explicit intent to Transsion's Phone Master
             val intent = Intent()
             intent.setClassName("com.transsion.phonemanager", "com.transsion.phonemanager.MainActivity")
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -66,7 +42,6 @@ class MainActivity : AudioServiceActivity() {
             return true
         } catch (e: Exception) {
             try {
-                // Attempt 2: Let the system resolve the launcher intent for the package
                 val intent = packageManager.getLaunchIntentForPackage("com.transsion.phonemanager")
                 if (intent != null) {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -78,7 +53,6 @@ class MainActivity : AudioServiceActivity() {
             }
             
             try {
-                // Attempt 3: Fallback to standard Android App Details Settings
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                 intent.data = Uri.parse("package:$packageName")
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

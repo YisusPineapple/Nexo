@@ -55,13 +55,15 @@ Future<void> main() async {
       audioHandler = await AudioService.init(
         builder: () => NexoAudioHandler(),
         config: const AudioServiceConfig(
-          androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio.v5',
+          // FIX: Bumped to v6. We removed the manual Kotlin channel creation,
+          // so audio_service will now create this channel natively and bind to it properly.
+          androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio.v6',
           androidNotificationChannelName: 'Nexo Music Playback',
           androidNotificationOngoing: true,
           androidStopForegroundOnPause: true,
-          // FIX: Disable badges to prevent HiOS launcher conflicts
           androidShowNotificationBadge: false,
           androidNotificationIcon: 'drawable/ic_notification',
+          androidNotificationClickStartsActivity: true,
         ),
       );
       
