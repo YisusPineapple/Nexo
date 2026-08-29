@@ -212,12 +212,10 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
-  // FIX: Return null if no cover art exists. audio_service handles null perfectly,
-  // but fails if we pass a malformed asset URI.
   Uri? _getArtUri(String? coverArtPath) {
-    if (coverArtPath != null && coverArtPath.isNotEmpty) {
-      return Uri.file(coverArtPath);
-    }
+    // CRITICAL FIX: Force null to prevent TransactionTooLargeException.
+    // High-res cover arts crash the Android Binder when passed to the notification.
+    // We must verify if the notification appears without artwork first.
     return null;
   }
 
