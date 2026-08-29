@@ -213,10 +213,11 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Uri? _getArtUri(String? coverArtPath) {
-    // CRITICAL FIX: Force null to prevent TransactionTooLargeException.
-    // High-res cover arts crash the Android Binder when passed to the notification.
-    // We must verify if the notification appears without artwork first.
-    return null;
+    // CRITICAL FIX: HiOS aggressively hides media notifications if artUri is null.
+    // However, passing a high-res local file causes TransactionTooLargeException.
+    // To satisfy HiOS without crashing the Binder, we pass the app icon asset,
+    // which is small and guaranteed to exist.
+    return Uri.parse('asset:///assets/icon.png');
   }
 
   Future<void> syncQueue(
