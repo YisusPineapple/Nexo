@@ -106,6 +106,22 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   void _broadcastState(ja.PlaybackEvent event) {
     final playing = _activePlayer.playing;
     
+    var processingState = const {
+      ja.ProcessingState.idle: AudioProcessingState.idle,
+      ja.ProcessingState.loading: AudioProcessingState.loading,
+      ja.ProcessingState.buffering: AudioProcessingState.buffering,
+      ja.ProcessingState.ready: AudioProcessingState.ready,
+      ja.ProcessingState.completed: AudioProcessingState.completed,
+    }[_activePlayer.processingState] ?? AudioProcessingState.idle;
+
+    // CRITICAL FIX: If playing is true, we MUST force processingState to ready.
+    // If we send 'loading' or 'buffering' while playing, audio_service maps it to STATE_BUFFERING
+    // instead of STATE_PLAYING, which prevents startForeground() from being called.
+    // HiOS instantly kills background services that post notifications without startForeground().
+    if (playing && processingState != AudioProcessingState.ready) {
+      processingState = AudioProcessingState.ready;
+    }
+
     if (playing) {
       developer.log('playbackState playing=true broadcast at ${DateTime.now()}', name: 'nexo.audio');
     }
@@ -123,13 +139,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         MediaAction.seekBackward
       },
       androidCompactActionIndices: const [0, 1, 3],
-      processingState: const {
-        ja.ProcessingState.idle: AudioProcessingState.idle,
-        ja.ProcessingState.loading: AudioProcessingState.loading,
-        ja.ProcessingState.buffering: AudioProcessingState.buffering,
-        ja.ProcessingState.ready: AudioProcessingState.ready,
-        ja.ProcessingState.completed: AudioProcessingState.completed,
-      }[_activePlayer.processingState] ?? AudioProcessingState.idle,
+      processingState: processingState,
       playing: playing,
       updatePosition: _activePlayer.position,
       bufferedPosition: _activePlayer.bufferedPosition,
@@ -213,11 +223,10 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Uri? _getArtUri(String? coverArtPath) {
-    // CRITICAL FIX: HiOS aggressively hides media notifications if artUri is null.
-    // However, passing a high-res local file causes TransactionTooLargeException.
-    // To satisfy HiOS without crashing the Binder, we pass the app icon asset,
-    // which is small and guaranteed to exist.
-    return Uri.parse('asset:///assets/icon.png');
+    // CRITICAL FIX: Force null. audio_service crashes internally if we pass asset:// URIs,
+    // and throws TransactionTooLargeException if we pass high-res file:// URIs.
+    // We must ensure the notification works without artwork first.
+    return null;
   }
 
   Future<void> syncQueue(
