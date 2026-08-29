@@ -54,15 +54,12 @@ Future<void> main() async {
     if (Platform.isAndroid || Platform.isIOS) {
       audioHandler = await AudioService.init(
         builder: () => NexoAudioHandler(),
+        // SAFE MODE: Bare minimum configuration. No custom icons, no badges.
         config: const AudioServiceConfig(
-          // FIX: Bumped to v7 to match the manual creation in MainActivity.kt
           androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio.v7',
           androidNotificationChannelName: 'Nexo Music Playback',
           androidNotificationOngoing: true,
           androidStopForegroundOnPause: true,
-          androidShowNotificationBadge: false,
-          androidNotificationIcon: 'drawable/ic_notification',
-          androidNotificationClickStartsActivity: true,
         ),
       );
       

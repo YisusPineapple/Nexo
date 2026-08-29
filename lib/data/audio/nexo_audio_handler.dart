@@ -73,18 +73,16 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   void init() {
     playbackState.add(playbackState.value.copyWith(
+      // SAFE MODE: Only 3 standard controls
       controls: [
         MediaControl.skipToPrevious,
         MediaControl.play,
-        MediaControl.stop,
         MediaControl.skipToNext,
       ],
       systemActions: const {
         MediaAction.seek,
-        MediaAction.seekForward,
-        MediaAction.seekBackward
       },
-      androidCompactActionIndices: const [0, 1, 3],
+      androidCompactActionIndices: const [0, 1, 2],
       processingState: AudioProcessingState.idle,
       playing: false,
     ));
@@ -114,31 +112,21 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       ja.ProcessingState.completed: AudioProcessingState.completed,
     }[_activePlayer.processingState] ?? AudioProcessingState.idle;
 
-    // CRITICAL FIX: If playing is true, we MUST force processingState to ready.
-    // If we send 'loading' or 'buffering' while playing, audio_service maps it to STATE_BUFFERING
-    // instead of STATE_PLAYING, which prevents startForeground() from being called.
-    // HiOS instantly kills background services that post notifications without startForeground().
     if (playing && processingState != AudioProcessingState.ready) {
       processingState = AudioProcessingState.ready;
     }
 
-    if (playing) {
-      developer.log('playbackState playing=true broadcast at ${DateTime.now()}', name: 'nexo.audio');
-    }
-
     playbackState.add(playbackState.value.copyWith(
+      // SAFE MODE: Only 3 standard controls
       controls: [
         MediaControl.skipToPrevious,
         if (playing) MediaControl.pause else MediaControl.play,
-        MediaControl.stop,
         MediaControl.skipToNext,
       ],
       systemActions: const {
         MediaAction.seek,
-        MediaAction.seekForward,
-        MediaAction.seekBackward
       },
-      androidCompactActionIndices: const [0, 1, 3],
+      androidCompactActionIndices: const [0, 1, 2],
       processingState: processingState,
       playing: playing,
       updatePosition: _activePlayer.position,
@@ -222,13 +210,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
-  Uri? _getArtUri(String? coverArtPath) {
-    // CRITICAL FIX: Force null. audio_service crashes internally if we pass asset:// URIs,
-    // and throws TransactionTooLargeException if we pass high-res file:// URIs.
-    // We must ensure the notification works without artwork first.
-    return null;
-  }
-
   Future<void> syncQueue(
       List<Song> songs, int currentIndex, RepeatMode repeatMode) async {
     _queue = songs;
@@ -251,9 +232,11 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               id: song.id.value,
               title: song.title,
               artist: song.trackArtistId.value,
-              album: song.albumId?.value,
+              // SAFE MODE: Ensure album is never null
+              album: song.albumId?.value ?? 'Nexo Audio',
               duration: song.duration,
-              artUri: _getArtUri(song.coverArtPath), 
+              // SAFE MODE: Use a direct web URL to bypass any local file permission issues
+              artUri: Uri.parse('https://raw.githubusercontent.com/YisusPineapple/Nexo/main/assets/icon.png'), 
             ))
         .toList();
     await updateQueue(items);
@@ -290,9 +273,9 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       id: song.id.value,
       title: song.title,
       artist: song.trackArtistId.value,
-      album: song.albumId?.value,
+      album: song.albumId?.value ?? 'Nexo Audio',
       duration: song.duration,
-      artUri: _getArtUri(song.coverArtPath),
+      artUri: Uri.parse('https://raw.githubusercontent.com/YisusPineapple/Nexo/main/assets/icon.png'),
     );
     await updateQueue([item]);
     mediaItem.add(item);
@@ -505,8 +488,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> play() async {
-    developer.log('play() called at ${DateTime.now()}', name: 'nexo.audio');
-    
     if (_frozenProgress > 0.0) {
       final crossfadeDur = _getActualCrossfadeDuration();
       _startCrossfade(crossfadeDur);
