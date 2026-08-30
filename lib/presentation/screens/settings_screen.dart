@@ -617,7 +617,8 @@ class SettingsScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(vertical: 32.0),
                 child: Center(
                   child: Text(
-                    'Nexo Music Player\nVersion 0.0.10-beta+34',
+                    // FIX: Updated hardcoded version string to match pubspec.yaml
+                    'Nexo Music Player\nVersion 0.0.10-beta+49',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
