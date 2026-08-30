@@ -73,14 +73,16 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   void init() {
     playbackState.add(playbackState.value.copyWith(
-      // SAFE MODE: Only 3 standard controls
       controls: [
         MediaControl.skipToPrevious,
         MediaControl.play,
         MediaControl.skipToNext,
+        MediaControl.stop, // FIX: Added Stop (Close) button
       ],
       systemActions: const {
         MediaAction.seek,
+        MediaAction.seekForward,
+        MediaAction.seekBackward
       },
       androidCompactActionIndices: const [0, 1, 2],
       processingState: AudioProcessingState.idle,
@@ -117,14 +119,16 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
 
     playbackState.add(playbackState.value.copyWith(
-      // SAFE MODE: Only 3 standard controls
       controls: [
         MediaControl.skipToPrevious,
         if (playing) MediaControl.pause else MediaControl.play,
         MediaControl.skipToNext,
+        MediaControl.stop, // FIX: Added Stop (Close) button
       ],
       systemActions: const {
         MediaAction.seek,
+        MediaAction.seekForward,
+        MediaAction.seekBackward
       },
       androidCompactActionIndices: const [0, 1, 2],
       processingState: processingState,
@@ -210,6 +214,16 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
+  Uri? _getArtUri(String? coverArtPath) {
+    // FIX: Restore the actual album art!
+    // Now that the processingState bug is fixed, Android 13 should be able to
+    // safely read the local file URI and display it in the Media Controls.
+    if (coverArtPath != null && coverArtPath.isNotEmpty) {
+      return Uri.file(coverArtPath);
+    }
+    return Uri.parse('asset:///assets/icon.png');
+  }
+
   Future<void> syncQueue(
       List<Song> songs, int currentIndex, RepeatMode repeatMode) async {
     _queue = songs;
@@ -232,11 +246,9 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               id: song.id.value,
               title: song.title,
               artist: song.trackArtistId.value,
-              // SAFE MODE: Ensure album is never null
               album: song.albumId?.value ?? 'Nexo Audio',
               duration: song.duration,
-              // SAFE MODE: Use a direct web URL to bypass any local file permission issues
-              artUri: Uri.parse('https://raw.githubusercontent.com/YisusPineapple/Nexo/main/assets/icon.png'), 
+              artUri: _getArtUri(song.coverArtPath), 
             ))
         .toList();
     await updateQueue(items);
@@ -275,7 +287,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       artist: song.trackArtistId.value,
       album: song.albumId?.value ?? 'Nexo Audio',
       duration: song.duration,
-      artUri: Uri.parse('https://raw.githubusercontent.com/YisusPineapple/Nexo/main/assets/icon.png'),
+      artUri: _getArtUri(song.coverArtPath),
     );
     await updateQueue([item]);
     mediaItem.add(item);
