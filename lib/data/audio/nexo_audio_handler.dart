@@ -77,7 +77,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         MediaControl.skipToPrevious,
         MediaControl.play,
         MediaControl.skipToNext,
-        MediaControl.stop, // La "X" para cerrar
+        MediaControl.stop,
       ],
       systemActions: const {
         MediaAction.seek,
@@ -215,11 +215,10 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Uri? _getArtUri(String? coverArtPath) {
-    // CRITICAL FIX: El peso de las imágenes originales colapsa el Binder de Android 13
-    // y causa un TransactionTooLargeException silencioso.
-    // Hasta que implementemos un generador de miniaturas (thumbnails),
-    // forzamos esto a null para garantizar que la notificación aparezca.
-    return null;
+    // CRITICAL FIX: HiOS hides notifications if artUri is null.
+    // High-res local files crash the Binder (TransactionTooLargeException).
+    // The ONLY safe fallback until we implement a thumbnail compressor is a lightweight web URL.
+    return Uri.parse('https://raw.githubusercontent.com/YisusPineapple/Nexo/main/assets/icon.png');
   }
 
   Future<void> syncQueue(
