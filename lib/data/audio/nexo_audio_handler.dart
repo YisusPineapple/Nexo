@@ -73,16 +73,14 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   void init() {
     playbackState.add(playbackState.value.copyWith(
+      // EXACTAMENTE COMO EN LA +46: Sin MediaControl.stop
       controls: [
         MediaControl.skipToPrevious,
         MediaControl.play,
         MediaControl.skipToNext,
-        MediaControl.stop,
       ],
       systemActions: const {
         MediaAction.seek,
-        MediaAction.seekForward,
-        MediaAction.seekBackward
       },
       androidCompactActionIndices: const [0, 1, 2],
       processingState: AudioProcessingState.idle,
@@ -119,16 +117,14 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
 
     playbackState.add(playbackState.value.copyWith(
+      // EXACTAMENTE COMO EN LA +46: Sin MediaControl.stop
       controls: [
         MediaControl.skipToPrevious,
         if (playing) MediaControl.pause else MediaControl.play,
         MediaControl.skipToNext,
-        MediaControl.stop,
       ],
       systemActions: const {
         MediaAction.seek,
-        MediaAction.seekForward,
-        MediaAction.seekBackward
       },
       androidCompactActionIndices: const [0, 1, 2],
       processingState: processingState,
@@ -215,10 +211,12 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Uri? _getArtUri(String? coverArtPath) {
-    // CRITICAL FIX: HiOS hides notifications if artUri is null.
-    // High-res local files crash the Binder (TransactionTooLargeException).
-    // The ONLY safe fallback until we implement a thumbnail compressor is a lightweight web URL.
-    return Uri.parse('https://raw.githubusercontent.com/YisusPineapple/Nexo/main/assets/icon.png');
+    // FIX: Si hay portada, pasamos el Uri.file (audio_service lo soporta perfecto).
+    // Si NO hay portada, pasamos NULL. NUNCA pasar asset:// porque crashea el servicio.
+    if (coverArtPath != null && coverArtPath.isNotEmpty) {
+      return Uri.file(coverArtPath);
+    }
+    return null;
   }
 
   Future<void> syncQueue(
