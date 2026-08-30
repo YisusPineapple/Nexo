@@ -77,7 +77,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         MediaControl.skipToPrevious,
         MediaControl.play,
         MediaControl.skipToNext,
-        MediaControl.stop, // FIX: Added Stop (Close) button
+        MediaControl.stop, // La "X" para cerrar
       ],
       systemActions: const {
         MediaAction.seek,
@@ -123,7 +123,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         MediaControl.skipToPrevious,
         if (playing) MediaControl.pause else MediaControl.play,
         MediaControl.skipToNext,
-        MediaControl.stop, // FIX: Added Stop (Close) button
+        MediaControl.stop,
       ],
       systemActions: const {
         MediaAction.seek,
@@ -215,13 +215,11 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Uri? _getArtUri(String? coverArtPath) {
-    // FIX: Restore the actual album art!
-    // Now that the processingState bug is fixed, Android 13 should be able to
-    // safely read the local file URI and display it in the Media Controls.
-    if (coverArtPath != null && coverArtPath.isNotEmpty) {
-      return Uri.file(coverArtPath);
-    }
-    return Uri.parse('asset:///assets/icon.png');
+    // CRITICAL FIX: El peso de las imágenes originales colapsa el Binder de Android 13
+    // y causa un TransactionTooLargeException silencioso.
+    // Hasta que implementemos un generador de miniaturas (thumbnails),
+    // forzamos esto a null para garantizar que la notificación aparezca.
+    return null;
   }
 
   Future<void> syncQueue(
