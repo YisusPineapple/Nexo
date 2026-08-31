@@ -27,6 +27,21 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Decode Keystore & Create key.properties
+        env:
+          ENCODED_KEYSTORE: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          echo "$ENCODED_KEYSTORE" | base64 --decode > android/app/nexo-release.jks
+          cat <<EOF > android/key.properties
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=app/nexo-release.jks
+          EOF
+
       - name: Build APK
         run: flutter build apk --release
 
