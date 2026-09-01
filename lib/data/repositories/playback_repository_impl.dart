@@ -84,10 +84,8 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
       for (final ref in refs) {
         final songRow = songById[ref.songId];
         if (songRow == null) {
-          return Err(NotFoundFailure(
-            'Queue "${row.id}" references song "${ref.songId}", which no '
-            'longer exists in the library.',
-          ));
+          // Gracefully omit deleted songs from the queue instead of failing
+          continue;
         }
         final entityResult = _songMapper.toEntity(songRow);
         switch (entityResult) {
@@ -147,6 +145,26 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
   }
 
   @override
+  Future<Result<void, Failure>> updateQueuePosition(
+    QueueId id,
+    Duration position,
+  ) async {
+    try {
+      final rowsUpdated = await (_db.update(_db.playbackQueues)
+            ..where((t) => t.id.equals(id.value)))
+          .write(PlaybackQueuesCompanion(
+            positionMs: Value(position.inMilliseconds),
+          ));
+      if (rowsUpdated == 0) {
+        return Err(NotFoundFailure('No queue found with id "${id.value}".'));
+      }
+      return const Ok(null);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to update queue position.', cause: e));
+    }
+  }
+
+  @override
   Future<Result<void, Failure>> deleteQueue(QueueId id) async {
     final deletedCount = await (_db.delete(_db.playbackQueues)
           ..where((t) => t.id.equals(id.value)))
@@ -169,7 +187,7 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
     final crossfadeResult = CrossfadeConfig.create(
       mode: row.crossfadeMode,
       duration: Duration(milliseconds: row.crossfadeDurationMs),
-      isAutoDuration: row.isAutoDuration, // FIX: Read from DB
+      isAutoDuration: row.isAutoDuration,
     );
     final speedResult = PlaybackSpeed.create(
       multiplier: row.speedHundredths / 100,
@@ -208,7 +226,7 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
               crossfadeMode: settings.crossfade.mode,
               crossfadeDurationMs: settings.crossfade.duration.inMilliseconds,
               isAutoDuration:
-                  Value(settings.crossfade.isAutoDuration), // FIX: Save to DB
+                  Value(settings.crossfade.isAutoDuration),
               speedHundredths: settings.speed.speedHundredths,
               pitchCorrectionEnabled: settings.speed.pitchCorrectionEnabled,
             ),

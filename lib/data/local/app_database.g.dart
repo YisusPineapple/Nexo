@@ -1049,6 +1049,14 @@ class $PlaybackQueuesTable extends PlaybackQueues
   late final GeneratedColumn<int> preShuffleCurrentIndex = GeneratedColumn<int>(
       'pre_shuffle_current_index', aliasedName, true,
       type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _positionMsMeta =
+      const VerificationMeta('positionMs');
+  @override
+  late final GeneratedColumn<int> positionMs = GeneratedColumn<int>(
+      'position_ms', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -1056,7 +1064,8 @@ class $PlaybackQueuesTable extends PlaybackQueues
         repeatMode,
         source,
         shuffleEnabled,
-        preShuffleCurrentIndex
+        preShuffleCurrentIndex,
+        positionMs
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1093,6 +1102,12 @@ class $PlaybackQueuesTable extends PlaybackQueues
           preShuffleCurrentIndex.isAcceptableOrUnknown(
               data['pre_shuffle_current_index']!, _preShuffleCurrentIndexMeta));
     }
+    if (data.containsKey('position_ms')) {
+      context.handle(
+          _positionMsMeta,
+          positionMs.isAcceptableOrUnknown(
+              data['position_ms']!, _positionMsMeta));
+    }
     return context;
   }
 
@@ -1117,6 +1132,8 @@ class $PlaybackQueuesTable extends PlaybackQueues
       preShuffleCurrentIndex: attachedDatabase.typeMapping.read(
           DriftSqlType.int,
           data['${effectivePrefix}pre_shuffle_current_index']),
+      positionMs: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}position_ms'])!,
     );
   }
 
@@ -1134,26 +1151,20 @@ class $PlaybackQueuesTable extends PlaybackQueues
 class PlaybackQueueRow extends DataClass
     implements Insertable<PlaybackQueueRow> {
   final String id;
-
-  /// Mirrors [PlaybackQueue.currentIndex] exactly, including its -1
-  /// double meaning (empty queue OR a queue that finished with
-  /// RepeatMode.off) — read that field's Domain docstring before
-  /// touching this column or any code that writes to it.
   final int currentIndex;
   final RepeatMode repeatMode;
   final QueueSource source;
   final bool shuffleEnabled;
-
-  /// Non-null only while [shuffleEnabled] is true — mirrors
-  /// [PlaybackQueue.preShuffleCurrentIndex] exactly.
   final int? preShuffleCurrentIndex;
+  final int positionMs;
   const PlaybackQueueRow(
       {required this.id,
       required this.currentIndex,
       required this.repeatMode,
       required this.source,
       required this.shuffleEnabled,
-      this.preShuffleCurrentIndex});
+      this.preShuffleCurrentIndex,
+      required this.positionMs});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1171,6 +1182,7 @@ class PlaybackQueueRow extends DataClass
     if (!nullToAbsent || preShuffleCurrentIndex != null) {
       map['pre_shuffle_current_index'] = Variable<int>(preShuffleCurrentIndex);
     }
+    map['position_ms'] = Variable<int>(positionMs);
     return map;
   }
 
@@ -1184,6 +1196,7 @@ class PlaybackQueueRow extends DataClass
       preShuffleCurrentIndex: preShuffleCurrentIndex == null && nullToAbsent
           ? const Value.absent()
           : Value(preShuffleCurrentIndex),
+      positionMs: Value(positionMs),
     );
   }
 
@@ -1198,6 +1211,7 @@ class PlaybackQueueRow extends DataClass
       shuffleEnabled: serializer.fromJson<bool>(json['shuffleEnabled']),
       preShuffleCurrentIndex:
           serializer.fromJson<int?>(json['preShuffleCurrentIndex']),
+      positionMs: serializer.fromJson<int>(json['positionMs']),
     );
   }
   @override
@@ -1210,6 +1224,7 @@ class PlaybackQueueRow extends DataClass
       'source': serializer.toJson<QueueSource>(source),
       'shuffleEnabled': serializer.toJson<bool>(shuffleEnabled),
       'preShuffleCurrentIndex': serializer.toJson<int?>(preShuffleCurrentIndex),
+      'positionMs': serializer.toJson<int>(positionMs),
     };
   }
 
@@ -1219,7 +1234,8 @@ class PlaybackQueueRow extends DataClass
           RepeatMode? repeatMode,
           QueueSource? source,
           bool? shuffleEnabled,
-          Value<int?> preShuffleCurrentIndex = const Value.absent()}) =>
+          Value<int?> preShuffleCurrentIndex = const Value.absent(),
+          int? positionMs}) =>
       PlaybackQueueRow(
         id: id ?? this.id,
         currentIndex: currentIndex ?? this.currentIndex,
@@ -1229,6 +1245,7 @@ class PlaybackQueueRow extends DataClass
         preShuffleCurrentIndex: preShuffleCurrentIndex.present
             ? preShuffleCurrentIndex.value
             : this.preShuffleCurrentIndex,
+        positionMs: positionMs ?? this.positionMs,
       );
   PlaybackQueueRow copyWithCompanion(PlaybackQueuesCompanion data) {
     return PlaybackQueueRow(
@@ -1245,6 +1262,8 @@ class PlaybackQueueRow extends DataClass
       preShuffleCurrentIndex: data.preShuffleCurrentIndex.present
           ? data.preShuffleCurrentIndex.value
           : this.preShuffleCurrentIndex,
+      positionMs:
+          data.positionMs.present ? data.positionMs.value : this.positionMs,
     );
   }
 
@@ -1256,14 +1275,15 @@ class PlaybackQueueRow extends DataClass
           ..write('repeatMode: $repeatMode, ')
           ..write('source: $source, ')
           ..write('shuffleEnabled: $shuffleEnabled, ')
-          ..write('preShuffleCurrentIndex: $preShuffleCurrentIndex')
+          ..write('preShuffleCurrentIndex: $preShuffleCurrentIndex, ')
+          ..write('positionMs: $positionMs')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(id, currentIndex, repeatMode, source,
-      shuffleEnabled, preShuffleCurrentIndex);
+      shuffleEnabled, preShuffleCurrentIndex, positionMs);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1273,7 +1293,8 @@ class PlaybackQueueRow extends DataClass
           other.repeatMode == this.repeatMode &&
           other.source == this.source &&
           other.shuffleEnabled == this.shuffleEnabled &&
-          other.preShuffleCurrentIndex == this.preShuffleCurrentIndex);
+          other.preShuffleCurrentIndex == this.preShuffleCurrentIndex &&
+          other.positionMs == this.positionMs);
 }
 
 class PlaybackQueuesCompanion extends UpdateCompanion<PlaybackQueueRow> {
@@ -1283,6 +1304,7 @@ class PlaybackQueuesCompanion extends UpdateCompanion<PlaybackQueueRow> {
   final Value<QueueSource> source;
   final Value<bool> shuffleEnabled;
   final Value<int?> preShuffleCurrentIndex;
+  final Value<int> positionMs;
   final Value<int> rowid;
   const PlaybackQueuesCompanion({
     this.id = const Value.absent(),
@@ -1291,6 +1313,7 @@ class PlaybackQueuesCompanion extends UpdateCompanion<PlaybackQueueRow> {
     this.source = const Value.absent(),
     this.shuffleEnabled = const Value.absent(),
     this.preShuffleCurrentIndex = const Value.absent(),
+    this.positionMs = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PlaybackQueuesCompanion.insert({
@@ -1300,6 +1323,7 @@ class PlaybackQueuesCompanion extends UpdateCompanion<PlaybackQueueRow> {
     required QueueSource source,
     this.shuffleEnabled = const Value.absent(),
     this.preShuffleCurrentIndex = const Value.absent(),
+    this.positionMs = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         currentIndex = Value(currentIndex),
@@ -1312,6 +1336,7 @@ class PlaybackQueuesCompanion extends UpdateCompanion<PlaybackQueueRow> {
     Expression<String>? source,
     Expression<bool>? shuffleEnabled,
     Expression<int>? preShuffleCurrentIndex,
+    Expression<int>? positionMs,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1322,6 +1347,7 @@ class PlaybackQueuesCompanion extends UpdateCompanion<PlaybackQueueRow> {
       if (shuffleEnabled != null) 'shuffle_enabled': shuffleEnabled,
       if (preShuffleCurrentIndex != null)
         'pre_shuffle_current_index': preShuffleCurrentIndex,
+      if (positionMs != null) 'position_ms': positionMs,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1333,6 +1359,7 @@ class PlaybackQueuesCompanion extends UpdateCompanion<PlaybackQueueRow> {
       Value<QueueSource>? source,
       Value<bool>? shuffleEnabled,
       Value<int?>? preShuffleCurrentIndex,
+      Value<int>? positionMs,
       Value<int>? rowid}) {
     return PlaybackQueuesCompanion(
       id: id ?? this.id,
@@ -1342,6 +1369,7 @@ class PlaybackQueuesCompanion extends UpdateCompanion<PlaybackQueueRow> {
       shuffleEnabled: shuffleEnabled ?? this.shuffleEnabled,
       preShuffleCurrentIndex:
           preShuffleCurrentIndex ?? this.preShuffleCurrentIndex,
+      positionMs: positionMs ?? this.positionMs,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1370,6 +1398,9 @@ class PlaybackQueuesCompanion extends UpdateCompanion<PlaybackQueueRow> {
       map['pre_shuffle_current_index'] =
           Variable<int>(preShuffleCurrentIndex.value);
     }
+    if (positionMs.present) {
+      map['position_ms'] = Variable<int>(positionMs.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1385,6 +1416,7 @@ class PlaybackQueuesCompanion extends UpdateCompanion<PlaybackQueueRow> {
           ..write('source: $source, ')
           ..write('shuffleEnabled: $shuffleEnabled, ')
           ..write('preShuffleCurrentIndex: $preShuffleCurrentIndex, ')
+          ..write('positionMs: $positionMs, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4843,6 +4875,7 @@ typedef $$PlaybackQueuesTableCreateCompanionBuilder = PlaybackQueuesCompanion
   required QueueSource source,
   Value<bool> shuffleEnabled,
   Value<int?> preShuffleCurrentIndex,
+  Value<int> positionMs,
   Value<int> rowid,
 });
 typedef $$PlaybackQueuesTableUpdateCompanionBuilder = PlaybackQueuesCompanion
@@ -4853,6 +4886,7 @@ typedef $$PlaybackQueuesTableUpdateCompanionBuilder = PlaybackQueuesCompanion
   Value<QueueSource> source,
   Value<bool> shuffleEnabled,
   Value<int?> preShuffleCurrentIndex,
+  Value<int> positionMs,
   Value<int> rowid,
 });
 
@@ -4909,6 +4943,9 @@ class $$PlaybackQueuesTableFilterComposer
       column: $table.preShuffleCurrentIndex,
       builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<int> get positionMs => $composableBuilder(
+      column: $table.positionMs, builder: (column) => ColumnFilters(column));
+
   Expression<bool> queueSongsRefs(
       Expression<bool> Function($$QueueSongsTableFilterComposer f) f) {
     final $$QueueSongsTableFilterComposer composer = $composerBuilder(
@@ -4960,6 +4997,9 @@ class $$PlaybackQueuesTableOrderingComposer
   ColumnOrderings<int> get preShuffleCurrentIndex => $composableBuilder(
       column: $table.preShuffleCurrentIndex,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get positionMs => $composableBuilder(
+      column: $table.positionMs, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PlaybackQueuesTableAnnotationComposer
@@ -4989,6 +5029,9 @@ class $$PlaybackQueuesTableAnnotationComposer
 
   GeneratedColumn<int> get preShuffleCurrentIndex => $composableBuilder(
       column: $table.preShuffleCurrentIndex, builder: (column) => column);
+
+  GeneratedColumn<int> get positionMs => $composableBuilder(
+      column: $table.positionMs, builder: (column) => column);
 
   Expression<T> queueSongsRefs<T extends Object>(
       Expression<T> Function($$QueueSongsTableAnnotationComposer a) f) {
@@ -5042,6 +5085,7 @@ class $$PlaybackQueuesTableTableManager extends RootTableManager<
             Value<QueueSource> source = const Value.absent(),
             Value<bool> shuffleEnabled = const Value.absent(),
             Value<int?> preShuffleCurrentIndex = const Value.absent(),
+            Value<int> positionMs = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlaybackQueuesCompanion(
@@ -5051,6 +5095,7 @@ class $$PlaybackQueuesTableTableManager extends RootTableManager<
             source: source,
             shuffleEnabled: shuffleEnabled,
             preShuffleCurrentIndex: preShuffleCurrentIndex,
+            positionMs: positionMs,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -5060,6 +5105,7 @@ class $$PlaybackQueuesTableTableManager extends RootTableManager<
             required QueueSource source,
             Value<bool> shuffleEnabled = const Value.absent(),
             Value<int?> preShuffleCurrentIndex = const Value.absent(),
+            Value<int> positionMs = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PlaybackQueuesCompanion.insert(
@@ -5069,6 +5115,7 @@ class $$PlaybackQueuesTableTableManager extends RootTableManager<
             source: source,
             shuffleEnabled: shuffleEnabled,
             preShuffleCurrentIndex: preShuffleCurrentIndex,
+            positionMs: positionMs,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

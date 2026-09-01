@@ -1,4 +1,3 @@
-// test/data/repositories/playback_repository_impl_test.dart
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -47,12 +46,15 @@ void main() {
   });
 
   group('Queue persistence', () {
-    test('saveQueue then getQueue round-trips an unshuffled queue', () async {
+    test(
+        'saveQueue then getQueue round-trips an unshuffled queue with position',
+        () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [_song('a'), _song('b'), _song('c')],
         currentIndex: 1,
         source: const ManualQueueSource(),
+        position: const Duration(seconds: 45),
       ).valueOrNull!;
 
       await repo.saveQueue(queue);
@@ -64,11 +66,43 @@ void main() {
         ['a', 'b', 'c'],
       );
       expect(result.valueOrNull?.currentIndex, 1);
+      expect(result.valueOrNull?.position, const Duration(seconds: 45));
+    });
+
+    test('updateQueuePosition updates only the positionMs column', () async {
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [_song('a')],
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      await repo.saveQueue(queue);
+      final updateResult = await repo.updateQueuePosition(
+        const QueueId('q1'),
+        const Duration(seconds: 99),
+      );
+
+      expect(updateResult.isOk, isTrue);
+
+      final fetched = (await repo.getQueue(const QueueId('q1'))).valueOrNull!;
+      expect(fetched.position, const Duration(seconds: 99));
+    });
+
+    test('updateQueuePosition on missing queue returns NotFoundFailure',
+        () async {
+      final result = await repo.updateQueuePosition(
+        const QueueId('missing'),
+        const Duration(seconds: 10),
+      );
+
+      expect(result.isErr, isTrue);
+      expect(
+          result.when(ok: (_) => null, err: (e) => e), isA<NotFoundFailure>());
     });
 
     test(
-        'preserves a duplicated song at distinct positions through a '
-        'full round-trip', () async {
+        'preserves a duplicated song at distinct positions through a full round-trip',
+        () async {
       final dup = _song('a');
       final other = _song('b');
       final queue = PlaybackQueue.create(
@@ -89,8 +123,8 @@ void main() {
     });
 
     test(
-        'round-trips a shuffled queue including its exact pre-shuffle '
-        'snapshot', () async {
+        'round-trips a shuffled queue including its exact pre-shuffle snapshot',
+        () async {
       final a = _song('a');
       final b = _song('b');
       final c = _song('c');

@@ -5,6 +5,8 @@ import 'queue_source.dart';
 import 'repeat_mode.dart';
 import 'song.dart';
 
+const int maxConcurrentQueues = 5;
+
 final class PlaybackQueue {
   const PlaybackQueue._({
     required this.id,
@@ -15,6 +17,7 @@ final class PlaybackQueue {
     required this.shuffleEnabled,
     required this.preShuffleOrder,
     required this.preShuffleCurrentIndex,
+    required this.position,
   });
 
   final QueueId id;
@@ -25,6 +28,7 @@ final class PlaybackQueue {
   final bool shuffleEnabled;
   final List<Song>? preShuffleOrder;
   final int? preShuffleCurrentIndex;
+  final Duration position;
 
   Song? get currentSong => (currentIndex >= 0 && currentIndex < songs.length)
       ? songs[currentIndex]
@@ -38,7 +42,13 @@ final class PlaybackQueue {
     int currentIndex = 0,
     RepeatMode repeatMode = RepeatMode.off,
     required QueueSource source,
+    Duration position = Duration.zero,
   }) {
+    if (position.isNegative) {
+      return Err(ValidationFailure(
+        'position cannot be negative, got $position.',
+      ));
+    }
     if (songs.isNotEmpty &&
         (currentIndex < 0 || currentIndex >= songs.length)) {
       return Err(ValidationFailure(
@@ -55,6 +65,26 @@ final class PlaybackQueue {
       shuffleEnabled: false,
       preShuffleOrder: null,
       preShuffleCurrentIndex: null,
+      position: position,
+    ));
+  }
+
+  Result<PlaybackQueue, Failure> withPosition(Duration newPosition) {
+    if (newPosition.isNegative) {
+      return Err(ValidationFailure(
+        'position cannot be negative, got $newPosition.',
+      ));
+    }
+    return Ok(PlaybackQueue._(
+      id: id,
+      songs: songs,
+      currentIndex: currentIndex,
+      repeatMode: repeatMode,
+      source: source,
+      shuffleEnabled: shuffleEnabled,
+      preShuffleOrder: preShuffleOrder,
+      preShuffleCurrentIndex: preShuffleCurrentIndex,
+      position: newPosition,
     ));
   }
 
@@ -88,6 +118,7 @@ final class PlaybackQueue {
       shuffleEnabled: shuffleEnabled,
       preShuffleOrder: preShuffleOrder,
       preShuffleCurrentIndex: preShuffleCurrentIndex,
+      position: position,
     ));
   }
 
@@ -134,6 +165,7 @@ final class PlaybackQueue {
       preShuffleOrder:
           newPreShuffle != null ? List.unmodifiable(newPreShuffle) : null,
       preShuffleCurrentIndex: preShuffleCurrentIndex,
+      position: position,
     ));
   }
 
@@ -155,6 +187,7 @@ final class PlaybackQueue {
       preShuffleOrder:
           newPreShuffle != null ? List.unmodifiable(newPreShuffle) : null,
       preShuffleCurrentIndex: preShuffleCurrentIndex,
+      position: position,
     ));
   }
 
@@ -186,6 +219,7 @@ final class PlaybackQueue {
       shuffleEnabled: true,
       preShuffleOrder: songs,
       preShuffleCurrentIndex: currentIndex,
+      position: position,
     ));
   }
 
@@ -200,6 +234,7 @@ final class PlaybackQueue {
       shuffleEnabled: false,
       preShuffleOrder: null,
       preShuffleCurrentIndex: null,
+      position: position,
     );
   }
 
@@ -213,6 +248,7 @@ final class PlaybackQueue {
       shuffleEnabled: shuffleEnabled,
       preShuffleOrder: preShuffleOrder,
       preShuffleCurrentIndex: preShuffleCurrentIndex,
+      position: position,
     );
   }
 
@@ -237,6 +273,7 @@ final class PlaybackQueue {
       shuffleEnabled: shuffleEnabled,
       preShuffleOrder: preShuffleOrder,
       preShuffleCurrentIndex: preShuffleCurrentIndex,
+      position: Duration.zero,
     ));
   }
 
@@ -266,6 +303,7 @@ final class PlaybackQueue {
       shuffleEnabled: shuffleEnabled,
       preShuffleOrder: preShuffleOrder,
       preShuffleCurrentIndex: preShuffleCurrentIndex,
+      position: Duration.zero,
     ));
   }
 

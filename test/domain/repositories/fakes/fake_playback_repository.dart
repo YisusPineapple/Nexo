@@ -5,11 +5,6 @@ import 'package:nexo/domain/entities/playback_settings.dart';
 import 'package:nexo/domain/repositories/playback_repository.dart';
 import 'package:nexo/domain/value_objects/queue_id.dart';
 
-/// In-memory stand-in for [PlaybackRepository]. Exists solely to prove
-/// the contract is implementable and to exercise its Result-based
-/// happy/error paths — see the identical note on FakeSongRepository for
-/// why this lives beside the contract rather than in a shared fixtures
-/// folder.
 class FakePlaybackRepository implements PlaybackRepository {
   FakePlaybackRepository({
     List<PlaybackQueue> initialQueues = const [],
@@ -38,6 +33,19 @@ class FakePlaybackRepository implements PlaybackRepository {
   @override
   Future<Result<void, Failure>> saveQueue(PlaybackQueue queue) async {
     _queues[queue.id] = queue;
+    return const Ok(null);
+  }
+
+  @override
+  Future<Result<void, Failure>> updateQueuePosition(
+    QueueId id,
+    Duration position,
+  ) async {
+    final queue = _queues[id];
+    if (queue == null) {
+      return Err(NotFoundFailure('No queue found with id "${id.value}".'));
+    }
+    _queues[id] = queue.withPosition(position).valueOrNull!;
     return const Ok(null);
   }
 

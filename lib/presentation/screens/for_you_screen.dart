@@ -46,7 +46,7 @@ class _ForYouContent extends StatelessWidget {
 
   void _playList(List<Song> songs, int startIndex, QueueSource source) {
     ref.read(playbackControllerProvider.notifier).playSongs(
-          queueIdStr: 'for_you_${DateTime.now().millisecondsSinceEpoch}',
+          queueIdStr: 'for_you_queue',
           songs: songs,
           startIndex: startIndex,
           source: source,
@@ -74,7 +74,6 @@ class _ForYouContent extends StatelessWidget {
             ),
           ],
         ),
-        // Greeting
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
@@ -99,8 +98,6 @@ class _ForYouContent extends StatelessWidget {
             ),
           ),
         ),
-
-        // Section: Recently Played
         if (data.recentlyPlayed.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: _SectionHeader(
@@ -125,8 +122,6 @@ class _ForYouContent extends StatelessWidget {
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
         ],
-
-        // Section: Daily Mix
         if (data.dailyMix.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: _SectionHeader(
@@ -151,8 +146,6 @@ class _ForYouContent extends StatelessWidget {
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
         ],
-
-        // Section: Top Tracks
         if (data.topTracks.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: _SectionHeader(
@@ -195,8 +188,6 @@ class _ForYouContent extends StatelessWidget {
     return 'Good Evening';
   }
 }
-
-// --- Helper Widgets ---
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({
@@ -394,8 +385,6 @@ class _VerticalSongTile extends StatelessWidget {
     );
   }
 }
-
-// --- State Widgets ---
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.onRefresh});

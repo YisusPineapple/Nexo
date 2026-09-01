@@ -33,6 +33,7 @@ void main() {
       source: const ManualQueueSource(),
       shuffleEnabled: false,
       preShuffleCurrentIndex: null,
+      positionMs: 15000,
     );
     final songs = [_song('a'), _song('b'), _song('c')];
 
@@ -43,6 +44,7 @@ void main() {
     expect(result.valueOrNull?.currentIndex, 1);
     expect(result.valueOrNull?.repeatMode, RepeatMode.all);
     expect(result.valueOrNull?.shuffleEnabled, isFalse);
+    expect(result.valueOrNull?.position, const Duration(milliseconds: 15000));
   });
 
   test(
@@ -55,6 +57,7 @@ void main() {
       source: const ManualQueueSource(),
       shuffleEnabled: true,
       preShuffleCurrentIndex: 0,
+      positionMs: 45000,
     );
     final a = _song('a');
     final b = _song('b');
@@ -62,8 +65,8 @@ void main() {
 
     final result = mapper.toEntity(
       row: row,
-      currentSongs: [c, a, b], // live shuffled order
-      preShuffleSongs: [a, b, c], // original order before shuffling
+      currentSongs: [c, a, b],
+      preShuffleSongs: [a, b, c],
     );
 
     expect(result.isOk, isTrue);
@@ -71,6 +74,7 @@ void main() {
     expect(queue.songs.map((s) => s.id.value), ['c', 'a', 'b']);
     expect(queue.currentIndex, 2);
     expect(queue.shuffleEnabled, isTrue);
+    expect(queue.position, const Duration(milliseconds: 45000));
 
     final restored = queue.withShuffleDisabled();
     expect(restored.songs.map((s) => s.id.value), ['a', 'b', 'c']);
@@ -89,6 +93,7 @@ void main() {
             source: const ManualQueueSource(),
             shuffleEnabled: false,
             preShuffleCurrentIndex: null,
+            positionMs: 0,
           ),
           currentSongs: [a, b],
         )
@@ -98,7 +103,7 @@ void main() {
 
     final companions = mapper.toQueueSongCompanions(queue);
 
-    expect(companions.length, 4); // 2 current + 2 preShuffle
+    expect(companions.length, 4);
     expect(
       companions.where((c) => c.listKind.value == 'current').length,
       2,
