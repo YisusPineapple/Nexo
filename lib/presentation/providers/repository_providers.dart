@@ -3,6 +3,7 @@ import '../../data/audio/audio_player_repository_impl.dart';
 import '../../data/audio/nexo_audio_handler.dart';
 import '../../data/local/app_database.dart';
 import '../../data/repositories/app_preferences_repository_impl.dart';
+import '../../data/repositories/app_version_repository_impl.dart';
 import '../../data/repositories/backup_repository_impl.dart';
 import '../../data/repositories/library_folder_repository_impl.dart';
 import '../../data/repositories/playback_repository_impl.dart';
@@ -11,6 +12,7 @@ import '../../data/repositories/song_repository_impl.dart';
 import '../../data/repositories/user_metrics_repository_impl.dart';
 import '../../data/repositories/lyrics_repository_impl.dart';
 import '../../domain/repositories/app_preferences_repository.dart';
+import '../../domain/repositories/app_version_repository.dart';
 import '../../domain/repositories/audio_player_repository.dart';
 import '../../domain/repositories/backup_repository.dart';
 import '../../domain/repositories/library_folder_repository.dart';
@@ -83,4 +85,12 @@ final backupRepositoryProvider = Provider<BackupRepository>((ref) {
 
 final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
   return LyricsRepositoryImpl(ref.watch(songRepositoryProvider));
+});
+
+/// No database dependency — this repository reads platform-reported
+/// build metadata only, never persisted state. `const` constructor
+/// since it has zero fields, matching the pattern of other stateless
+/// implementations in this file where possible.
+final appVersionRepositoryProvider = Provider<AppVersionRepository>((ref) {
+  return const AppVersionRepositoryImpl();
 });

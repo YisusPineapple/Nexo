@@ -11,6 +11,7 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import '../../domain/entities/app_preferences.dart';
 import '../../domain/entities/crossfade_config.dart';
 import '../providers/app_preferences_provider.dart';
+import '../providers/app_version_provider.dart';
 import '../providers/backup_providers.dart';
 import '../providers/settings_providers.dart';
 import 'equalizer_screen.dart';
@@ -243,6 +244,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(playbackSettingsProvider);
     final prefs = ref.watch(appPreferencesProvider);
+    final versionAsync = ref.watch(appVersionProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -617,8 +619,15 @@ class SettingsScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(vertical: 32.0),
                 child: Center(
                   child: Text(
-                    // FIX: Updated hardcoded version string to match pubspec.yaml
-                    'Nexo Music Player\nVersion 0.0.10-beta+49',
+                    // Version is read live from the platform via
+                    // package_info_plus instead of being hardcoded, so it
+                    // can never drift from pubspec.yaml again.
+                    versionAsync.when(
+                      data: (info) =>
+                          'Nexo Music Player\nVersion ${info.displayLabel}',
+                      loading: () => 'Nexo Music Player',
+                      error: (_, __) => 'Nexo Music Player',
+                    ),
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
@@ -674,8 +683,21 @@ class _SettingsGroup extends StatelessWidget {
               ],
             ),
             clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: children,
+            // FIX: A ListTile paints its background and ink splashes on
+            // the nearest Material ancestor. Without this wrapper, the
+            // outer Container above (a plain DecoratedBox with an opaque
+            // background) would sit between the ListTiles below and the
+            // Scaffold's Material further up the tree, hiding those
+            // effects — this is exactly the "ListTile background color
+            // or ink splashes may be invisible" assertion Flutter throws
+            // in debug mode. MaterialType.transparency gives the tiles a
+            // correct, local Material ancestor without repainting a
+            // second background over the custom Soft UI one above.
+            child: Material(
+              type: MaterialType.transparency,
+              child: Column(
+                children: children,
+              ),
             ),
           ),
         ],
