@@ -83,4 +83,10 @@ class FakePlaybackRepository implements PlaybackRepository {
   Future<Result<ActiveSessionSnapshot?, Failure>> getLastSession() async {
     return Ok(_lastSession);
   }
+
+  @override
+  Future<Result<void, Failure>> clearActiveSession() async {
+    _lastSession = null;
+    return const Ok(null);
+  }
 }

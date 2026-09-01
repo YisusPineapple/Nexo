@@ -84,7 +84,6 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
       for (final ref in refs) {
         final songRow = songById[ref.songId];
         if (songRow == null) {
-          // Gracefully omit deleted songs from the queue instead of failing
           continue;
         }
         final entityResult = _songMapper.toEntity(songRow);
@@ -153,14 +152,15 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
       final rowsUpdated = await (_db.update(_db.playbackQueues)
             ..where((t) => t.id.equals(id.value)))
           .write(PlaybackQueuesCompanion(
-            positionMs: Value(position.inMilliseconds),
-          ));
+        positionMs: Value(position.inMilliseconds),
+      ));
       if (rowsUpdated == 0) {
         return Err(NotFoundFailure('No queue found with id "${id.value}".'));
       }
       return const Ok(null);
     } catch (e) {
-      return Err(UnexpectedFailure('Failed to update queue position.', cause: e));
+      return Err(
+          UnexpectedFailure('Failed to update queue position.', cause: e));
     }
   }
 
@@ -225,8 +225,7 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
               id: const Value(0),
               crossfadeMode: settings.crossfade.mode,
               crossfadeDurationMs: settings.crossfade.duration.inMilliseconds,
-              isAutoDuration:
-                  Value(settings.crossfade.isAutoDuration),
+              isAutoDuration: Value(settings.crossfade.isAutoDuration),
               speedHundredths: settings.speed.speedHundredths,
               pitchCorrectionEnabled: settings.speed.pitchCorrectionEnabled,
             ),
@@ -263,5 +262,16 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
       activeQueueId: QueueId(row.activeQueueId),
       position: Duration(milliseconds: row.positionMs),
     ));
+  }
+
+  @override
+  Future<Result<void, Failure>> clearActiveSession() async {
+    try {
+      await _db.delete(_db.activeSessionTable).go();
+      return const Ok(null);
+    } catch (e) {
+      return Err(
+          UnexpectedFailure('Failed to clear active session.', cause: e));
+    }
   }
 }
