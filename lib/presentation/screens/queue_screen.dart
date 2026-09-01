@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../providers/playback_providers.dart';
+import '../widgets/queue_tab_strip.dart';
 
 class QueueScreen extends ConsumerWidget {
   const QueueScreen({super.key});
@@ -37,60 +38,66 @@ class QueueScreen extends ConsumerWidget {
           ],
         ),
       ),
-      body: ReorderableListView.builder(
-        itemCount: queue.songs.length,
-        onReorderItem: (int oldIndex, int newIndex) {
-          ref.read(playbackControllerProvider.notifier).reorderQueue(oldIndex, newIndex);
-        },
-        itemBuilder: (context, index) {
-          final song = queue.songs[index];
-          final isCurrent = index == queue.currentIndex;
+      body: Column(
+        children: [
+          const QueueTabStrip(),
+          Expanded(
+            child: ReorderableListView.builder(
+              itemCount: queue.songs.length,
+              onReorderItem: (int oldIndex, int newIndex) {
+                ref.read(playbackControllerProvider.notifier).reorderQueue(oldIndex, newIndex);
+              },
+              itemBuilder: (context, index) {
+                final song = queue.songs[index];
+                final isCurrent = index == queue.currentIndex;
 
-          return ListTile(
-            key: ValueKey('${song.id.value}_$index'),
-            selected: isCurrent,
-            selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: song.coverArtPath != null
-                  ? Image.file(
-                      File(song.coverArtPath!),
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      cacheWidth: 150,
-                    )
-                  : Container(
-                      width: 48,
-                      height: 48,
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      child: const Icon(PhosphorIconsRegular.musicNotes),
+                return ListTile(
+                  key: ValueKey('${song.id.value}_$index'),
+                  selected: isCurrent,
+                  selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: song.coverArtPath != null
+                        ? Image.file(
+                            File(song.coverArtPath!),
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                            cacheWidth: 150,
+                          )
+                        : Container(
+                            width: 48,
+                            height: 48,
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            child: const Icon(PhosphorIconsRegular.musicNotes),
+                          ),
+                  ),
+                  title: Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                      color: isCurrent ? theme.colorScheme.primary : null,
                     ),
+                  ),
+                  subtitle: Text(
+                    song.trackArtistId.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: ReorderableDragStartListener(
+                    index: index,
+                    child: const Icon(PhosphorIconsRegular.dotsSixVertical, size: 28),
+                  ),
+                  onTap: () {
+                    ref.read(playbackControllerProvider.notifier).skipToIndex(index);
+                  },
+                );
+              },
             ),
-            title: Text(
-              song.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                color: isCurrent ? theme.colorScheme.primary : null,
-              ),
-            ),
-            subtitle: Text(
-              song.trackArtistId.value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            trailing: ReorderableDragStartListener(
-              index: index,
-              // FIX: Changed to the universal drag handle icon
-              child: const Icon(PhosphorIconsRegular.dotsSixVertical, size: 28),
-            ),
-            onTap: () {
-              ref.read(playbackControllerProvider.notifier).skipToIndex(index);
-            },
-          );
-        },
+          ),
+        ],
       ),
     );
   }

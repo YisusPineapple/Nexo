@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import '../../domain/entities/song.dart';
+import '../../domain/entities/queue_source.dart';
 import '../providers/playback_providers.dart';
 import 'add_to_playlist_dialog.dart';
 
@@ -52,7 +53,8 @@ class SongContextMenu extends ConsumerWidget {
               _InfoRow(label: 'Format', value: song.format.name.toUpperCase()),
               _InfoRow(
                 label: 'Size',
-                value: '${(song.fileSizeBytes / (1024 * 1024)).toStringAsFixed(2)} MB',
+                value:
+                    '${(song.fileSizeBytes / (1024 * 1024)).toStringAsFixed(2)} MB',
               ),
               _InfoRow(label: 'File Path', value: song.filePath),
             ],
@@ -72,7 +74,6 @@ class SongContextMenu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
-    // Soft UI / M3 Expressive Floating Card
     return SafeArea(
       child: Container(
         margin: const EdgeInsets.all(16.0),
@@ -91,19 +92,18 @@ class SongContextMenu extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Drag Handle
             Center(
               child: Container(
                 margin: const EdgeInsets.only(top: 12, bottom: 8),
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                  color:
+                      theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-            // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
               child: Row(
@@ -131,7 +131,8 @@ class SongContextMenu extends ConsumerWidget {
                             width: 56,
                             height: 56,
                             color: theme.colorScheme.surfaceContainerHighest,
-                            child: Icon(PhosphorIconsRegular.musicNotes, color: theme.colorScheme.primary),
+                            child: Icon(PhosphorIconsRegular.musicNotes,
+                                color: theme.colorScheme.primary),
                           ),
                   ),
                   const SizedBox(width: 16),
@@ -162,17 +163,20 @@ class SongContextMenu extends ConsumerWidget {
                 ],
               ),
             ),
-            Divider(height: 1, color: theme.colorScheme.surfaceContainerHighest),
-            // Actions
+            Divider(
+                height: 1, color: theme.colorScheme.surfaceContainerHighest),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
               child: Column(
                 children: [
                   _ActionTile(
                     icon: PhosphorIconsRegular.skipForward,
                     label: 'Play next',
                     onTap: () {
-                      ref.read(playbackControllerProvider.notifier).addSongNext(song);
+                      ref
+                          .read(playbackControllerProvider.notifier)
+                          .addSongNext(song);
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Added to play next')),
@@ -183,11 +187,40 @@ class SongContextMenu extends ConsumerWidget {
                     icon: PhosphorIconsRegular.queue,
                     label: 'Add to queue',
                     onTap: () {
-                      ref.read(playbackControllerProvider.notifier).addSongLast(song);
+                      ref
+                          .read(playbackControllerProvider.notifier)
+                          .addSongLast(song);
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Added to end of queue')),
                       );
+                    },
+                  ),
+                  _ActionTile(
+                    icon: PhosphorIconsRegular.plusSquare,
+                    label: 'Play in new tab',
+                    onTap: () async {
+                      final error = await ref
+                          .read(playbackControllerProvider.notifier)
+                          .playSongs(
+                            queueIdStr:
+                                'manual_${DateTime.now().millisecondsSinceEpoch}',
+                            songs: [song],
+                            startIndex: 0,
+                            source: const ManualQueueSource(),
+                            openAsNewTab: true,
+                          );
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        if (error != null) {
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(SnackBar(content: Text(error)));
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Opened in new tab')));
+                        }
+                      }
                     },
                   ),
                   _ActionTile(
@@ -197,7 +230,8 @@ class SongContextMenu extends ConsumerWidget {
                       Navigator.pop(context);
                       showDialog(
                         context: context,
-                        builder: (_) => AddToPlaylistDialog(songId: song.id.value),
+                        builder: (_) =>
+                            AddToPlaylistDialog(songId: song.id.value),
                       );
                     },
                   ),

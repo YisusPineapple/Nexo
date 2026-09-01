@@ -41,7 +41,8 @@ class _ArtistsScreenState extends ConsumerState<ArtistsScreen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Row(
                 children: [
                   Text(
@@ -58,8 +59,8 @@ class _ArtistsScreenState extends ConsumerState<ArtistsScreen> {
                         : PhosphorIconsRegular.sortDescending),
                     tooltip: 'Toggle Order',
                     onPressed: () {
-                      ref.read(artistSortProvider.notifier).state =
-                          sortConfig.copyWith(isAscending: !sortConfig.isAscending);
+                      ref.read(artistSortProvider.notifier).state = sortConfig
+                          .copyWith(isAscending: !sortConfig.isAscending);
                     },
                   ),
                   PopupMenuButton<ArtistSortOption>(
@@ -71,7 +72,9 @@ class _ArtistsScreenState extends ConsumerState<ArtistsScreen> {
                         .state = sortConfig.copyWith(option: option),
                     itemBuilder: (context) => [
                       for (final option in ArtistSortOption.values)
-                        PopupMenuItem(value: option, child: Text('Sort by ${option.name}')),
+                        PopupMenuItem(
+                            value: option,
+                            child: Text('Sort by ${option.name}')),
                     ],
                   ),
                 ],
@@ -91,7 +94,8 @@ class _ArtistsScreenState extends ConsumerState<ArtistsScreen> {
                     itemBuilder: (context, index) {
                       final artist = artists[index];
                       return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
                         decoration: BoxDecoration(
                           color: theme.colorScheme.surface,
                           borderRadius: BorderRadius.circular(16),
@@ -105,44 +109,61 @@ class _ArtistsScreenState extends ConsumerState<ArtistsScreen> {
                         ),
                         clipBehavior: Clip.antiAlias,
                         child: InkWell(
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => ArtistDetailScreen(artist: artist))),
+                          onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      ArtistDetailScreen(artist: artist))),
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
                             child: Row(
                               children: [
                                 _ArtistAvatar(
-                                    name: artist.name, coverArtPath: artist.coverArtPath),
+                                    name: artist.name,
+                                    coverArtPath: artist.coverArtPath),
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(artist.name,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600)),
                                       const SizedBox(height: 4),
                                       Row(
                                         children: [
-                                          Text('${artist.songCount} songs', style: theme.textTheme.bodySmall),
+                                          Text('${artist.songCount} songs',
+                                              style: theme.textTheme.bodySmall),
                                           if (artist.albumCount > 0) ...[
-                                            Text(' • ', style: theme.textTheme.bodySmall),
-                                            Text('${artist.albumCount} albums', style: theme.textTheme.bodySmall)
+                                            Text(' • ',
+                                                style:
+                                                    theme.textTheme.bodySmall),
+                                            Text('${artist.albumCount} albums',
+                                                style:
+                                                    theme.textTheme.bodySmall)
                                           ],
-                                          if (artist.collaborationCount > 0) ...[
-                                            Text(' • ', style: theme.textTheme.bodySmall),
-                                            Text('${artist.collaborationCount} collabs',
-                                                style: theme.textTheme.bodySmall?.copyWith(
-                                                    color: theme.colorScheme.primary))
+                                          if (artist.collaborationCount >
+                                              0) ...[
+                                            Text(' • ',
+                                                style:
+                                                    theme.textTheme.bodySmall),
+                                            Text(
+                                                '${artist.collaborationCount} collabs',
+                                                style: theme.textTheme.bodySmall
+                                                    ?.copyWith(
+                                                        color: theme.colorScheme
+                                                            .primary))
                                           ],
                                         ],
                                       ),
                                     ],
                                   ),
                                 ),
-                                const Icon(PhosphorIconsRegular.caretRight, size: 16),
+                                const Icon(PhosphorIconsRegular.caretRight,
+                                    size: 16),
                               ],
                             ),
                           ),
@@ -279,21 +300,51 @@ class ArtistDetailScreen extends ConsumerWidget {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: () => ref
-                                .read(playbackControllerProvider.notifier)
-                                .playSongs(
-                                    queueIdStr: 'artist_${artist.name}',
-                                    songs: songs,
-                                    startIndex: 0,
-                                    source: ArtistQueueSource(
-                                        artistId: ArtistId(artist.name),
-                                        artistName: artist.name)),
-                            icon: const Icon(PhosphorIconsFill.play),
-                            label: const Text('Play All'),
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () => ref
+                                    .read(playbackControllerProvider.notifier)
+                                    .playSongs(
+                                        queueIdStr: 'artist_${artist.name}',
+                                        songs: songs,
+                                        startIndex: 0,
+                                        source: ArtistQueueSource(
+                                            artistId: ArtistId(artist.name),
+                                            artistName: artist.name)),
+                                icon: const Icon(PhosphorIconsFill.play),
+                                label: const Text('Play All'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton.filledTonal(
+                              onPressed: () async {
+                                final error = await ref
+                                    .read(playbackControllerProvider.notifier)
+                                    .playSongs(
+                                      queueIdStr:
+                                          'artist_${artist.name}_${DateTime.now().millisecondsSinceEpoch}',
+                                      songs: songs,
+                                      startIndex: 0,
+                                      source: ArtistQueueSource(
+                                          artistId: ArtistId(artist.name),
+                                          artistName: artist.name),
+                                      openAsNewTab: true,
+                                    );
+                                if (error != null && context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(error)));
+                                } else if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text('Opened in new tab')));
+                                }
+                              },
+                              icon: const Icon(PhosphorIconsRegular.plusSquare),
+                              tooltip: 'Play in new tab',
+                            ),
+                          ],
                         ),
                       ],
                     ),

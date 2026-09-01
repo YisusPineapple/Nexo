@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/playback_queue.dart';
 import '../../domain/entities/queue_source.dart';
 import '../../domain/entities/repeat_mode.dart';
 import '../../domain/entities/song.dart';
+import '../../domain/usecases/multi_queue_usecases.dart';
 import '../../domain/usecases/play_queue_usecase.dart';
 import '../../domain/usecases/reorder_queue_usecase.dart';
 import '../../domain/usecases/restore_session_usecase.dart';
@@ -12,6 +15,7 @@ import '../../domain/usecases/use_case.dart';
 import '../../domain/usecases/user_metrics_usecases.dart';
 import '../../domain/value_objects/queue_id.dart';
 import 'for_you_provider.dart';
+import 'queue_manager_provider.dart';
 import 'repository_providers.dart';
 
 final positionStreamProvider = StreamProvider<Duration>((ref) {
@@ -50,7 +54,9 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
 
     handler.onQueueAdvanced = (newIndex) async {
       final currentQueue = state.valueOrNull;
-      if (currentQueue == null) return;
+      if (currentQueue == null) {
+        return;
+      }
 
       final updated = currentQueue.withCurrentIndex(newIndex);
       if (updated.isOk) {
@@ -62,7 +68,9 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
 
     handler.onQueueEnded = () async {
       final currentQueue = state.valueOrNull;
-      if (currentQueue == null) return;
+      if (currentQueue == null) {
+        return;
+      }
 
       final updated = currentQueue.withCurrentIndex(0);
       if (updated.isOk) {
@@ -105,6 +113,27 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
           );
     }
 
+    // Position persistence timer (every 15 seconds)
+    final timer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      final isPlaying = ref.read(playingStreamProvider).valueOrNull ?? false;
+      final currentQueue = state.valueOrNull;
+
+      if (isPlaying && currentQueue != null) {
+        final pos =
+            ref.read(positionStreamProvider).valueOrNull ?? Duration.zero;
+        final repo = ref.read(playbackRepositoryProvider);
+        await repo.updateQueuePosition(currentQueue.id, pos);
+        await repo.saveActiveSession((
+          activeQueueId: currentQueue.id,
+          position: pos,
+        ));
+      }
+    });
+
+    ref.onDispose(() {
+      timer.cancel();
+    });
+
     return queue;
   }
 
@@ -133,11 +162,12 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     }
   }
 
-  Future<void> playSongs({
+  Future<String?> playSongs({
     required String queueIdStr,
     required List<Song> songs,
     required int startIndex,
     required QueueSource source,
+    bool openAsNewTab = false,
   }) async {
     final queueId = QueueId(queueIdStr);
     final queueResult = PlaybackQueue.create(
@@ -147,17 +177,68 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
       source: source,
     );
 
-    if (queueResult.isOk) {
-      await ref
-          .read(playbackRepositoryProvider)
-          .saveQueue(queueResult.valueOrNull!);
-      await playQueue(queueId);
+    if (queueResult.isErr) {
+      return queueResult.when(ok: (_) => null, err: (e) => e.message);
+    }
+
+    final useCase = OpenQueueUseCase(
+      ref.read(playbackRepositoryProvider),
+      ref.read(audioPlayerRepositoryProvider),
+    );
+
+    final result = await useCase.call((
+      queue: queueResult.valueOrNull!,
+      asNewTab: openAsNewTab,
+    ));
+
+    if (result.isErr) {
+      return result.when(ok: (_) => null, err: (e) => e.message);
+    }
+
+    ref.invalidate(queueManagerControllerProvider);
+    await playQueue(queueId);
+    return null;
+  }
+
+  Future<void> switchQueue(QueueId id) async {
+    final useCase = SwitchQueueUseCase(
+      ref.read(playbackRepositoryProvider),
+      ref.read(audioPlayerRepositoryProvider),
+    );
+
+    final result = await useCase.call(id);
+    if (result.isOk) {
+      state = AsyncData(result.valueOrNull!);
+      ref.invalidate(queueManagerControllerProvider);
+    }
+  }
+
+  Future<void> closeQueue(QueueId id) async {
+    final currentQueue = state.valueOrNull;
+    final useCase = CloseQueueUseCase(
+      ref.read(playbackRepositoryProvider),
+      ref.read(audioPlayerRepositoryProvider),
+    );
+
+    final result = await useCase.call((
+      queueIdToClose: id,
+      activeQueueId: currentQueue?.id,
+    ));
+
+    if (result.isOk) {
+      final newActiveQueue = result.valueOrNull;
+      if (currentQueue?.id == id) {
+        state = AsyncData(newActiveQueue);
+      }
+      ref.invalidate(queueManagerControllerProvider);
     }
   }
 
   Future<void> addSongNext(Song song) async {
     final currentQueue = state.valueOrNull;
-    if (currentQueue == null) return;
+    if (currentQueue == null) {
+      return;
+    }
 
     final updated = currentQueue.withSongAddedNext(song);
     if (updated.isOk) {
@@ -169,7 +250,9 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
 
   Future<void> addSongLast(Song song) async {
     final currentQueue = state.valueOrNull;
-    if (currentQueue == null) return;
+    if (currentQueue == null) {
+      return;
+    }
 
     final updated = currentQueue.withSongAddedLast(song);
     if (updated.isOk) {
@@ -191,19 +274,25 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
 
   Future<void> skipNext() async {
     final currentQueue = state.valueOrNull;
-    if (currentQueue == null) return;
+    if (currentQueue == null) {
+      return;
+    }
     await ref.read(audioPlayerRepositoryProvider).advanceToNext();
   }
 
   Future<void> skipPrevious() async {
     final currentQueue = state.valueOrNull;
-    if (currentQueue == null) return;
+    if (currentQueue == null) {
+      return;
+    }
     await ref.read(audioPlayerRepositoryProvider).advanceToPrevious();
   }
 
   Future<void> skipToIndex(int index) async {
     final currentQueue = state.valueOrNull;
-    if (currentQueue == null) return;
+    if (currentQueue == null) {
+      return;
+    }
 
     final updated = currentQueue.withCurrentIndex(index);
     if (updated.isOk) {
@@ -220,7 +309,9 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
 
   Future<void> toggleShuffle() async {
     final currentQueue = state.valueOrNull;
-    if (currentQueue == null) return;
+    if (currentQueue == null) {
+      return;
+    }
 
     final useCase = ShuffleQueueUseCase(ref.read(playbackRepositoryProvider));
     final result = await useCase.call((
@@ -235,7 +326,9 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
 
   Future<void> toggleRepeatMode() async {
     final currentQueue = state.valueOrNull;
-    if (currentQueue == null) return;
+    if (currentQueue == null) {
+      return;
+    }
 
     final nextMode = switch (currentQueue.repeatMode) {
       RepeatMode.off => RepeatMode.all,
@@ -250,7 +343,9 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
 
   Future<void> reorderQueue(int oldIndex, int newIndex) async {
     final currentQueue = state.valueOrNull;
-    if (currentQueue == null) return;
+    if (currentQueue == null) {
+      return;
+    }
 
     if (oldIndex < newIndex) {
       newIndex -= 1;
