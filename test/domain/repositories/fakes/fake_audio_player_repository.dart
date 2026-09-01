@@ -27,7 +27,8 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
   }) async {
     if (failWith != null) return Err(failWith!);
     loadedSong = song;
-    loadedAt = startAt + Duration(milliseconds: song.silenceTrim.leadingSilenceMs);
+    loadedAt =
+        startAt + Duration(milliseconds: song.silenceTrim.leadingSilenceMs);
     isResumed = false;
     return const Ok(null);
   }
@@ -99,6 +100,12 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
 
   @override
   Future<Result<void, Failure>> advanceToNext() async {
+    if (failWith != null) return Err(failWith!);
+    return const Ok(null);
+  }
+
+  @override
+  Future<Result<void, Failure>> advanceToPrevious() async {
     if (failWith != null) return Err(failWith!);
     return const Ok(null);
   }

@@ -73,7 +73,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   void init() {
     playbackState.add(playbackState.value.copyWith(
-      // EXACTAMENTE COMO EN LA +46: Sin MediaControl.stop
       controls: [
         MediaControl.skipToPrevious,
         MediaControl.play,
@@ -117,7 +116,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
 
     playbackState.add(playbackState.value.copyWith(
-      // EXACTAMENTE COMO EN LA +46: Sin MediaControl.stop
       controls: [
         MediaControl.skipToPrevious,
         if (playing) MediaControl.pause else MediaControl.play,
@@ -211,8 +209,6 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Uri? _getArtUri(String? coverArtPath) {
-    // FIX: Si hay portada, pasamos el Uri.file (audio_service lo soporta perfecto).
-    // Si NO hay portada, pasamos NULL. NUNCA pasar asset:// porque crashea el servicio.
     if (coverArtPath != null && coverArtPath.isNotEmpty) {
       return Uri.file(coverArtPath);
     }
@@ -456,7 +452,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _fire(_activePlayer.setVolume(_isPlayerAActive ? _gainA : _gainB));
     _fire(_activePlayer.play());
     
-    if (_currentIndex < _queue.length) {
+    if (_currentIndex < _queue.length && _currentIndex < queue.value.length) {
       mediaItem.add(queue.value[_currentIndex]);
     }
     onQueueAdvanced?.call(_currentIndex);
@@ -532,31 +528,61 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> advanceToNext() async {
     if (_isSkipping) return;
     _isSkipping = true;
-    _abortCrossfade();
-    await _instantSkip();
-    _isSkipping = false;
+    try {
+      _abortCrossfade();
+      await _instantSkip();
+    } finally {
+      _isSkipping = false;
+    }
   }
 
   @override
   Future<void> skipToPrevious() async {
+    await advanceToPrevious();
+  }
+
+  Future<void> advanceToPrevious() async {
     if (_isSkipping) return;
     _isSkipping = true;
-    _abortCrossfade();
+    try {
+      _abortCrossfade();
 
-    final prevIndex = _getPreviousIndex();
-    if (prevIndex != null && prevIndex != _currentIndex) {
-      _currentIndex = prevIndex;
-      await _loadSongIntoPlayer(_activePlayer, _queue[_currentIndex]);
-      _switchActivePlayer();
-      _fire(_activePlayer.play());
-      if (_currentIndex < _queue.length) {
-        mediaItem.add(queue.value[_currentIndex]);
+      final prevIndex = _getPreviousIndex();
+      if (prevIndex != null && prevIndex != _currentIndex) {
+        // 1. Cargar explícitamente en el reproductor INACTIVO (sin detener el activo)
+        await _loadSongIntoPlayer(_inactivePlayer, _queue[prevIndex]);
+        _currentIndex = prevIndex;
+
+        // 2. Intercambiar roles de reproductores
+        _isPlayerAActive = !_isPlayerAActive;
+        _switchActivePlayer();
+        _currentLoadedSongId = _queue[_currentIndex].id.value;
+
+        // 3. Restaurar volumen y reproducir el nuevo reproductor activo
+        _fire(_activePlayer.setVolume(_isPlayerAActive ? _gainA : _gainB));
+        _fire(_activePlayer.play());
+
+        // 4. Notificar a audio_service y UI
+        if (_currentIndex < queue.value.length) {
+          mediaItem.add(queue.value[_currentIndex]);
+        }
+        onQueueAdvanced?.call(_currentIndex);
+
+        // 5. Precargar la pista siguiente en el nuevo inactivo
+        final nextIndex = _getNextIndex();
+        if (nextIndex != null) {
+          _fire(_loadSongIntoPlayer(_inactivePlayer, _queue[nextIndex])
+              .then((_) => _inactivePlayer.pause()));
+          _fire(_inactivePlayer.setVolume(0.0));
+        } else {
+          _fire(_inactivePlayer.stop());
+        }
+      } else {
+        await _activePlayer.seek(Duration.zero);
       }
-      onQueueAdvanced?.call(_currentIndex);
-    } else {
-      await _activePlayer.seek(Duration.zero);
+    } finally {
+      _isSkipping = false;
     }
-    _isSkipping = false;
   }
 
   @override

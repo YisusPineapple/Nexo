@@ -106,17 +106,20 @@ final class PlaybackQueue {
     return trackedIndex;
   }
 
-  // FIX: Added method to insert a song right after the current one ("Play Next")
   Result<PlaybackQueue, Failure> withSongAddedNext(Song song) {
     final newSongs = List<Song>.of(songs);
-    final insertIndex = (currentIndex >= 0 && currentIndex < songs.length) ? currentIndex + 1 : songs.length;
+    final insertIndex = (currentIndex >= 0 && currentIndex < songs.length)
+        ? currentIndex + 1
+        : songs.length;
     newSongs.insert(insertIndex, song);
 
     List<Song>? newPreShuffle;
     if (shuffleEnabled && preShuffleOrder != null) {
       newPreShuffle = List<Song>.of(preShuffleOrder!);
-      final preIndex = (preShuffleCurrentIndex != null && preShuffleCurrentIndex! >= 0 && preShuffleCurrentIndex! < preShuffleOrder!.length) 
-          ? preShuffleCurrentIndex! + 1 
+      final preIndex = (preShuffleCurrentIndex != null &&
+              preShuffleCurrentIndex! >= 0 &&
+              preShuffleCurrentIndex! < preShuffleOrder!.length)
+          ? preShuffleCurrentIndex! + 1
           : preShuffleOrder!.length;
       newPreShuffle.insert(preIndex, song);
     }
@@ -128,12 +131,12 @@ final class PlaybackQueue {
       repeatMode: repeatMode,
       source: source,
       shuffleEnabled: shuffleEnabled,
-      preShuffleOrder: newPreShuffle != null ? List.unmodifiable(newPreShuffle) : null,
+      preShuffleOrder:
+          newPreShuffle != null ? List.unmodifiable(newPreShuffle) : null,
       preShuffleCurrentIndex: preShuffleCurrentIndex,
     ));
   }
 
-  // FIX: Added method to append a song to the end of the queue ("Add to Queue")
   Result<PlaybackQueue, Failure> withSongAddedLast(Song song) {
     final newSongs = List<Song>.of(songs)..add(song);
 
@@ -149,7 +152,8 @@ final class PlaybackQueue {
       repeatMode: repeatMode,
       source: source,
       shuffleEnabled: shuffleEnabled,
-      preShuffleOrder: newPreShuffle != null ? List.unmodifiable(newPreShuffle) : null,
+      preShuffleOrder:
+          newPreShuffle != null ? List.unmodifiable(newPreShuffle) : null,
       preShuffleCurrentIndex: preShuffleCurrentIndex,
     ));
   }
@@ -243,6 +247,9 @@ final class PlaybackQueue {
     if (repeatMode == RepeatMode.one) {
       return Ok(this);
     }
+    if (currentIndex < 0) {
+      return withCurrentIndex(0);
+    }
     final isLastSong = currentIndex == songs.length - 1;
     if (!isLastSong) {
       return withCurrentIndex(currentIndex + 1);
@@ -250,7 +257,16 @@ final class PlaybackQueue {
     if (repeatMode == RepeatMode.all) {
       return withCurrentIndex(0);
     }
-    return withCurrentIndex(0);
+    return Ok(PlaybackQueue._(
+      id: id,
+      songs: songs,
+      currentIndex: -1,
+      repeatMode: repeatMode,
+      source: source,
+      shuffleEnabled: shuffleEnabled,
+      preShuffleOrder: preShuffleOrder,
+      preShuffleCurrentIndex: preShuffleCurrentIndex,
+    ));
   }
 
   Result<PlaybackQueue, Failure> withAdvancedToPrevious() {
@@ -270,7 +286,7 @@ final class PlaybackQueue {
     if (repeatMode == RepeatMode.all) {
       return withCurrentIndex(songs.length - 1);
     }
-    return withCurrentIndex(0); 
+    return withCurrentIndex(0);
   }
 
   @override

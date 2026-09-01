@@ -11,7 +11,7 @@ import '../../domain/usecases/shuffle_queue_usecase.dart';
 import '../../domain/usecases/use_case.dart';
 import '../../domain/usecases/user_metrics_usecases.dart';
 import '../../domain/value_objects/queue_id.dart';
-import 'for_you_provider.dart'; // FIX: Added import
+import 'for_you_provider.dart';
 import 'repository_providers.dart';
 
 final positionStreamProvider = StreamProvider<Duration>((ref) {
@@ -69,7 +69,7 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
         final newQueue = updated.valueOrNull!;
         await ref.read(playbackRepositoryProvider).saveQueue(newQueue);
         state = AsyncData(newQueue);
-        
+
         final repo = ref.read(audioPlayerRepositoryProvider);
         await repo.updateQueue(
           newQueue.songs,
@@ -82,14 +82,15 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     };
 
     ref.listen(
-      StreamProvider((ref) => ref.watch(audioPlayerRepositoryProvider).completedStream),
+      StreamProvider(
+          (ref) => ref.watch(audioPlayerRepositoryProvider).completedStream),
       (_, next) {
         if (next.hasValue && state.valueOrNull != null) {
           final currentSong = state.valueOrNull!.currentSong;
           if (currentSong != null) {
-            final logUseCase = LogSongPlayUseCase(ref.read(userMetricsRepositoryProvider));
+            final logUseCase =
+                LogSongPlayUseCase(ref.read(userMetricsRepositoryProvider));
             logUseCase.call(currentSong.id);
-            // FIX: Invalidate For You screen so it updates "Recently Played" and "Top Tracks"
             ref.invalidate(forYouControllerProvider);
           }
         }
@@ -197,16 +198,7 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
   Future<void> skipPrevious() async {
     final currentQueue = state.valueOrNull;
     if (currentQueue == null) return;
-
-    final useCase = PlayQueueUseCase(
-      ref.read(playbackRepositoryProvider),
-      ref.read(audioPlayerRepositoryProvider),
-    );
-
-    final result = await useCase.skipPrevious(currentQueue.id);
-    if (result.isOk) {
-      await _setQueueState(result.valueOrNull!);
-    }
+    await ref.read(audioPlayerRepositoryProvider).advanceToPrevious();
   }
 
   Future<void> skipToIndex(int index) async {

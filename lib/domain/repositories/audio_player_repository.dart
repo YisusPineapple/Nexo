@@ -6,7 +6,8 @@ import '../entities/repeat_mode.dart';
 import '../entities/song.dart';
 
 abstract interface class AudioPlayerRepository {
-  Future<Result<void, Failure>> load(Song song, {Duration startAt = Duration.zero});
+  Future<Result<void, Failure>> load(Song song,
+      {Duration startAt = Duration.zero});
   Future<Result<void, Failure>> resume();
   Future<Result<void, Failure>> pause();
   Future<Result<void, Failure>> stop();
@@ -14,7 +15,7 @@ abstract interface class AudioPlayerRepository {
   Future<Result<void, Failure>> setSpeed(PlaybackSpeed speed);
   Future<Result<void, Failure>> setCrossfade(CrossfadeConfig config);
   Future<Result<Duration, Failure>> getCurrentPosition();
-  
+
   Future<Result<void, Failure>> updateQueue(
     List<Song> songs, {
     required int currentIndex,
@@ -22,8 +23,9 @@ abstract interface class AudioPlayerRepository {
   });
 
   Future<Result<void, Failure>> advanceToNext();
+  Future<Result<void, Failure>> advanceToPrevious();
 
-  // FIX: Added Sleep Timer methods
+  // Sleep Timer methods
   Future<Result<void, Failure>> setSleepTimer(Duration? duration);
 
   Stream<Duration> get positionStream;

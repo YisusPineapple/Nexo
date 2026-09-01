@@ -149,11 +149,22 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
       await _handler.advanceToNext();
       return const Ok(null);
     } catch (e) {
-      return Err(UnexpectedFailure('Failed to advance to next song.', cause: e));
+      return Err(
+          UnexpectedFailure('Failed to advance to next song.', cause: e));
     }
   }
 
-  // FIX: Sleep Timer implementation
+  @override
+  Future<Result<void, Failure>> advanceToPrevious() async {
+    try {
+      await _handler.advanceToPrevious();
+      return const Ok(null);
+    } catch (e) {
+      return Err(
+          UnexpectedFailure('Failed to advance to previous song.', cause: e));
+    }
+  }
+
   @override
   Future<Result<void, Failure>> setSleepTimer(Duration? duration) async {
     _handler.setSleepTimer(duration);
