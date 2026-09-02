@@ -279,6 +279,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 AnimatedInteractionButton(
+                  key: ValueKey(
+                      'dislike_${currentSong.id.value}'), // FIX: Prevents ghost animation
                   icon: interaction == InteractionType.dislike
                       ? PhosphorIconsFill.heartBreak
                       : PhosphorIconsRegular.heartBreak,
@@ -293,6 +295,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                           InteractionType.dislike),
                 ),
                 AnimatedInteractionButton(
+                  key: ValueKey(
+                      'like_${currentSong.id.value}'), // FIX: Prevents ghost animation
                   icon: interaction == InteractionType.like
                       ? PhosphorIconsFill.heart
                       : PhosphorIconsRegular.heart,

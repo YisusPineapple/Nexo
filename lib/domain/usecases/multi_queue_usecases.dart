@@ -20,7 +20,6 @@ final class OpenQueueUseCase {
             queuesResult.when(ok: (_) => throw Exception(), err: (e) => e));
       }
 
-      // If the queue already exists, we are just updating it, not adding a new one.
       final existingQueues = queuesResult.valueOrNull!;
       final isExisting = existingQueues.any((q) => q.id == params.queue.id);
 
@@ -72,12 +71,11 @@ final class SwitchQueueUseCase {
         return syncResult.asyncAndThen((_) async {
           final song = queue.currentSong;
           if (song != null) {
-            final loadResult =
-                await _audioRepo.load(song, startAt: queue.position);
-            return loadResult.asyncAndThen((_) async {
-              await _audioRepo.pause(); // Ensure it loads paused
-              return Ok(queue);
-            });
+            // FIX: Do not call load() again. syncQueue already loaded the song at 0:00.
+            // Just seek to the saved position and ensure it is paused.
+            await _audioRepo.seekTo(queue.position);
+            await _audioRepo.pause();
+            return Ok(queue);
           }
           await _audioRepo.stop();
           return Ok(queue);
@@ -110,18 +108,16 @@ final class CloseQueueUseCase {
 
       final remainingQueues = queuesResult.valueOrNull!;
       if (remainingQueues.isNotEmpty) {
-        // Switch to the most recent/first available
         final nextQueue = remainingQueues.last;
         final switchUseCase = SwitchQueueUseCase(_playbackRepo, _audioRepo);
         final switchResult = await switchUseCase.call(nextQueue.id);
         return switchResult.map((q) => q);
       } else {
-        // No queues left, clear session and stop player
         await _playbackRepo.clearActiveSession();
         await _audioRepo.stop();
         return const Ok(null);
       }
     }
-    return const Ok(null); // Returns null if we didn't switch to a new queue
+    return const Ok(null);
   }
 }

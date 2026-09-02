@@ -6,8 +6,33 @@ import '../../domain/entities/queue_source.dart';
 import '../providers/playback_providers.dart';
 import '../providers/queue_manager_provider.dart';
 
-class QueueTabStrip extends ConsumerWidget {
+class QueueTabStrip extends ConsumerStatefulWidget {
   const QueueTabStrip({super.key});
+
+  @override
+  ConsumerState<QueueTabStrip> createState() => _QueueTabStripState();
+}
+
+class _QueueTabStripState extends ConsumerState<QueueTabStrip> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _activeItemKey = GlobalKey();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToActive() {
+    if (_activeItemKey.currentContext != null) {
+      Scrollable.ensureVisible(
+        _activeItemKey.currentContext!,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOutCubic,
+        alignment: 0.5,
+      );
+    }
+  }
 
   IconData _getIconForSource(QueueSource source) {
     return switch (source) {
@@ -32,9 +57,15 @@ class QueueTabStrip extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final queuesAsync = ref.watch(queueManagerControllerProvider);
     final activeQueue = ref.watch(playbackControllerProvider).valueOrNull;
+
+    ref.listen(playbackControllerProvider, (prev, next) {
+      if (prev?.valueOrNull?.id != next.valueOrNull?.id) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToActive());
+      }
+    });
 
     return queuesAsync.when(
       data: (queues) {
@@ -42,11 +73,13 @@ class QueueTabStrip extends ConsumerWidget {
           return const SizedBox.shrink();
         }
 
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToActive());
         final theme = Theme.of(context);
 
         return SizedBox(
           height: 48,
           child: ListView.separated(
+            controller: _scrollController,
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             itemCount: queues.length,
@@ -56,6 +89,7 @@ class QueueTabStrip extends ConsumerWidget {
               final isActive = activeQueue?.id == queue.id;
 
               return Material(
+                key: isActive ? _activeItemKey : null,
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () {

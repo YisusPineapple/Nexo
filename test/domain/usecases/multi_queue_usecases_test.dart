@@ -73,8 +73,11 @@ void main() {
       final result = await useCase.call(const QueueId('q1'));
 
       expect(result.isOk, isTrue);
-      expect(audioRepo.loadedSong?.id.value, 'a');
-      expect(audioRepo.loadedAt, const Duration(seconds: 10));
+
+      // We verify that the queue was synced and seeked to the correct position,
+      // since the redundant load() call was removed for performance.
+      expect(audioRepo.syncedQueue?.first.id.value, 'a');
+      expect(audioRepo.seekedTo, const Duration(seconds: 10));
       expect(audioRepo.isPaused, isTrue);
 
       final session = await playbackRepo.getLastSession();
