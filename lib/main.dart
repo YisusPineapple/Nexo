@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'core/utils/crash_logger.dart';
 import 'data/audio/nexo_audio_handler.dart';
 import 'data/local/app_database.dart';
 import 'data/repositories/app_preferences_repository_impl.dart';
@@ -35,6 +36,10 @@ Future<void> main() async {
     );
 
     final supportDir = await getApplicationSupportDirectory();
+
+    // Initialize offline crash reporting
+    CrashLogger.init(supportDir.path);
+
     final dbFile = File(p.join(supportDir.path, 'nexo.sqlite'));
     final coverArtDir = p.join(supportDir.path, 'covers');
 
@@ -54,7 +59,6 @@ Future<void> main() async {
     if (Platform.isAndroid || Platform.isIOS) {
       audioHandler = await AudioService.init(
         builder: () => NexoAudioHandler(),
-        // SAFE MODE: Bare minimum configuration. No custom icons, no badges.
         config: const AudioServiceConfig(
           androidNotificationChannelId: 'io.github.yisus.nexo.channel.audio.v7',
           androidNotificationChannelName: 'Nexo Music Playback',
@@ -62,7 +66,7 @@ Future<void> main() async {
           androidStopForegroundOnPause: true,
         ),
       );
-      
+
       audioHandler.init();
     } else {
       audioHandler = NexoAudioHandler();

@@ -8,11 +8,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+import '../../core/utils/crash_logger.dart';
 import '../../domain/entities/app_preferences.dart';
 import '../../domain/entities/crossfade_config.dart';
 import '../providers/app_preferences_provider.dart';
 import '../providers/app_version_provider.dart';
 import '../providers/backup_providers.dart';
+import '../providers/repository_providers.dart';
 import '../providers/settings_providers.dart';
 import 'equalizer_screen.dart';
 import 'library/folder_management_screen.dart';
@@ -233,10 +235,14 @@ class SettingsScreen extends ConsumerWidget {
 
   String _getCrossfadeLabel(CrossfadeMode mode) {
     switch (mode) {
-      case CrossfadeMode.disabled: return 'DISABLED';
-      case CrossfadeMode.fixed: return 'MANUAL';
-      case CrossfadeMode.intelligent: return 'AUTO';
-      case CrossfadeMode.autoMix: return 'AUTOMIX';
+      case CrossfadeMode.disabled:
+        return 'DISABLED';
+      case CrossfadeMode.fixed:
+        return 'MANUAL';
+      case CrossfadeMode.intelligent:
+        return 'AUTO';
+      case CrossfadeMode.autoMix:
+        return 'AUTOMIX';
     }
   }
 
@@ -258,7 +264,7 @@ class SettingsScreen extends ConsumerWidget {
       body: settingsAsync.when(
         data: (settings) {
           final controller = ref.read(settingsControllerProvider);
-          
+
           CrossfadeMode effectiveMode = settings.crossfade.mode;
           if (effectiveMode == CrossfadeMode.autoMix) {
             effectiveMode = CrossfadeMode.intelligent;
@@ -289,16 +295,23 @@ class SettingsScreen extends ConsumerWidget {
                     trailing: DropdownButton<CrossfadeMode>(
                       value: effectiveMode,
                       underline: const SizedBox(),
-                      icon: const Icon(PhosphorIconsRegular.caretDown, size: 16),
-                      items: [CrossfadeMode.disabled, CrossfadeMode.fixed, CrossfadeMode.intelligent]
+                      icon:
+                          const Icon(PhosphorIconsRegular.caretDown, size: 16),
+                      items: [
+                        CrossfadeMode.disabled,
+                        CrossfadeMode.fixed,
+                        CrossfadeMode.intelligent
+                      ]
                           .map((mode) => DropdownMenuItem(
-                              value: mode, child: Text(_getCrossfadeLabel(mode))))
+                              value: mode,
+                              child: Text(_getCrossfadeLabel(mode))))
                           .toList(),
                       onChanged: (mode) {
                         if (mode != null) {
                           unawaited(controller.updateCrossfade(
                               mode, settings.crossfade.duration,
-                              isAutoDuration: mode == CrossfadeMode.intelligent));
+                              isAutoDuration:
+                                  mode == CrossfadeMode.intelligent));
                         }
                       },
                     ),
@@ -317,11 +330,9 @@ class SettingsScreen extends ConsumerWidget {
                             min: 0,
                             max: 12,
                             divisions: 12,
-                            label:
-                                '${settings.crossfade.duration.inSeconds}s',
+                            label: '${settings.crossfade.duration.inSeconds}s',
                             onChanged: (val) => unawaited(
-                                controller.updateCrossfade(
-                                    CrossfadeMode.fixed,
+                                controller.updateCrossfade(CrossfadeMode.fixed,
                                     Duration(seconds: val.toInt()),
                                     isAutoDuration: false)),
                           ),
@@ -335,8 +346,7 @@ class SettingsScreen extends ConsumerWidget {
                       child: Text(
                           'The system will automatically choose the optimal duration based on silence.',
                           style: TextStyle(
-                              fontSize: 12,
-                              fontStyle: FontStyle.italic)),
+                              fontSize: 12, fontStyle: FontStyle.italic)),
                     ),
                   ],
                   const _GroupDivider(),
@@ -364,8 +374,8 @@ class SettingsScreen extends ConsumerWidget {
                     subtitle:
                         const Text('Keep original pitch when changing speed'),
                     value: settings.speed.pitchCorrectionEnabled,
-                    onChanged: (val) => unawaited(controller.updateSpeed(
-                        settings.speed.multiplier, val)),
+                    onChanged: (val) => unawaited(
+                        controller.updateSpeed(settings.speed.multiplier, val)),
                   ),
                 ],
               ),
@@ -483,8 +493,8 @@ class SettingsScreen extends ConsumerWidget {
                   ListTile(
                     leading: const Icon(PhosphorIconsRegular.downloadSimple),
                     title: const Text('Restore Backup'),
-                    subtitle: const Text(
-                        'Restore from a previously exported backup'),
+                    subtitle:
+                        const Text('Restore from a previously exported backup'),
                     trailing:
                         const Icon(PhosphorIconsRegular.caretRight, size: 16),
                     onTap: () => unawaited(_handleImportBackup(context, ref)),
@@ -533,11 +543,10 @@ class SettingsScreen extends ConsumerWidget {
                           unawaited(ref
                               .read(appPreferencesProvider.notifier)
                               .updateProfile(profile));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text(
-                                      'Restart the app to fully apply RAM limits.'),
-                                  duration: Duration(seconds: 3)));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                              content: Text(
+                                  'Restart the app to fully apply RAM limits.'),
+                              duration: Duration(seconds: 3)));
                         }
                       },
                     ),
@@ -561,12 +570,17 @@ class SettingsScreen extends ConsumerWidget {
                     ListTile(
                       leading: const Icon(PhosphorIconsRegular.batteryWarning),
                       title: const Text('Disable Battery Restrictions'),
-                      trailing: const Icon(PhosphorIconsRegular.caretRight, size: 16),
+                      trailing:
+                          const Icon(PhosphorIconsRegular.caretRight, size: 16),
                       onTap: () async {
-                        final success = await controller.requestBatteryOptimizationExemption();
+                        final success = await controller
+                            .requestBatteryOptimizationExemption();
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(success ? 'Exemption granted' : 'Exemption denied or already granted')),
+                            SnackBar(
+                                content: Text(success
+                                    ? 'Exemption granted'
+                                    : 'Exemption denied or already granted')),
                           );
                         }
                       },
@@ -575,13 +589,18 @@ class SettingsScreen extends ConsumerWidget {
                     ListTile(
                       leading: const Icon(PhosphorIconsRegular.rocketLaunch),
                       title: const Text('Open Autostart Settings'),
-                      subtitle: const Text('Allow Nexo to run in the background'),
-                      trailing: const Icon(PhosphorIconsRegular.arrowSquareOut, size: 16),
+                      subtitle:
+                          const Text('Allow Nexo to run in the background'),
+                      trailing: const Icon(PhosphorIconsRegular.arrowSquareOut,
+                          size: 16),
                       onTap: () async {
-                        final success = await controller.openAutostartSettings();
+                        final success =
+                            await controller.openAutostartSettings();
                         if (!success && context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Could not open Autostart settings automatically.')),
+                            const SnackBar(
+                                content: Text(
+                                    'Could not open Autostart settings automatically.')),
                           );
                         }
                       },
@@ -593,13 +612,17 @@ class SettingsScreen extends ConsumerWidget {
                     title: const Text('Notification Access'),
                     subtitle: const Text(
                         'Configure lockscreen & playback controls in Android settings'),
-                    trailing:
-                        const Icon(PhosphorIconsRegular.arrowSquareOut, size: 16),
+                    trailing: const Icon(PhosphorIconsRegular.arrowSquareOut,
+                        size: 16),
                     onTap: () async {
                       await openAppSettings();
                     },
                   ),
-                  const _GroupDivider(),
+                ],
+              ),
+              _SettingsGroup(
+                title: 'Advanced & Developer',
+                children: [
                   ListTile(
                     leading: const Icon(PhosphorIconsRegular.info),
                     title: const Text('Notification Diagnostics'),
@@ -613,15 +636,49 @@ class SettingsScreen extends ConsumerWidget {
                               const NotificationDiagnosticsScreen())));
                     },
                   ),
+                  const _GroupDivider(),
+                  ListTile(
+                    leading: const Icon(PhosphorIconsRegular.broom),
+                    title: const Text('Clear Cover Art Cache'),
+                    subtitle: const Text(
+                        'Frees up storage space. Covers will be re-extracted on next scan.'),
+                    onTap: () async {
+                      final dir =
+                          Directory(ref.read(coverArtCacheDirectoryProvider));
+                      if (await dir.exists()) {
+                        await dir.delete(recursive: true);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Cover art cache cleared.')),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                  const _GroupDivider(),
+                  ListTile(
+                    leading: const Icon(PhosphorIconsRegular.bug),
+                    title: const Text('Copy Crash Log'),
+                    subtitle:
+                        const Text('Copy the offline error log to clipboard'),
+                    onTap: () async {
+                      final log = await CrashLogger.readLog();
+                      await Clipboard.setData(ClipboardData(text: log));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Crash log copied to clipboard.')),
+                        );
+                      }
+                    },
+                  ),
                 ],
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32.0),
                 child: Center(
                   child: Text(
-                    // Version is read live from the platform via
-                    // package_info_plus instead of being hardcoded, so it
-                    // can never drift from pubspec.yaml again.
                     versionAsync.when(
                       data: (info) =>
                           'Nexo Music Player\nVersion ${info.displayLabel}',
@@ -683,16 +740,6 @@ class _SettingsGroup extends StatelessWidget {
               ],
             ),
             clipBehavior: Clip.antiAlias,
-            // FIX: A ListTile paints its background and ink splashes on
-            // the nearest Material ancestor. Without this wrapper, the
-            // outer Container above (a plain DecoratedBox with an opaque
-            // background) would sit between the ListTiles below and the
-            // Scaffold's Material further up the tree, hiding those
-            // effects — this is exactly the "ListTile background color
-            // or ink splashes may be invisible" assertion Flutter throws
-            // in debug mode. MaterialType.transparency gives the tiles a
-            // correct, local Material ancestor without repainting a
-            // second background over the custom Soft UI one above.
             child: Material(
               type: MaterialType.transparency,
               child: Column(
