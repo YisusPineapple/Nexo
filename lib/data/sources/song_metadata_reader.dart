@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as reader;
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
 class ExtractedMetadata {
@@ -51,14 +52,22 @@ class SongMetadataReader {
       final raf = await file.open();
       final bytes = await raf.read(131072); // 128 KB
       await raf.close();
-      
+
       final headerStr = String.fromCharCodes(bytes);
-      
-      final trackMatch = RegExp(r'REPLAYGAIN_TRACK_GAIN.*?([-+0-9.]+)', caseSensitive: false).firstMatch(headerStr);
-      if (trackMatch != null) trackGain = double.tryParse(trackMatch.group(1)!);
-      
-      final albumMatch = RegExp(r'REPLAYGAIN_ALBUM_GAIN.*?([-+0-9.]+)', caseSensitive: false).firstMatch(headerStr);
-      if (albumMatch != null) albumGain = double.tryParse(albumMatch.group(1)!);
+
+      final trackMatch =
+          RegExp(r'REPLAYGAIN_TRACK_GAIN.*?([-+0-9.]+)', caseSensitive: false)
+              .firstMatch(headerStr);
+      if (trackMatch != null) {
+        trackGain = double.tryParse(trackMatch.group(1)!);
+      }
+
+      final albumMatch =
+          RegExp(r'REPLAYGAIN_ALBUM_GAIN.*?([-+0-9.]+)', caseSensitive: false)
+              .firstMatch(headerStr);
+      if (albumMatch != null) {
+        albumGain = double.tryParse(albumMatch.group(1)!);
+      }
     } catch (e) {
       debugPrint('ReplayGain parse error for ${file.path}: $e');
     }
@@ -86,12 +95,34 @@ class SongMetadataReader {
   }) async {
     final outPath = p.join(cacheDirectory, '$coverId.jpg');
     final file = File(outPath);
-    
+
     if (await file.exists()) {
       return outPath;
     }
 
     await Directory(cacheDirectory).create(recursive: true);
+
+    try {
+      final decoded = img.decodeImage(coverBytes);
+      if (decoded != null) {
+        img.Image processed = decoded;
+        if (decoded.width > 512 || decoded.height > 512) {
+          processed = img.copyResize(
+            decoded,
+            width: decoded.width >= decoded.height ? 512 : null,
+            height: decoded.height > decoded.width ? 512 : null,
+            interpolation: img.Interpolation.average,
+          );
+        }
+        final compressed = img.encodeJpg(processed, quality: 80);
+        await file.writeAsBytes(compressed);
+        return outPath;
+      }
+    } catch (e) {
+      debugPrint('Cover art resize error for $coverId: $e');
+    }
+
+    // Fallback: write original bytes if decoding fails
     await file.writeAsBytes(coverBytes);
     return outPath;
   }

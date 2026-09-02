@@ -4,7 +4,7 @@ description: >-
   interface, smooth transitions, and extreme optimization for devices
   with limited resources. FOSS & AI-Maintained.
 publish_to: 'none'
-version: 0.0.11-beta+60
+version: 0.0.11-beta+61
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -38,6 +38,7 @@ dependencies:
   archive: ^3.6.1
   share_plus: ^10.1.4
   package_info_plus: ^8.1.2
+  image: ^4.3.0
 
 flutter:
   uses-material-design: true
