@@ -1,5 +1,6 @@
 import 'package:nexo/core/error/failures.dart';
 import 'package:nexo/core/utils/result.dart';
+import 'package:nexo/domain/entities/app_preferences.dart';
 import 'package:nexo/domain/entities/crossfade_config.dart';
 import 'package:nexo/domain/entities/playback_speed.dart';
 import 'package:nexo/domain/entities/repeat_mode.dart';
@@ -14,6 +15,7 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
   Duration? seekedTo;
   PlaybackSpeed? appliedSpeed;
   CrossfadeConfig? appliedCrossfade;
+  PerformanceProfile? appliedProfile;
   List<Song>? syncedQueue;
   int? syncedIndex;
   RepeatMode? syncedRepeatMode;
@@ -76,6 +78,14 @@ class FakeAudioPlayerRepository implements AudioPlayerRepository {
   Future<Result<void, Failure>> setCrossfade(CrossfadeConfig config) async {
     if (failWith != null) return Err(failWith!);
     appliedCrossfade = config;
+    return const Ok(null);
+  }
+
+  @override
+  Future<Result<void, Failure>> setPerformanceProfile(
+      PerformanceProfile profile) async {
+    if (failWith != null) return Err(failWith!);
+    appliedProfile = profile;
     return const Ok(null);
   }
 

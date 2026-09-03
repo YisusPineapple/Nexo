@@ -1,5 +1,6 @@
 import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
+import '../entities/app_preferences.dart';
 import '../entities/crossfade_config.dart';
 import '../entities/playback_speed.dart';
 import '../entities/repeat_mode.dart';
@@ -14,6 +15,8 @@ abstract interface class AudioPlayerRepository {
   Future<Result<void, Failure>> seekTo(Duration position);
   Future<Result<void, Failure>> setSpeed(PlaybackSpeed speed);
   Future<Result<void, Failure>> setCrossfade(CrossfadeConfig config);
+  Future<Result<void, Failure>> setPerformanceProfile(
+      PerformanceProfile profile);
   Future<Result<Duration, Failure>> getCurrentPosition();
 
   Future<Result<void, Failure>> updateQueue(
@@ -25,7 +28,6 @@ abstract interface class AudioPlayerRepository {
   Future<Result<void, Failure>> advanceToNext();
   Future<Result<void, Failure>> advanceToPrevious();
 
-  // Sleep Timer methods
   Future<Result<void, Failure>> setSleepTimer(Duration? duration);
 
   Stream<Duration> get positionStream;

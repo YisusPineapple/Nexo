@@ -6,6 +6,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart' as ja;
 
+import '../../domain/entities/app_preferences.dart';
 import '../../domain/entities/crossfade_config.dart';
 import '../../domain/entities/repeat_mode.dart';
 import '../../domain/entities/song.dart';
@@ -25,6 +26,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   double _currentSpeed = 1.0;
   double _currentPitch = 1.0;
   CrossfadeConfig _config = CrossfadeConfig.disabled;
+  PerformanceProfile _performanceProfile = PerformanceProfile.balanced;
 
   Timer? _crossfadeTimer;
   bool _isTransitioning = false;
@@ -35,7 +37,8 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   double _gainB = 1.0;
 
   Timer? _sleepTimer;
-  final StreamController<Duration?> _sleepTimerController = StreamController<Duration?>.broadcast();
+  final StreamController<Duration?> _sleepTimerController =
+      StreamController<Duration?>.broadcast();
 
   void Function(int newIndex)? onQueueAdvanced;
   VoidCallback? onQueueEnded;
@@ -67,7 +70,8 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   void _fire(Future<dynamic> f) {
     f.catchError((e) {
-      developer.log('AudioHandler async error suppressed: $e', name: 'nexo.audio');
+      developer.log('AudioHandler async error suppressed: $e',
+          name: 'nexo.audio');
     });
   }
 
@@ -102,14 +106,15 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   void _broadcastState(ja.PlaybackEvent event) {
     final playing = _activePlayer.playing;
-    
+
     var processingState = const {
-      ja.ProcessingState.idle: AudioProcessingState.idle,
-      ja.ProcessingState.loading: AudioProcessingState.loading,
-      ja.ProcessingState.buffering: AudioProcessingState.buffering,
-      ja.ProcessingState.ready: AudioProcessingState.ready,
-      ja.ProcessingState.completed: AudioProcessingState.completed,
-    }[_activePlayer.processingState] ?? AudioProcessingState.idle;
+          ja.ProcessingState.idle: AudioProcessingState.idle,
+          ja.ProcessingState.loading: AudioProcessingState.loading,
+          ja.ProcessingState.buffering: AudioProcessingState.buffering,
+          ja.ProcessingState.ready: AudioProcessingState.ready,
+          ja.ProcessingState.completed: AudioProcessingState.completed,
+        }[_activePlayer.processingState] ??
+        AudioProcessingState.idle;
 
     if (playing && processingState != AudioProcessingState.ready) {
       processingState = AudioProcessingState.ready;
@@ -148,26 +153,44 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _durationSub = _activePlayer.durationStream.listen(_durationController.add);
     _playingSub = _activePlayer.playingStream.listen(_playingController.add);
 
-    _playbackEventSub = _activePlayer.playbackEventStream.listen(_broadcastState);
-    _playingEventSub = _activePlayer.playingStream.listen((_) => _broadcastState(_activePlayer.playbackEvent));
+    _playbackEventSub =
+        _activePlayer.playbackEventStream.listen(_broadcastState);
+    _playingEventSub = _activePlayer.playingStream
+        .listen((_) => _broadcastState(_activePlayer.playbackEvent));
 
     _fire(_activePlayer.setSpeed(_currentSpeed));
     _fire(_activePlayer.setPitch(_currentPitch));
   }
 
   int? _getNextIndex() {
-    if (_queue.isEmpty) return null;
-    if (_repeatMode == RepeatMode.one) return _currentIndex;
-    if (_currentIndex + 1 < _queue.length) return _currentIndex + 1;
-    if (_repeatMode == RepeatMode.all) return 0;
+    if (_queue.isEmpty) {
+      return null;
+    }
+    if (_repeatMode == RepeatMode.one) {
+      return _currentIndex;
+    }
+    if (_currentIndex + 1 < _queue.length) {
+      return _currentIndex + 1;
+    }
+    if (_repeatMode == RepeatMode.all) {
+      return 0;
+    }
     return null;
   }
 
   int? _getPreviousIndex() {
-    if (_queue.isEmpty) return null;
-    if (_repeatMode == RepeatMode.one) return _currentIndex;
-    if (_currentIndex > 0) return _currentIndex - 1;
-    if (_repeatMode == RepeatMode.all) return _queue.length - 1;
+    if (_queue.isEmpty) {
+      return null;
+    }
+    if (_repeatMode == RepeatMode.one) {
+      return _currentIndex;
+    }
+    if (_currentIndex > 0) {
+      return _currentIndex - 1;
+    }
+    if (_repeatMode == RepeatMode.all) {
+      return _queue.length - 1;
+    }
     return 0;
   }
 
@@ -178,8 +201,10 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         await p.stop();
       }
 
-      final startTrim = Duration(milliseconds: song.silenceTrim.leadingSilenceMs);
-      final endTrim = Duration(milliseconds: song.silenceTrim.trailingSilenceMs);
+      final startTrim =
+          Duration(milliseconds: song.silenceTrim.leadingSilenceMs);
+      final endTrim =
+          Duration(milliseconds: song.silenceTrim.trailingSilenceMs);
       final effectiveEnd = song.duration - endTrim;
 
       await p.setFilePath(song.filePath, initialPosition: startAt + startTrim);
@@ -198,7 +223,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       } else {
         _gainB = gainFactor;
       }
-      
+
       if (identical(p, _activePlayer)) {
         _currentLoadedSongId = song.id.value;
       }
@@ -239,7 +264,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               artist: song.trackArtistId.value,
               album: song.albumId?.value ?? 'Nexo Audio',
               duration: song.duration,
-              artUri: _getArtUri(song.coverArtPath), 
+              artUri: _getArtUri(song.coverArtPath),
             ))
         .toList();
     await updateQueue(items);
@@ -249,7 +274,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       playbackState.add(playbackState.value.copyWith(
         processingState: AudioProcessingState.loading,
       ));
-      
+
       _abortCrossfade();
       await _loadSongIntoPlayer(_playerA, newCurrentSong);
       _isPlayerAActive = true;
@@ -301,20 +326,28 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Duration _getActualCrossfadeDuration() {
-    if (_config.mode == CrossfadeMode.disabled) return Duration.zero;
+    if (_config.mode == CrossfadeMode.disabled) {
+      return Duration.zero;
+    }
 
     final nextIndex = _getNextIndex();
-    if (nextIndex == null) return Duration.zero;
-    
+    if (nextIndex == null) {
+      return Duration.zero;
+    }
+
     final outSong = _queue[_currentIndex];
     final inSong = _queue[nextIndex];
-    
-    final maxAllowed = Duration(milliseconds: 
-      (min(outSong.duration.inMilliseconds, inSong.duration.inMilliseconds) * 0.3).toInt()
-    );
+
+    final maxAllowed = Duration(
+        milliseconds: (min(outSong.duration.inMilliseconds,
+                    inSong.duration.inMilliseconds) *
+                0.3)
+            .toInt());
 
     Duration calculated;
-    if (_config.isAutoDuration || _config.mode == CrossfadeMode.intelligent || _config.mode == CrossfadeMode.autoMix) {
+    if (_config.isAutoDuration ||
+        _config.mode == CrossfadeMode.intelligent ||
+        _config.mode == CrossfadeMode.autoMix) {
       final totalSilence = outSong.silenceTrim.trailingSilenceMs +
           inSong.silenceTrim.leadingSilenceMs;
       if (totalSilence > 4000) {
@@ -329,20 +362,37 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       calculated = _config.duration;
     }
 
+    if (_performanceProfile == PerformanceProfile.eco &&
+        calculated > const Duration(seconds: 4)) {
+      calculated = const Duration(seconds: 4);
+    }
+
     return calculated > maxAllowed ? maxAllowed : calculated;
   }
 
   void _checkCrossfadeTrigger(Duration pos) {
-    if (_isTransitioning || _config.mode == CrossfadeMode.disabled) return;
+    if (_isTransitioning || _config.mode == CrossfadeMode.disabled) {
+      return;
+    }
     final nextIndex = _getNextIndex();
-    if (nextIndex == null) return;
+    if (nextIndex == null) {
+      return;
+    }
     final duration = _activePlayer.duration;
-    if (duration == null) return;
+    if (duration == null) {
+      return;
+    }
     final crossfadeDur = _getActualCrossfadeDuration();
-    if (crossfadeDur == Duration.zero) return;
+    if (crossfadeDur == Duration.zero) {
+      return;
+    }
 
-    if (duration - pos <= crossfadeDur) {
-      _startCrossfade(crossfadeDur);
+    final remaining = duration - pos;
+    if (remaining <= crossfadeDur) {
+      if (remaining.inMilliseconds <= 0) {
+        return;
+      }
+      _startCrossfade(remaining);
     }
   }
 
@@ -354,29 +404,37 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     _isTransitioning = true;
 
-    if (_frozenProgress == 0.0) {
-      _crossfadeProgress = 0.0;
-    } else {
-      _crossfadeProgress = _frozenProgress;
-      _frozenProgress = 0.0;
-    }
+    final startTime = DateTime.now();
+    final startProgress = _frozenProgress > 0.0 ? _frozenProgress : 0.0;
+    _frozenProgress = 0.0;
 
     _fire(_activePlayer.play());
     _fire(_inactivePlayer.play());
 
-    const tickRate = Duration(milliseconds: 50);
-    final totalTicks = duration.inMilliseconds / tickRate.inMilliseconds;
+    final tickRate = _performanceProfile == PerformanceProfile.eco
+        ? const Duration(milliseconds: 50)
+        : const Duration(milliseconds: 30);
 
     _crossfadeTimer = Timer.periodic(tickRate, (timer) {
-      _crossfadeProgress += (1 / totalTicks);
-      if (_crossfadeProgress >= 1.0) {
+      final elapsed = DateTime.now().difference(startTime);
+      double rawProgress =
+          startProgress + (elapsed.inMilliseconds / duration.inMilliseconds);
+
+      if (rawProgress >= 1.0) {
         _crossfadeProgress = 1.0;
         timer.cancel();
         _completeCrossfade();
         return;
       }
 
-      final double angle = _crossfadeProgress * (pi / 2);
+      _crossfadeProgress = rawProgress;
+
+      // Smoothstep: t^2 * (3 - 2t)
+      final double t = _crossfadeProgress;
+      final double smooth = t * t * (3 - 2 * t);
+
+      // Constant power: cos/sin
+      final double angle = smooth * (pi / 2);
       final double volA = cos(angle) * (_isPlayerAActive ? _gainA : _gainB);
       final double volB = sin(angle) * (_isPlayerAActive ? _gainB : _gainA);
 
@@ -442,16 +500,16 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       onQueueEnded?.call();
       return;
     }
-    
+
     _currentIndex = nextIndex;
-    
+
     _isPlayerAActive = !_isPlayerAActive;
     _switchActivePlayer();
     _currentLoadedSongId = _queue[_currentIndex].id.value;
-    
+
     _fire(_activePlayer.setVolume(_isPlayerAActive ? _gainA : _gainB));
     _fire(_activePlayer.play());
-    
+
     if (_currentIndex < _queue.length && _currentIndex < queue.value.length) {
       mediaItem.add(queue.value[_currentIndex]);
     }
@@ -473,16 +531,16 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _sleepTimerController.add(null);
       return;
     }
-    
+
     final endTime = DateTime.now().add(duration);
     _sleepTimerController.add(duration);
-    
+
     _sleepTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       final remaining = endTime.difference(DateTime.now());
       if (remaining.isNegative) {
         timer.cancel();
         _sleepTimerController.add(null);
-        pause(); 
+        pause();
       } else {
         _sleepTimerController.add(remaining);
       }
@@ -526,7 +584,9 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> advanceToNext() async {
-    if (_isSkipping) return;
+    if (_isSkipping) {
+      return;
+    }
     _isSkipping = true;
     try {
       _abortCrossfade();
@@ -542,33 +602,30 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> advanceToPrevious() async {
-    if (_isSkipping) return;
+    if (_isSkipping) {
+      return;
+    }
     _isSkipping = true;
     try {
       _abortCrossfade();
 
       final prevIndex = _getPreviousIndex();
       if (prevIndex != null && prevIndex != _currentIndex) {
-        // 1. Cargar explícitamente en el reproductor INACTIVO (sin detener el activo)
         await _loadSongIntoPlayer(_inactivePlayer, _queue[prevIndex]);
         _currentIndex = prevIndex;
 
-        // 2. Intercambiar roles de reproductores
         _isPlayerAActive = !_isPlayerAActive;
         _switchActivePlayer();
         _currentLoadedSongId = _queue[_currentIndex].id.value;
 
-        // 3. Restaurar volumen y reproducir el nuevo reproductor activo
         _fire(_activePlayer.setVolume(_isPlayerAActive ? _gainA : _gainB));
         _fire(_activePlayer.play());
 
-        // 4. Notificar a audio_service y UI
         if (_currentIndex < queue.value.length) {
           mediaItem.add(queue.value[_currentIndex]);
         }
         onQueueAdvanced?.call(_currentIndex);
 
-        // 5. Precargar la pista siguiente en el nuevo inactivo
         final nextIndex = _getNextIndex();
         if (nextIndex != null) {
           _fire(_loadSongIntoPlayer(_inactivePlayer, _queue[nextIndex])
@@ -601,6 +658,10 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final crossfadeDur = _getActualCrossfadeDuration();
       _startCrossfade(crossfadeDur);
     }
+  }
+
+  void setPerformanceProfile(PerformanceProfile profile) {
+    _performanceProfile = profile;
   }
 
   @override

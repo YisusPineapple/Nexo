@@ -14,6 +14,7 @@ import '../../domain/usecases/shuffle_queue_usecase.dart';
 import '../../domain/usecases/use_case.dart';
 import '../../domain/usecases/user_metrics_usecases.dart';
 import '../../domain/value_objects/queue_id.dart';
+import 'app_preferences_provider.dart';
 import 'for_you_provider.dart';
 import 'queue_manager_provider.dart';
 import 'repository_providers.dart';
@@ -105,6 +106,15 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
       },
     );
 
+    // Sync performance profile to audio engine
+    ref.listen(
+      appPreferencesProvider.select((prefs) => prefs.performanceProfile),
+      (prev, next) {
+        ref.read(audioPlayerRepositoryProvider).setPerformanceProfile(next);
+      },
+      fireImmediately: true,
+    );
+
     if (queue != null) {
       await ref.read(audioPlayerRepositoryProvider).updateQueue(
             queue.songs,
@@ -113,7 +123,6 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
           );
     }
 
-    // Position persistence timer (every 15 seconds)
     final timer = Timer.periodic(const Duration(seconds: 15), (_) async {
       final isPlaying = ref.read(playingStreamProvider).valueOrNull ?? false;
       final currentQueue = state.valueOrNull;

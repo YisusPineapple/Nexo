@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart' as ja;
 
 import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
+import '../../domain/entities/app_preferences.dart';
 import '../../domain/entities/crossfade_config.dart';
 import '../../domain/entities/playback_speed.dart';
 import '../../domain/entities/repeat_mode.dart';
@@ -121,6 +122,13 @@ final class AudioPlayerRepositoryImpl implements AudioPlayerRepository {
   @override
   Future<Result<void, Failure>> setCrossfade(CrossfadeConfig config) async {
     _handler.setCrossfadeConfig(config);
+    return const Ok(null);
+  }
+
+  @override
+  Future<Result<void, Failure>> setPerformanceProfile(
+      PerformanceProfile profile) async {
+    _handler.setPerformanceProfile(profile);
     return const Ok(null);
   }
 
