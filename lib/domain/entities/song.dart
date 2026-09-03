@@ -28,6 +28,7 @@ final class Song {
     required this.dateAddedUtc,
     required this.isMissing,
     required this.lyricOffsetMs,
+    required this.hasNoCover,
   });
 
   final SongId id;
@@ -50,6 +51,7 @@ final class Song {
   final DateTime dateAddedUtc;
   final bool isMissing;
   final int lyricOffsetMs;
+  final bool hasNoCover;
 
   static Result<Song, Failure> create({
     required SongId id,
@@ -72,6 +74,7 @@ final class Song {
     required DateTime dateAddedUtc,
     bool isMissing = false,
     int lyricOffsetMs = 0,
+    bool hasNoCover = false,
   }) {
     if (duration.isNegative) {
       return Err(ValidationFailure(
@@ -108,6 +111,7 @@ final class Song {
       dateAddedUtc: dateAddedUtc,
       isMissing: isMissing,
       lyricOffsetMs: lyricOffsetMs,
+      hasNoCover: hasNoCover,
     ));
   }
 
@@ -117,6 +121,7 @@ final class Song {
     double? replayGainAlbumDb,
     bool? isMissing,
     int? lyricOffsetMs,
+    bool? hasNoCover,
   }) {
     return Song._(
       id: id,
@@ -139,6 +144,7 @@ final class Song {
       dateAddedUtc: dateAddedUtc,
       isMissing: isMissing ?? this.isMissing,
       lyricOffsetMs: lyricOffsetMs ?? this.lyricOffsetMs,
+      hasNoCover: hasNoCover ?? this.hasNoCover,
     );
   }
 

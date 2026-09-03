@@ -38,11 +38,11 @@ class ExtractedMetadata {
 class SongMetadataReader {
   const SongMetadataReader();
 
-  Future<ExtractedMetadata> read(File file) async {
-    final metadata = reader.readMetadata(file, getImage: true);
+  Future<ExtractedMetadata> read(File file, {bool extractCover = true}) async {
+    final metadata = reader.readMetadata(file, getImage: extractCover);
 
     Uint8List? coverBytes;
-    if (metadata.pictures.isNotEmpty) {
+    if (extractCover && metadata.pictures.isNotEmpty) {
       coverBytes = metadata.pictures.first.bytes;
     }
 
@@ -106,15 +106,17 @@ class SongMetadataReader {
       final decoded = img.decodeImage(coverBytes);
       if (decoded != null) {
         img.Image processed = decoded;
-        if (decoded.width > 512 || decoded.height > 512) {
+        // Resize to 500px max to save space and processing time
+        if (decoded.width > 500 || decoded.height > 500) {
           processed = img.copyResize(
             decoded,
-            width: decoded.width >= decoded.height ? 512 : null,
-            height: decoded.height > decoded.width ? 512 : null,
+            width: decoded.width >= decoded.height ? 500 : null,
+            height: decoded.height > decoded.width ? 500 : null,
             interpolation: img.Interpolation.average,
           );
         }
-        final compressed = img.encodeJpg(processed, quality: 80);
+        // Quality 75 is visually identical for small covers but saves ~30% size
+        final compressed = img.encodeJpg(processed, quality: 75);
         await file.writeAsBytes(compressed);
         return outPath;
       }
@@ -122,7 +124,6 @@ class SongMetadataReader {
       debugPrint('Cover art resize error for $coverId: $e');
     }
 
-    // Fallback: write original bytes if decoding fails
     await file.writeAsBytes(coverBytes);
     return outPath;
   }

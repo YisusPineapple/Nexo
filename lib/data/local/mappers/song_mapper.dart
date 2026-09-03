@@ -41,6 +41,7 @@ class SongMapper {
       ),
       isMissing: row.isMissing,
       lyricOffsetMs: row.lyricOffsetMs,
+      hasNoCover: row.hasNoCover,
     );
   }
 
@@ -67,6 +68,7 @@ class SongMapper {
       dateAddedUtcMs: song.dateAddedUtc.toUtc().millisecondsSinceEpoch,
       isMissing: Value(song.isMissing),
       lyricOffsetMs: Value(song.lyricOffsetMs),
+      hasNoCover: Value(song.hasNoCover),
     );
   }
 }

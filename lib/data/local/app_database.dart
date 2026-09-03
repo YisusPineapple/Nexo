@@ -55,7 +55,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -84,7 +84,8 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(itemInteractions);
           }
           if (from < 4) {
-            await m.addColumn(playbackSettingsTable, playbackSettingsTable.isAutoDuration);
+            await m.addColumn(
+                playbackSettingsTable, playbackSettingsTable.isAutoDuration);
           }
           if (from < 5) {
             await m.createTable(appPreferencesTable);
@@ -106,18 +107,25 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(excludedFolders);
           }
           if (from < 7) {
-            await m.addColumn(appPreferencesTable, appPreferencesTable.lyricsAlignment);
+            await m.addColumn(
+                appPreferencesTable, appPreferencesTable.lyricsAlignment);
           }
           if (from < 8) {
-            await m.addColumn(appPreferencesTable, appPreferencesTable.lyricsFontSize);
-            await m.addColumn(appPreferencesTable, appPreferencesTable.lyricsBlurEnabled);
-            await m.addColumn(appPreferencesTable, appPreferencesTable.lyricsHighlightWords);
+            await m.addColumn(
+                appPreferencesTable, appPreferencesTable.lyricsFontSize);
+            await m.addColumn(
+                appPreferencesTable, appPreferencesTable.lyricsBlurEnabled);
+            await m.addColumn(
+                appPreferencesTable, appPreferencesTable.lyricsHighlightWords);
           }
           if (from < 9) {
             await m.addColumn(songs, songs.lyricOffsetMs);
           }
           if (from < 10) {
             await m.addColumn(playbackQueues, playbackQueues.positionMs);
+          }
+          if (from < 11) {
+            await m.addColumn(songs, songs.hasNoCover);
           }
         },
       );

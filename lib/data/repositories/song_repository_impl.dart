@@ -80,6 +80,7 @@ Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
           format,
           metadataReader: metadataReader,
           coverArtCacheDirectory: args.coverArtCacheDirectory,
+          extractCover: false, // PHASE 1: Fast scan without image decoding
         );
       } catch (_) {}
       args.sendPort.send(_IndexingProgress(i + 1, total, song));
@@ -95,6 +96,7 @@ Future<Song?> _buildSong(
   AudioFormat format, {
   required SongMetadataReader metadataReader,
   required String coverArtCacheDirectory,
+  required bool extractCover,
 }) async {
   final file = File(path);
   final stat = await file.stat();
@@ -113,7 +115,8 @@ Future<Song?> _buildSong(
   double? replayGainAlbumDb;
 
   try {
-    final extracted = await metadataReader.read(file);
+    final extracted =
+        await metadataReader.read(file, extractCover: extractCover);
     title = extracted.title ?? title;
     artist = extracted.artist ?? artist;
     album = extracted.album;
@@ -122,13 +125,15 @@ Future<Song?> _buildSong(
     duration = extracted.duration;
     genres = extracted.genres;
     year = extracted.year;
-    
-    // FIX: Assign extracted ReplayGain values
+
     replayGainTrackDb = extracted.replayGainTrackDb;
     replayGainAlbumDb = extracted.replayGainAlbumDb;
 
-    if (extracted.coverArtBytes != null) {
-      final coverHash = '${album ?? 'unknown'}_${extracted.albumArtist ?? artist}'.hashCode.toRadixString(16);
+    if (extractCover && extracted.coverArtBytes != null) {
+      final coverHash =
+          '${album ?? 'unknown'}_${extracted.albumArtist ?? artist}'
+              .hashCode
+              .toRadixString(16);
       coverArtPath = await metadataReader.cacheCoverArt(
         coverBytes: extracted.coverArtBytes!,
         cacheDirectory: coverArtCacheDirectory,
@@ -156,7 +161,50 @@ Future<Song?> _buildSong(
     replayGainTrackDb: replayGainTrackDb,
     replayGainAlbumDb: replayGainAlbumDb,
     dateAddedUtc: DateTime.now().toUtc(),
+    hasNoCover: false,
   ).valueOrNull;
+}
+
+class _CoverExtractionArgs {
+  const _CoverExtractionArgs({
+    required this.songs,
+    required this.coverArtCacheDirectory,
+    required this.sendPort,
+  });
+  final List<Song> songs;
+  final String coverArtCacheDirectory;
+  final SendPort sendPort;
+}
+
+Future<void> _coverExtractionIsolateEntry(_CoverExtractionArgs args) async {
+  const metadataReader = SongMetadataReader();
+  for (final song in args.songs) {
+    try {
+      final file = File(song.filePath);
+      if (!file.existsSync()) {
+        continue;
+      }
+
+      final extracted = await metadataReader.read(file, extractCover: true);
+      if (extracted.coverArtBytes != null) {
+        final coverHash =
+            '${song.albumId?.value ?? 'unknown'}_${song.albumArtistId?.value ?? song.trackArtistId.value}'
+                .hashCode
+                .toRadixString(16);
+        final path = await metadataReader.cacheCoverArt(
+          coverBytes: extracted.coverArtBytes!,
+          cacheDirectory: args.coverArtCacheDirectory,
+          coverId: coverHash,
+        );
+        args.sendPort.send({'id': song.id.value, 'path': path});
+      } else {
+        args.sendPort.send({'id': song.id.value, 'path': null});
+      }
+    } catch (e) {
+      args.sendPort.send({'id': song.id.value, 'path': null});
+    }
+  }
+  args.sendPort.send('DONE');
 }
 
 class SongRepositoryImpl implements SongRepository {
@@ -174,6 +222,7 @@ class SongRepositoryImpl implements SongRepository {
   final LibraryFolderRepository _libraryFolderRepository;
   final SongMapper _mapper;
   bool _isScanning = false;
+  bool _isExtractingCovers = false;
 
   @override
   Future<Result<void, Failure>> indexDirectories(
@@ -194,7 +243,7 @@ class SongRepositoryImpl implements SongRepository {
       );
     }
     final paths = foldersResult.valueOrNull!.map((f) => f.path).toList();
-    return _scanAndPersist(paths, onProgress: onProgress); // FIX: Pass onProgress down
+    return _scanAndPersist(paths, onProgress: onProgress);
   }
 
   Future<Result<void, Failure>> _scanAndPersist(
@@ -202,7 +251,8 @@ class SongRepositoryImpl implements SongRepository {
     void Function(int current, int total)? onProgress,
   }) async {
     if (_isScanning) {
-      return const Err(ValidationFailure('A scan is already in progress. Please wait.'));
+      return const Err(
+          ValidationFailure('A scan is already in progress. Please wait.'));
     }
     _isScanning = true;
 
@@ -234,6 +284,9 @@ class SongRepositoryImpl implements SongRepository {
       if (!completer.isCompleted) {
         _isScanning = false;
         completer.complete(result);
+        if (result.isOk) {
+          _startBackgroundCoverExtraction();
+        }
       }
     }
 
@@ -286,8 +339,59 @@ class SongRepositoryImpl implements SongRepository {
       _isScanning = false;
       return Err(UnexpectedFailure('Failed to index directories.', cause: e));
     } finally {
+      // We don't close receivePort here because it might still be receiving messages
+      // It will be closed by garbage collection or when the isolate dies.
+    }
+  }
+
+  Future<void> _startBackgroundCoverExtraction() async {
+    if (_isExtractingCovers) {
+      return;
+    }
+
+    final songsWithoutCover = await (_db.select(_db.songs)
+          ..where((t) => t.coverArtPath.isNull() & t.hasNoCover.equals(false)))
+        .get();
+
+    if (songsWithoutCover.isEmpty) {
+      return;
+    }
+
+    _isExtractingCovers = true;
+    final receivePort = ReceivePort();
+
+    try {
+      await Isolate.spawn(
+        _coverExtractionIsolateEntry,
+        _CoverExtractionArgs(
+          songs: songsWithoutCover
+              .map((r) => _mapper.toEntity(r).valueOrNull!)
+              .toList(),
+          coverArtCacheDirectory: _coverArtCacheDirectory,
+          sendPort: receivePort.sendPort,
+        ),
+      );
+
+      receivePort.listen((message) async {
+        if (message is Map<String, dynamic>) {
+          final id = message['id'] as String;
+          final path = message['path'] as String?;
+
+          await (_db.update(_db.songs)..where((t) => t.id.equals(id))).write(
+            SongsCompanion(
+              coverArtPath: Value(path),
+              hasNoCover: Value(path == null),
+            ),
+          );
+        } else if (message == 'DONE') {
+          _isExtractingCovers = false;
+          receivePort.close();
+        }
+      });
+    } catch (e) {
+      _isExtractingCovers = false;
       receivePort.close();
-      exitPort.close();
+      debugPrint('Failed to start background cover extraction: $e');
     }
   }
 
@@ -307,7 +411,8 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   @override
-  Future<Result<List<Song>, Failure>> getSongsByArtist(ArtistId artistId) async =>
+  Future<Result<List<Song>, Failure>> getSongsByArtist(
+          ArtistId artistId) async =>
       _mapRows(
         await (_db.select(_db.songs)
               ..where((t) => t.trackArtistId.equals(artistId.value)))
@@ -323,7 +428,8 @@ class SongRepositoryImpl implements SongRepository {
       );
 
   @override
-  Future<Result<List<Song>, Failure>> getSongsByFolder(String folderPath) async =>
+  Future<Result<List<Song>, Failure>> getSongsByFolder(
+          String folderPath) async =>
       _mapRows(
         (await _db.select(_db.songs).get())
             .where((row) => row.filePath.startsWith(folderPath))
@@ -332,14 +438,19 @@ class SongRepositoryImpl implements SongRepository {
 
   @override
   Future<Result<List<Song>, Failure>> searchSongs(String query) async {
-    // FIX: Split query into words and ensure ALL words match somewhere in the song metadata
-    final terms = query.toLowerCase().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
-    
+    final terms = query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((s) => s.isNotEmpty)
+        .toList();
+
     if (terms.isEmpty) return const Ok([]);
 
     return _mapRows(
       (await _db.select(_db.songs).get()).where((row) {
-        final searchableString = '${row.title} ${row.trackArtistId} ${row.albumId ?? ''}'.toLowerCase();
+        final searchableString =
+            '${row.title} ${row.trackArtistId} ${row.albumId ?? ''}'
+                .toLowerCase();
         return terms.every((term) => searchableString.contains(term));
       }).toList(),
     );

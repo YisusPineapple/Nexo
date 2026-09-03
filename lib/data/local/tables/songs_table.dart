@@ -31,8 +31,10 @@ class Songs extends Table {
   IntColumn get dateAddedUtcMs => integer()();
 
   BoolColumn get isMissing => boolean().withDefault(const Constant(false))();
-  
+
   IntColumn get lyricOffsetMs => integer().withDefault(const Constant(0))();
+
+  BoolColumn get hasNoCover => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

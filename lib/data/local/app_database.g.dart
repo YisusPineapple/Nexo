@@ -139,6 +139,16 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
       type: DriftSqlType.int,
       requiredDuringInsert: false,
       defaultValue: const Constant(0));
+  static const VerificationMeta _hasNoCoverMeta =
+      const VerificationMeta('hasNoCover');
+  @override
+  late final GeneratedColumn<bool> hasNoCover = GeneratedColumn<bool>(
+      'has_no_cover', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("has_no_cover" IN (0, 1))'),
+      defaultValue: const Constant(false));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -161,7 +171,8 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
         replayGainAlbumDb,
         dateAddedUtcMs,
         isMissing,
-        lyricOffsetMs
+        lyricOffsetMs,
+        hasNoCover
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -288,6 +299,12 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
           lyricOffsetMs.isAcceptableOrUnknown(
               data['lyric_offset_ms']!, _lyricOffsetMsMeta));
     }
+    if (data.containsKey('has_no_cover')) {
+      context.handle(
+          _hasNoCoverMeta,
+          hasNoCover.isAcceptableOrUnknown(
+              data['has_no_cover']!, _hasNoCoverMeta));
+    }
     return context;
   }
 
@@ -340,6 +357,8 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
           .read(DriftSqlType.bool, data['${effectivePrefix}is_missing'])!,
       lyricOffsetMs: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}lyric_offset_ms'])!,
+      hasNoCover: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}has_no_cover'])!,
     );
   }
 
@@ -376,6 +395,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
   final int dateAddedUtcMs;
   final bool isMissing;
   final int lyricOffsetMs;
+  final bool hasNoCover;
   const SongRow(
       {required this.id,
       required this.title,
@@ -397,7 +417,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
       this.replayGainAlbumDb,
       required this.dateAddedUtcMs,
       required this.isMissing,
-      required this.lyricOffsetMs});
+      required this.lyricOffsetMs,
+      required this.hasNoCover});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -444,6 +465,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
     map['date_added_utc_ms'] = Variable<int>(dateAddedUtcMs);
     map['is_missing'] = Variable<bool>(isMissing);
     map['lyric_offset_ms'] = Variable<int>(lyricOffsetMs);
+    map['has_no_cover'] = Variable<bool>(hasNoCover);
     return map;
   }
 
@@ -484,6 +506,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
       dateAddedUtcMs: Value(dateAddedUtcMs),
       isMissing: Value(isMissing),
       lyricOffsetMs: Value(lyricOffsetMs),
+      hasNoCover: Value(hasNoCover),
     );
   }
 
@@ -514,6 +537,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
       dateAddedUtcMs: serializer.fromJson<int>(json['dateAddedUtcMs']),
       isMissing: serializer.fromJson<bool>(json['isMissing']),
       lyricOffsetMs: serializer.fromJson<int>(json['lyricOffsetMs']),
+      hasNoCover: serializer.fromJson<bool>(json['hasNoCover']),
     );
   }
   @override
@@ -541,6 +565,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
       'dateAddedUtcMs': serializer.toJson<int>(dateAddedUtcMs),
       'isMissing': serializer.toJson<bool>(isMissing),
       'lyricOffsetMs': serializer.toJson<int>(lyricOffsetMs),
+      'hasNoCover': serializer.toJson<bool>(hasNoCover),
     };
   }
 
@@ -565,7 +590,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           Value<double?> replayGainAlbumDb = const Value.absent(),
           int? dateAddedUtcMs,
           bool? isMissing,
-          int? lyricOffsetMs}) =>
+          int? lyricOffsetMs,
+          bool? hasNoCover}) =>
       SongRow(
         id: id ?? this.id,
         title: title ?? this.title,
@@ -594,6 +620,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
         dateAddedUtcMs: dateAddedUtcMs ?? this.dateAddedUtcMs,
         isMissing: isMissing ?? this.isMissing,
         lyricOffsetMs: lyricOffsetMs ?? this.lyricOffsetMs,
+        hasNoCover: hasNoCover ?? this.hasNoCover,
       );
   SongRow copyWithCompanion(SongsCompanion data) {
     return SongRow(
@@ -642,6 +669,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
       lyricOffsetMs: data.lyricOffsetMs.present
           ? data.lyricOffsetMs.value
           : this.lyricOffsetMs,
+      hasNoCover:
+          data.hasNoCover.present ? data.hasNoCover.value : this.hasNoCover,
     );
   }
 
@@ -668,7 +697,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           ..write('replayGainAlbumDb: $replayGainAlbumDb, ')
           ..write('dateAddedUtcMs: $dateAddedUtcMs, ')
           ..write('isMissing: $isMissing, ')
-          ..write('lyricOffsetMs: $lyricOffsetMs')
+          ..write('lyricOffsetMs: $lyricOffsetMs, ')
+          ..write('hasNoCover: $hasNoCover')
           ..write(')'))
         .toString();
   }
@@ -695,7 +725,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
         replayGainAlbumDb,
         dateAddedUtcMs,
         isMissing,
-        lyricOffsetMs
+        lyricOffsetMs,
+        hasNoCover
       ]);
   @override
   bool operator ==(Object other) =>
@@ -721,7 +752,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           other.replayGainAlbumDb == this.replayGainAlbumDb &&
           other.dateAddedUtcMs == this.dateAddedUtcMs &&
           other.isMissing == this.isMissing &&
-          other.lyricOffsetMs == this.lyricOffsetMs);
+          other.lyricOffsetMs == this.lyricOffsetMs &&
+          other.hasNoCover == this.hasNoCover);
 }
 
 class SongsCompanion extends UpdateCompanion<SongRow> {
@@ -746,6 +778,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
   final Value<int> dateAddedUtcMs;
   final Value<bool> isMissing;
   final Value<int> lyricOffsetMs;
+  final Value<bool> hasNoCover;
   final Value<int> rowid;
   const SongsCompanion({
     this.id = const Value.absent(),
@@ -769,6 +802,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     this.dateAddedUtcMs = const Value.absent(),
     this.isMissing = const Value.absent(),
     this.lyricOffsetMs = const Value.absent(),
+    this.hasNoCover = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SongsCompanion.insert({
@@ -793,6 +827,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     required int dateAddedUtcMs,
     this.isMissing = const Value.absent(),
     this.lyricOffsetMs = const Value.absent(),
+    this.hasNoCover = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         title = Value(title),
@@ -825,6 +860,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     Expression<int>? dateAddedUtcMs,
     Expression<bool>? isMissing,
     Expression<int>? lyricOffsetMs,
+    Expression<bool>? hasNoCover,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -849,6 +885,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
       if (dateAddedUtcMs != null) 'date_added_utc_ms': dateAddedUtcMs,
       if (isMissing != null) 'is_missing': isMissing,
       if (lyricOffsetMs != null) 'lyric_offset_ms': lyricOffsetMs,
+      if (hasNoCover != null) 'has_no_cover': hasNoCover,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -875,6 +912,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
       Value<int>? dateAddedUtcMs,
       Value<bool>? isMissing,
       Value<int>? lyricOffsetMs,
+      Value<bool>? hasNoCover,
       Value<int>? rowid}) {
     return SongsCompanion(
       id: id ?? this.id,
@@ -898,6 +936,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
       dateAddedUtcMs: dateAddedUtcMs ?? this.dateAddedUtcMs,
       isMissing: isMissing ?? this.isMissing,
       lyricOffsetMs: lyricOffsetMs ?? this.lyricOffsetMs,
+      hasNoCover: hasNoCover ?? this.hasNoCover,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -970,6 +1009,9 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     if (lyricOffsetMs.present) {
       map['lyric_offset_ms'] = Variable<int>(lyricOffsetMs.value);
     }
+    if (hasNoCover.present) {
+      map['has_no_cover'] = Variable<bool>(hasNoCover.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1000,6 +1042,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
           ..write('dateAddedUtcMs: $dateAddedUtcMs, ')
           ..write('isMissing: $isMissing, ')
           ..write('lyricOffsetMs: $lyricOffsetMs, ')
+          ..write('hasNoCover: $hasNoCover, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4227,6 +4270,7 @@ typedef $$SongsTableCreateCompanionBuilder = SongsCompanion Function({
   required int dateAddedUtcMs,
   Value<bool> isMissing,
   Value<int> lyricOffsetMs,
+  Value<bool> hasNoCover,
   Value<int> rowid,
 });
 typedef $$SongsTableUpdateCompanionBuilder = SongsCompanion Function({
@@ -4251,6 +4295,7 @@ typedef $$SongsTableUpdateCompanionBuilder = SongsCompanion Function({
   Value<int> dateAddedUtcMs,
   Value<bool> isMissing,
   Value<int> lyricOffsetMs,
+  Value<bool> hasNoCover,
   Value<int> rowid,
 });
 
@@ -4382,6 +4427,9 @@ class $$SongsTableFilterComposer extends Composer<_$AppDatabase, $SongsTable> {
 
   ColumnFilters<int> get lyricOffsetMs => $composableBuilder(
       column: $table.lyricOffsetMs, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get hasNoCover => $composableBuilder(
+      column: $table.hasNoCover, builder: (column) => ColumnFilters(column));
 
   Expression<bool> queueSongsRefs(
       Expression<bool> Function($$QueueSongsTableFilterComposer f) f) {
@@ -4528,6 +4576,9 @@ class $$SongsTableOrderingComposer
   ColumnOrderings<int> get lyricOffsetMs => $composableBuilder(
       column: $table.lyricOffsetMs,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get hasNoCover => $composableBuilder(
+      column: $table.hasNoCover, builder: (column) => ColumnOrderings(column));
 }
 
 class $$SongsTableAnnotationComposer
@@ -4602,6 +4653,9 @@ class $$SongsTableAnnotationComposer
 
   GeneratedColumn<int> get lyricOffsetMs => $composableBuilder(
       column: $table.lyricOffsetMs, builder: (column) => column);
+
+  GeneratedColumn<bool> get hasNoCover => $composableBuilder(
+      column: $table.hasNoCover, builder: (column) => column);
 
   Expression<T> queueSongsRefs<T extends Object>(
       Expression<T> Function($$QueueSongsTableAnnotationComposer a) f) {
@@ -4714,6 +4768,7 @@ class $$SongsTableTableManager extends RootTableManager<
             Value<int> dateAddedUtcMs = const Value.absent(),
             Value<bool> isMissing = const Value.absent(),
             Value<int> lyricOffsetMs = const Value.absent(),
+            Value<bool> hasNoCover = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SongsCompanion(
@@ -4738,6 +4793,7 @@ class $$SongsTableTableManager extends RootTableManager<
             dateAddedUtcMs: dateAddedUtcMs,
             isMissing: isMissing,
             lyricOffsetMs: lyricOffsetMs,
+            hasNoCover: hasNoCover,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -4762,6 +4818,7 @@ class $$SongsTableTableManager extends RootTableManager<
             required int dateAddedUtcMs,
             Value<bool> isMissing = const Value.absent(),
             Value<int> lyricOffsetMs = const Value.absent(),
+            Value<bool> hasNoCover = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SongsCompanion.insert(
@@ -4786,6 +4843,7 @@ class $$SongsTableTableManager extends RootTableManager<
             dateAddedUtcMs: dateAddedUtcMs,
             isMissing: isMissing,
             lyricOffsetMs: lyricOffsetMs,
+            hasNoCover: hasNoCover,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0
