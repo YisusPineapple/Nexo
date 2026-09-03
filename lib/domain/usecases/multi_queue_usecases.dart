@@ -13,6 +13,8 @@ final class OpenQueueUseCase {
   final AudioPlayerRepository _audioRepo;
 
   Future<Result<void, Failure>> call(OpenQueueParams params) async {
+    var queueToOpen = params.queue;
+
     if (params.asNewTab) {
       final queuesResult = await _playbackRepo.getAllQueues();
       if (queuesResult.isErr) {
@@ -21,31 +23,37 @@ final class OpenQueueUseCase {
       }
 
       final existingQueues = queuesResult.valueOrNull!;
-      final isExisting = existingQueues.any((q) => q.id == params.queue.id);
+      final isExisting = existingQueues.any((q) => q.id == queueToOpen.id);
 
       if (!isExisting && existingQueues.length >= maxConcurrentQueues) {
         return const Err(ValidationFailure(
             'Maximum concurrent queues limit reached (5). Please close one first.'));
       }
+    } else {
+      final lastSessionResult = await _playbackRepo.getLastSession();
+      final activeQueueId = lastSessionResult.valueOrNull?.activeQueueId;
+      if (activeQueueId != null) {
+        queueToOpen = queueToOpen.withId(activeQueueId);
+      }
     }
 
-    final saveResult = await _playbackRepo.saveQueue(params.queue);
+    final saveResult = await _playbackRepo.saveQueue(queueToOpen);
     if (saveResult.isErr) {
       return saveResult;
     }
 
     final sessionResult = await _playbackRepo.saveActiveSession((
-      activeQueueId: params.queue.id,
-      position: params.queue.position,
+      activeQueueId: queueToOpen.id,
+      position: queueToOpen.position,
     ));
     if (sessionResult.isErr) {
       return sessionResult;
     }
 
     return _audioRepo.updateQueue(
-      params.queue.songs,
-      currentIndex: params.queue.currentIndex,
-      repeatMode: params.queue.repeatMode,
+      queueToOpen.songs,
+      currentIndex: queueToOpen.currentIndex,
+      repeatMode: queueToOpen.repeatMode,
     );
   }
 }
@@ -71,8 +79,6 @@ final class SwitchQueueUseCase {
         return syncResult.asyncAndThen((_) async {
           final song = queue.currentSong;
           if (song != null) {
-            // FIX: Do not call load() again. syncQueue already loaded the song at 0:00.
-            // Just seek to the saved position and ensure it is paused.
             await _audioRepo.seekTo(queue.position);
             await _audioRepo.pause();
             return Ok(queue);

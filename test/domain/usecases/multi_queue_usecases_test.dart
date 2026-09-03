@@ -61,6 +61,44 @@ void main() {
       expect(result.when(ok: (_) => null, err: (e) => e),
           isA<ValidationFailure>());
     });
+
+    test(
+        'a normal (non-new-tab) open overwrites the active queue slot '
+        'instead of creating a new one', () async {
+      final playbackRepo =
+          FakePlaybackRepository(initialQueues: [_queue('album_42')]);
+      await playbackRepo.saveActiveSession(
+        (activeQueueId: const QueueId('album_42'), position: Duration.zero),
+      );
+      final audioRepo = FakeAudioPlayerRepository();
+      final useCase = OpenQueueUseCase(playbackRepo, audioRepo);
+
+      final result =
+          await useCase.call((queue: _queue('genre_rock'), asNewTab: false));
+
+      expect(result.isOk, isTrue);
+
+      final overwritten =
+          await playbackRepo.getQueue(const QueueId('album_42'));
+      expect(overwritten.isOk, isTrue);
+
+      final all = await playbackRepo.getAllQueues();
+      expect(all.valueOrNull?.length, 1);
+    });
+
+    test('with no prior session, a normal open uses the given queue id',
+        () async {
+      final playbackRepo = FakePlaybackRepository();
+      final audioRepo = FakeAudioPlayerRepository();
+      final useCase = OpenQueueUseCase(playbackRepo, audioRepo);
+
+      final result =
+          await useCase.call((queue: _queue('library_songs'), asNewTab: false));
+
+      expect(result.isOk, isTrue);
+      final saved = await playbackRepo.getQueue(const QueueId('library_songs'));
+      expect(saved.isOk, isTrue);
+    });
   });
 
   group('SwitchQueueUseCase', () {
@@ -74,8 +112,6 @@ void main() {
 
       expect(result.isOk, isTrue);
 
-      // We verify that the queue was synced and seeked to the correct position,
-      // since the redundant load() call was removed for performance.
       expect(audioRepo.syncedQueue?.first.id.value, 'a');
       expect(audioRepo.seekedTo, const Duration(seconds: 10));
       expect(audioRepo.isPaused, isTrue);
@@ -99,7 +135,7 @@ void main() {
       ));
 
       expect(result.isOk, isTrue);
-      expect(result.valueOrNull?.id, const QueueId('q1')); // Switched to q1
+      expect(result.valueOrNull?.id, const QueueId('q1'));
 
       final deleted = await playbackRepo.getQueue(const QueueId('q2'));
       expect(deleted.isErr, isTrue);
@@ -118,10 +154,10 @@ void main() {
 
       expect(result.isOk, isTrue);
       expect(result.valueOrNull, isNull);
-      expect(audioRepo.loadedSong, isNull); // Player stopped
+      expect(audioRepo.loadedSong, isNull);
 
       final session = await playbackRepo.getLastSession();
-      expect(session.valueOrNull, isNull); // Session cleared
+      expect(session.valueOrNull, isNull);
     });
   });
 }

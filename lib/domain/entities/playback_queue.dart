@@ -69,6 +69,23 @@ final class PlaybackQueue {
     ));
   }
 
+  PlaybackQueue withId(QueueId newId) {
+    if (newId == id) {
+      return this;
+    }
+    return PlaybackQueue._(
+      id: newId,
+      songs: songs,
+      currentIndex: currentIndex,
+      repeatMode: repeatMode,
+      source: source,
+      shuffleEnabled: shuffleEnabled,
+      preShuffleOrder: preShuffleOrder,
+      preShuffleCurrentIndex: preShuffleCurrentIndex,
+      position: position,
+    );
+  }
+
   Result<PlaybackQueue, Failure> withPosition(Duration newPosition) {
     if (newPosition.isNegative) {
       return Err(ValidationFailure(
