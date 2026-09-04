@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:nexo/core/error/failures.dart';
 import 'package:nexo/core/utils/result.dart';
 import 'package:nexo/domain/entities/song.dart';
@@ -13,6 +15,12 @@ class FakeSongRepository implements SongRepository {
   final List<Song> _songs;
   bool failIndexing = false;
   int indexDirectoriesCallCount = 0;
+
+  final StreamController<void> _coversUpdatedController =
+      StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get coversUpdatedStream => _coversUpdatedController.stream;
 
   @override
   Future<Result<void, Failure>> indexDirectories(
@@ -44,7 +52,9 @@ class FakeSongRepository implements SongRepository {
   @override
   Future<Result<Song, Failure>> getSongById(SongId id) async {
     for (final song in _songs) {
-      if (song.id == id) return Ok(song);
+      if (song.id == id) {
+        return Ok(song);
+      }
     }
     return Err(NotFoundFailure('No song found with id "${id.value}".'));
   }
@@ -79,7 +89,8 @@ class FakeSongRepository implements SongRepository {
   }
 
   @override
-  Future<Result<void, Failure>> updateLyricOffset(SongId id, int offsetMs) async {
+  Future<Result<void, Failure>> updateLyricOffset(
+      SongId id, int offsetMs) async {
     final index = _songs.indexWhere((s) => s.id == id);
     if (index != -1) {
       _songs[index] = _songs[index].copyWith(lyricOffsetMs: offsetMs);

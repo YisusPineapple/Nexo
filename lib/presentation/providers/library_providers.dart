@@ -49,6 +49,13 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(songSearchQueryProvider);
   final sortConfig = ref.watch(songSortProvider);
 
+  // Listen to background cover extraction updates to refresh the lists automatically
+  ref.listen(
+    StreamProvider(
+        (ref) => ref.watch(songRepositoryProvider).coversUpdatedStream),
+    (_, __) => ref.invalidateSelf(),
+  );
+
   final result = query.isEmpty
       ? await ref.watch(_getAllSongsUseCaseProvider).call(const NoParams())
       : await ref.watch(_searchSongsUseCaseProvider).call(query);
@@ -56,7 +63,8 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   return result.when(
     ok: (songs) {
       final sorted = List<Song>.of(songs)
-        ..sort((a, b) => compareSongs(a, b, sortConfig.option, sortConfig.isAscending));
+        ..sort((a, b) =>
+            compareSongs(a, b, sortConfig.option, sortConfig.isAscending));
       return sorted;
     },
     err: (failure) => throw failure,
@@ -65,8 +73,10 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
 
 final globalSearchResultsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(globalSearchQueryProvider);
-  if (query.isEmpty) return [];
-  
+  if (query.isEmpty) {
+    return [];
+  }
+
   final result = await ref.watch(_searchSongsUseCaseProvider).call(query);
   return result.when(
     ok: (songs) => songs,

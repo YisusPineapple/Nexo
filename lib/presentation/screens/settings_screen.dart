@@ -253,6 +253,9 @@ class SettingsScreen extends ConsumerWidget {
     final versionAsync = ref.watch(appVersionProvider);
     final theme = Theme.of(context);
 
+    final isEco = prefs.performanceProfile == PerformanceProfile.eco;
+    final maxCrossfadeSeconds = isEco ? 4.0 : 12.0;
+
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
       appBar: AppBar(
@@ -269,6 +272,10 @@ class SettingsScreen extends ConsumerWidget {
           if (effectiveMode == CrossfadeMode.autoMix) {
             effectiveMode = CrossfadeMode.intelligent;
           }
+
+          final currentDurationSec = settings.crossfade.duration.inSeconds
+              .toDouble()
+              .clamp(0.0, maxCrossfadeSeconds);
 
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -323,14 +330,13 @@ class SettingsScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                              'Crossfade Duration: ${settings.crossfade.duration.inSeconds}s'),
+                              'Crossfade Duration: ${currentDurationSec.toInt()}s ${isEco ? '(Eco Limit: 4s)' : ''}'),
                           Slider(
-                            value: settings.crossfade.duration.inSeconds
-                                .toDouble(),
+                            value: currentDurationSec,
                             min: 0,
-                            max: 12,
-                            divisions: 12,
-                            label: '${settings.crossfade.duration.inSeconds}s',
+                            max: maxCrossfadeSeconds,
+                            divisions: maxCrossfadeSeconds.toInt(),
+                            label: '${currentDurationSec.toInt()}s',
                             onChanged: (val) => unawaited(
                                 controller.updateCrossfade(CrossfadeMode.fixed,
                                     Duration(seconds: val.toInt()),
@@ -341,11 +347,13 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ],
                   if (effectiveMode == CrossfadeMode.intelligent) ...[
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(56, 0, 16, 16),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(56, 0, 16, 16),
                       child: Text(
-                          'The system will automatically choose the optimal duration based on silence.',
-                          style: TextStyle(
+                          isEco
+                              ? 'The system automatically calculates the optimal duration based on silence (capped at 4s in Eco mode).'
+                              : 'The system will automatically choose the optimal duration based on silence.',
+                          style: const TextStyle(
                               fontSize: 12, fontStyle: FontStyle.italic)),
                     ),
                   ],

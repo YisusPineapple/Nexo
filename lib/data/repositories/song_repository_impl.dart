@@ -80,7 +80,7 @@ Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
           format,
           metadataReader: metadataReader,
           coverArtCacheDirectory: args.coverArtCacheDirectory,
-          extractCover: false, // PHASE 1: Fast scan without image decoding
+          extractCover: false,
         );
       } catch (_) {}
       args.sendPort.send(_IndexingProgress(i + 1, total, song));
@@ -224,6 +224,12 @@ class SongRepositoryImpl implements SongRepository {
   bool _isScanning = false;
   bool _isExtractingCovers = false;
 
+  final StreamController<void> _coversUpdatedController =
+      StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get coversUpdatedStream => _coversUpdatedController.stream;
+
   @override
   Future<Result<void, Failure>> indexDirectories(
     List<String> directoryPaths, {
@@ -338,9 +344,6 @@ class SongRepositoryImpl implements SongRepository {
     } catch (e) {
       _isScanning = false;
       return Err(UnexpectedFailure('Failed to index directories.', cause: e));
-    } finally {
-      // We don't close receivePort here because it might still be receiving messages
-      // It will be closed by garbage collection or when the isolate dies.
     }
   }
 
@@ -359,6 +362,7 @@ class SongRepositoryImpl implements SongRepository {
 
     _isExtractingCovers = true;
     final receivePort = ReceivePort();
+    var updateBatchCount = 0;
 
     try {
       await Isolate.spawn(
@@ -383,8 +387,16 @@ class SongRepositoryImpl implements SongRepository {
               hasNoCover: Value(path == null),
             ),
           );
+
+          updateBatchCount++;
+          // Notify UI every 15 covers extracted so images pop in smoothly
+          if (updateBatchCount >= 15) {
+            updateBatchCount = 0;
+            _coversUpdatedController.add(null);
+          }
         } else if (message == 'DONE') {
           _isExtractingCovers = false;
+          _coversUpdatedController.add(null);
           receivePort.close();
         }
       });

@@ -106,7 +106,6 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
       },
     );
 
-    // Sync performance profile to audio engine
     ref.listen(
       appPreferencesProvider.select((prefs) => prefs.performanceProfile),
       (prev, next) {
@@ -204,8 +203,14 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
       return result.when(ok: (_) => null, err: (e) => e.message);
     }
 
+    // FIX: Read effective queue ID from active session to handle overwrite properly
+    final sessionResult =
+        await ref.read(playbackRepositoryProvider).getLastSession();
+    final effectiveQueueId =
+        sessionResult.valueOrNull?.activeQueueId ?? queueId;
+
     ref.invalidate(queueManagerControllerProvider);
-    await playQueue(queueId);
+    await playQueue(effectiveQueueId);
     return null;
   }
 

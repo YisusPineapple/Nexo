@@ -18,9 +18,9 @@ class MainActivity : AudioServiceActivity() {
     companion object {
         private const val DIAGNOSTICS_CHANNEL =
             "io.github.yisus.nexo/notification_diagnostics"
-        // FIX: Bumped to v7 for the ultimate clean slate
+        // FIX: Bumped to v8 for silent playback channel (no sound, no vibration on updates)
         private const val AUDIO_CHANNEL_ID =
-            "io.github.yisus.nexo.channel.audio.v7"
+            "io.github.yisus.nexo.channel.audio.v8"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,13 +32,14 @@ class MainActivity : AudioServiceActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = "Nexo Music Playback"
             val descriptionText = "Media playback controls"
-            // CRITICAL: audio_service hardcodes IMPORTANCE_LOW.
-            // HiOS hides LOW importance notifications. We MUST create it manually with DEFAULT.
             val importance = NotificationManager.IMPORTANCE_DEFAULT
             val channel = NotificationChannel(AUDIO_CHANNEL_ID, name, importance).apply {
                 description = descriptionText
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setSound(null, null)
+                enableVibration(false)
+                vibrationPattern = longArrayOf(0)
             }
             val notificationManager: NotificationManager =
                 getSystemService(NOTIFICATION_SERVICE) as NotificationManager

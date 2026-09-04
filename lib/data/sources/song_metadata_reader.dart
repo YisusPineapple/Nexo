@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as reader;
@@ -38,6 +39,33 @@ class ExtractedMetadata {
 class SongMetadataReader {
   const SongMetadataReader();
 
+  String? _sanitize(String? input) {
+    if (input == null || input.trim().isEmpty) {
+      return null;
+    }
+    // Encode to UTF-8 (which replaces unpaired surrogates with U+FFFD) and decode back safely
+    final cleaned =
+        utf8.decode(utf8.encode(input), allowMalformed: true).trim();
+    if (cleaned.isEmpty) {
+      return null;
+    }
+    return cleaned;
+  }
+
+  List<String> _sanitizeGenres(List<String>? genres) {
+    if (genres == null || genres.isEmpty) {
+      return const [];
+    }
+    final result = <String>[];
+    for (final g in genres) {
+      final cleaned = _sanitize(g);
+      if (cleaned != null) {
+        result.add(cleaned);
+      }
+    }
+    return result;
+  }
+
   Future<ExtractedMetadata> read(File file, {bool extractCover = true}) async {
     final metadata = reader.readMetadata(file, getImage: extractCover);
 
@@ -73,14 +101,14 @@ class SongMetadataReader {
     }
 
     return ExtractedMetadata(
-      title: metadata.title,
-      artist: metadata.artist,
+      title: _sanitize(metadata.title),
+      artist: _sanitize(metadata.artist),
       albumArtist: null,
-      album: metadata.album,
+      album: _sanitize(metadata.album),
       trackNumber: metadata.trackNumber,
       discNumber: metadata.discNumber,
       duration: metadata.duration ?? Duration.zero,
-      genres: metadata.genres,
+      genres: _sanitizeGenres(metadata.genres),
       year: metadata.year?.year,
       coverArtBytes: coverBytes,
       replayGainTrackDb: trackGain,
@@ -106,7 +134,6 @@ class SongMetadataReader {
       final decoded = img.decodeImage(coverBytes);
       if (decoded != null) {
         img.Image processed = decoded;
-        // Resize to 500px max to save space and processing time
         if (decoded.width > 500 || decoded.height > 500) {
           processed = img.copyResize(
             decoded,
@@ -115,7 +142,6 @@ class SongMetadataReader {
             interpolation: img.Interpolation.average,
           );
         }
-        // Quality 75 is visually identical for small covers but saves ~30% size
         final compressed = img.encodeJpg(processed, quality: 75);
         await file.writeAsBytes(compressed);
         return outPath;
