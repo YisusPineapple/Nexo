@@ -224,6 +224,12 @@ class SongRepositoryImpl implements SongRepository {
   bool _isScanning = false;
   bool _isExtractingCovers = false;
 
+  /// Safety cap on FTS5 results. Full result pagination through the
+  /// Presentation layer is Sprint 6 Task 2 — this constant only
+  /// prevents a pathological query (e.g. a single common letter) from
+  /// materializing thousands of rows in one shot in the meantime.
+  static const int _maxSearchResults = 500;
+
   final StreamController<void> _coversUpdatedController =
       StreamController<void>.broadcast();
 
@@ -441,12 +447,20 @@ class SongRepositoryImpl implements SongRepository {
 
   @override
   Future<Result<List<Song>, Failure>> getSongsByFolder(
-          String folderPath) async =>
-      _mapRows(
-        (await _db.select(_db.songs).get())
-            .where((row) => row.filePath.startsWith(folderPath))
-            .toList(),
-      );
+    String folderPath,
+  ) async {
+    final likePattern = '${_escapeLikePattern(folderPath)}%';
+    final rows = await _db
+        .customSelect(
+          "SELECT * FROM songs WHERE file_path LIKE ? ESCAPE '\\' "
+          'ORDER BY file_path',
+          variables: [Variable.withString(likePattern)],
+          readsFrom: {_db.songs},
+        )
+        .map((row) => _db.songs.map(row.data))
+        .get();
+    return _mapRows(rows);
+  }
 
   @override
   Future<Result<List<Song>, Failure>> searchSongs(String query) async {
@@ -458,14 +472,27 @@ class SongRepositoryImpl implements SongRepository {
 
     if (terms.isEmpty) return const Ok([]);
 
-    return _mapRows(
-      (await _db.select(_db.songs).get()).where((row) {
-        final searchableString =
-            '${row.title} ${row.trackArtistId} ${row.albumId ?? ''}'
-                .toLowerCase();
-        return terms.every((term) => searchableString.contains(term));
-      }).toList(),
-    );
+    // FIX: Removed the 'f' alias from the MATCH operator to ensure compatibility
+    // across all SQLite FTS5 versions.
+    final ftsQuery = terms.map((t) => '"${_escapeFts5Term(t)}"*').join(' ');
+
+    final rows = await _db
+        .customSelect(
+          'SELECT s.* FROM songs s '
+          'JOIN songs_fts ON songs_fts.rowid = s.rowid '
+          'WHERE songs_fts MATCH ? '
+          'ORDER BY rank '
+          'LIMIT ?',
+          variables: [
+            Variable.withString(ftsQuery),
+            Variable.withInt(_maxSearchResults),
+          ],
+          readsFrom: {_db.songs},
+        )
+        .map((row) => _db.songs.map(row.data))
+        .get();
+
+    return _mapRows(rows);
   }
 
   @override
@@ -482,6 +509,19 @@ class SongRepositoryImpl implements SongRepository {
         UnexpectedFailure('Failed to update lyric offset.', cause: e),
       );
     }
+  }
+
+  /// Escapes a token for safe use inside a double-quoted FTS5 string
+  /// literal (doubling embedded `"` characters, per FTS5 syntax).
+  String _escapeFts5Term(String term) => term.replaceAll('"', '""');
+
+  /// Escapes `\`, `%` and `_` so a folder path can be used as a LIKE
+  /// prefix pattern without its own characters being read as wildcards.
+  String _escapeLikePattern(String input) {
+    return input
+        .replaceAll('\\', '\\\\')
+        .replaceAll('%', '\\%')
+        .replaceAll('_', '\\_');
   }
 
   Result<List<Song>, Failure> _mapRows(List<SongRow> rows) {

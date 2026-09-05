@@ -17,13 +17,20 @@ void main() {
   late AppDatabase db;
   late SongRepositoryImpl repo;
 
-  setUp(() {
-    db = AppDatabase(NativeDatabase.memory());
+  setUp(() async {
+    // FTS5 requires a specific setup in memory databases
+    db = AppDatabase(NativeDatabase.memory(setup: (db) {
+      db.execute('PRAGMA journal_mode=WAL;');
+    }));
+
     repo = SongRepositoryImpl(
       db,
       coverArtCacheDirectory: '/tmp/nexo_covers',
       libraryFolderRepository: FakeLibraryFolderRepository(),
     );
+
+    // Ensure the database and FTS5 triggers are fully created before testing
+    await db.customSelect('SELECT 1').get();
   });
 
   tearDown(() async {
@@ -35,6 +42,7 @@ void main() {
     required String artist,
     String? albumId,
     String title = 'Song',
+    String path = '/music/song.mp3',
   }) async {
     await db.into(db.songs).insert(const SongMapper().toCompanion(
           (Song.create(
@@ -43,7 +51,7 @@ void main() {
             trackArtistId: ArtistId(artist),
             albumId: albumId == null ? null : AlbumId(albumId),
             duration: const Duration(minutes: 3),
-            filePath: '/music/$id.mp3',
+            filePath: path,
             format: AudioFormat.mp3,
             fileSizeBytes: 1000,
             dateAddedUtc: DateTime.utc(2026, 1, 1),
@@ -73,24 +81,31 @@ void main() {
       expect(result.valueOrNull?.map((s) => s.id.value), ['s1']);
     });
 
-    test('searchSongs matches title case-insensitively', () async {
+    test('searchSongs matches title case-insensitively using FTS5', () async {
       await seedSong(id: 's1', artist: 'artist-1', title: 'Purple Rain');
       final result = await repo.searchSongs('purple');
       expect(result.valueOrNull?.length, 1);
     });
 
-    test('searchSongs also matches by artist', () async {
-      await seedSong(id: 's1', artist: 'the-unique-artist');
-      await seedSong(id: 's2', artist: 'someone-else');
-      final result = await repo.searchSongs('unique-artist');
+    test('searchSongs also matches by artist using FTS5', () async {
+      await seedSong(id: 's1', artist: 'unique artist');
+      await seedSong(id: 's2', artist: 'someone else');
+      final result = await repo.searchSongs('unique');
       expect(result.valueOrNull?.map((s) => s.id.value), ['s1']);
     });
 
-    test('searchSongs also matches by album', () async {
+    test('searchSongs also matches by album using FTS5', () async {
       await seedSong(id: 's1', artist: 'artist-1', albumId: 'Purple Album');
       await seedSong(id: 's2', artist: 'artist-1', albumId: 'Yellow Album');
       final result = await repo.searchSongs('purple album');
       expect(result.valueOrNull?.map((s) => s.id.value), ['s1']);
+    });
+
+    test('getSongsByFolder filters by path prefix using SQL LIKE', () async {
+      await seedSong(id: 'a', artist: 'art', path: '/music/jazz/a.mp3');
+      await seedSong(id: 'b', artist: 'art', path: '/music/rock/b.mp3');
+      final result = await repo.getSongsByFolder('/music/jazz');
+      expect(result.valueOrNull?.map((s) => s.id.value), ['a']);
     });
 
     test('getAllSongs returns every seeded song', () async {

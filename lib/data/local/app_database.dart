@@ -32,7 +32,16 @@ import 'tables/excluded_folders_table.dart';
 part 'app_database.g.dart';
 
 QueryExecutor openConnection(File file) {
-  return NativeDatabase.createInBackground(file);
+  return NativeDatabase.createInBackground(
+    file,
+    setup: (db) {
+      // WAL lets the background cover-extraction isolate write while
+      // the UI isolate keeps reading the library — no reader/writer
+      // lock contention on the Helio G85 / Pentium E5800 targets.
+      db.execute('PRAGMA journal_mode=WAL;');
+      db.execute('PRAGMA synchronous=NORMAL;');
+    },
+  );
 }
 
 @DriftDatabase(
@@ -55,12 +64,13 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await m.createAll();
+          await _createSearchSchema();
           await into(appPreferencesTable).insert(
             AppPreferencesTableCompanion.insert(
               id: const Value(0),
@@ -127,6 +137,82 @@ class AppDatabase extends _$AppDatabase {
           if (from < 11) {
             await m.addColumn(songs, songs.hasNoCover);
           }
+          if (from < 12) {
+            await _createSearchSchema();
+            await _backfillFtsFromExistingSongs();
+          }
         },
       );
+
+  /// Creates the FTS5 virtual table used for instant search plus the
+  /// btree indices Sprint 6 needs to stop full-table scans on
+  /// [Songs.albumId] and [Songs.trackArtistId].
+  ///
+  /// `songs_fts` is an "external content" FTS5 table: it stores only
+  /// the search index, not a second copy of the text, keeping disk
+  /// usage close to zero extra overhead — important on the 4GB
+  /// Pentium E5800 target. Three triggers keep it in sync with
+  /// `songs` on insert/update/delete, including the upsert path used
+  /// by `insertAllOnConflictUpdate` during scanning (SQLite fires the
+  /// UPDATE trigger, not INSERT, for the conflicting rows in an
+  /// `ON CONFLICT DO UPDATE`).
+  ///
+  /// Raw SQL is used deliberately instead of a typed Drift table:
+  /// FTS5 virtual tables and triggers aren't representable through
+  /// drift_dev's table DSL, and raw `customStatement` calls behave
+  /// identically on `onCreate` and `onUpgrade`, so there is exactly
+  /// one code path to keep correct.
+  Future<void> _createSearchSchema() async {
+    await customStatement('''
+CREATE VIRTUAL TABLE IF NOT EXISTS songs_fts USING fts5(
+  title,
+  track_artist_id,
+  album_id,
+  content='songs',
+  content_rowid='rowid'
+);
+''');
+
+    await customStatement('''
+CREATE TRIGGER IF NOT EXISTS songs_fts_after_insert AFTER INSERT ON songs BEGIN
+  INSERT INTO songs_fts(rowid, title, track_artist_id, album_id)
+  VALUES (new.rowid, new.title, new.track_artist_id, new.album_id);
+END;
+''');
+
+    await customStatement('''
+CREATE TRIGGER IF NOT EXISTS songs_fts_after_delete AFTER DELETE ON songs BEGIN
+  INSERT INTO songs_fts(songs_fts, rowid, title, track_artist_id, album_id)
+  VALUES ('delete', old.rowid, old.title, old.track_artist_id, old.album_id);
+END;
+''');
+
+    await customStatement('''
+CREATE TRIGGER IF NOT EXISTS songs_fts_after_update AFTER UPDATE ON songs BEGIN
+  INSERT INTO songs_fts(songs_fts, rowid, title, track_artist_id, album_id)
+  VALUES ('delete', old.rowid, old.title, old.track_artist_id, old.album_id);
+  INSERT INTO songs_fts(rowid, title, track_artist_id, album_id)
+  VALUES (new.rowid, new.title, new.track_artist_id, new.album_id);
+END;
+''');
+
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_album_id ON songs (album_id);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_track_artist_id '
+      'ON songs (track_artist_id);',
+    );
+  }
+
+  /// One-time backfill for libraries that already had rows before
+  /// the FTS5 table existed. Triggers only cover future writes, so
+  /// upgrading users need this to make existing songs searchable
+  /// immediately instead of only after the next rescan.
+  Future<void> _backfillFtsFromExistingSongs() async {
+    await customStatement('''
+INSERT INTO songs_fts(rowid, title, track_artist_id, album_id)
+SELECT rowid, title, track_artist_id, album_id FROM songs;
+''');
+  }
 }
