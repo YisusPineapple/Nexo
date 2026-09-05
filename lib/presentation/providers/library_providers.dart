@@ -1,12 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/song.dart';
+import '../../domain/entities/song_sort_option.dart';
 import '../../domain/usecases/get_all_songs_usecase.dart';
 import '../../domain/usecases/index_directories_usecase.dart';
 import '../../domain/usecases/refresh_library_usecase.dart';
+import '../../domain/usecases/search_library_usecase.dart';
 import '../../domain/usecases/search_songs_usecase.dart';
 import '../../domain/usecases/use_case.dart';
-import '../utils/song_sort.dart';
 import 'repository_providers.dart';
 
 class SortConfig<T> {
@@ -36,6 +37,10 @@ final _searchSongsUseCaseProvider = Provider<SearchSongsUseCase>((ref) {
   return SearchSongsUseCase(ref.watch(songRepositoryProvider));
 });
 
+final _searchLibraryUseCaseProvider = Provider<SearchLibraryUseCase>((ref) {
+  return SearchLibraryUseCase(ref.watch(songRepositoryProvider));
+});
+
 final _indexDirectoriesUseCaseProvider =
     Provider<IndexDirectoriesUseCase>((ref) {
   return IndexDirectoriesUseCase(ref.watch(songRepositoryProvider));
@@ -49,7 +54,6 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(songSearchQueryProvider);
   final sortConfig = ref.watch(songSortProvider);
 
-  // Listen to background cover extraction updates to refresh the lists automatically
   ref.listen(
     StreamProvider(
         (ref) => ref.watch(songRepositoryProvider).coversUpdatedStream),
@@ -57,29 +61,37 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   );
 
   final result = query.isEmpty
-      ? await ref.watch(_getAllSongsUseCaseProvider).call(const NoParams())
-      : await ref.watch(_searchSongsUseCaseProvider).call(query);
+      ? await ref.watch(_getAllSongsUseCaseProvider).call((
+          sortOption: sortConfig.option,
+          isAscending: sortConfig.isAscending,
+        ))
+      : await ref.watch(_searchSongsUseCaseProvider).call((
+          query: query,
+          sortOption: sortConfig.option,
+          isAscending: sortConfig.isAscending,
+        ));
 
   return result.when(
-    ok: (songs) {
-      final sorted = List<Song>.of(songs)
-        ..sort((a, b) =>
-            compareSongs(a, b, sortConfig.option, sortConfig.isAscending));
-      return sorted;
-    },
+    ok: (songs) => songs,
     err: (failure) => throw failure,
   );
 });
 
-final globalSearchResultsProvider = FutureProvider<List<Song>>((ref) async {
+final globalSearchResultsProvider =
+    FutureProvider<SearchLibraryResult>((ref) async {
   final query = ref.watch(globalSearchQueryProvider);
   if (query.isEmpty) {
-    return [];
+    return const (
+      songs: <Song>[],
+      artists: <String>[],
+      albums: <String>[],
+    );
   }
 
-  final result = await ref.watch(_searchSongsUseCaseProvider).call(query);
+  final result = await ref.watch(_searchLibraryUseCaseProvider).call(query);
+
   return result.when(
-    ok: (songs) => songs,
+    ok: (data) => data,
     err: (failure) => throw failure,
   );
 });

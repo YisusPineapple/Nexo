@@ -13,7 +13,7 @@ class AlphabeticalScrollView extends StatefulWidget {
     this.version,
     this.railWidth = 32,
     this.topPadding = 8,
-    this.bottomPadding = 88, // Prevents overlapping with navigation & mini player
+    this.bottomPadding = 8,
   });
 
   final Widget child;
@@ -69,12 +69,10 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
     if (raw.isEmpty) return '#';
     final firstChar = raw.trim().characters.first.toUpperCase();
 
-    // Group all numbers under '#'
     if (RegExp(r'[0-9]').hasMatch(firstChar)) {
       return '#';
     }
 
-    // Latin A-Z normalization
     const withDia = 'ÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜÑ';
     const withoutDia = 'AAAAAAEEEEIIIIOOOOOUUUUN';
     final diaIndex = withDia.indexOf(firstChar);
@@ -82,12 +80,10 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
       return withoutDia[diaIndex];
     }
 
-    // Latin A-Z or Cyrillic letters
     if (RegExp(r'[A-ZА-Я]').hasMatch(firstChar)) {
       return firstChar;
     }
 
-    // Fallback for special symbols (¿, ¡, etc.)
     return '#';
   }
 
@@ -98,8 +94,7 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
       final key = _cleanSectionKey(raw);
       firstIndex.putIfAbsent(key, () => i);
     }
-    
-    // Natural order from the sorted collection
+
     final sections = firstIndex.keys.toList();
     return (sections, firstIndex);
   }
@@ -108,7 +103,7 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
     if (_sections.isEmpty || railHeight <= 0) return;
     final ratio = (localPosition.dy / railHeight).clamp(0.0, 0.999);
     final bucket = (ratio * _sections.length).floor();
-    if (bucket == _lastPointerBucket) return; 
+    if (bucket == _lastPointerBucket) return;
     _lastPointerBucket = bucket;
 
     final section = _sections[bucket];
@@ -117,7 +112,7 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
 
     final targetIndex = _firstIndexForSection[section]!;
     final rowIndex = targetIndex ~/ widget.crossAxisCount;
-    
+
     final maxExtent = widget.controller.hasClients
         ? widget.controller.position.maxScrollExtent
         : double.infinity;
@@ -136,63 +131,78 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
 
     return Stack(
       children: [
-        RepaintBoundary(child: widget.child),
-        if (_sections.length > 1)
-          Positioned(
-            right: 2,
-            top: widget.topPadding,
-            bottom: widget.bottomPadding,
-            width: widget.railWidth,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final railHeight = constraints.maxHeight;
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onVerticalDragStart: (d) =>
-                      _handlePointer(d.localPosition, railHeight),
-                  onVerticalDragUpdate: (d) =>
-                      _handlePointer(d.localPosition, railHeight),
-                  onVerticalDragEnd: (_) => _endDrag(),
-                  onVerticalDragCancel: _endDrag,
-                  onTapDown: (d) =>
-                      _handlePointer(d.localPosition, railHeight),
-                  onTapUp: (_) => _endDrag(),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: ValueListenableBuilder<String?>(
-                      valueListenable: _activeSection,
-                      builder: (context, active, _) {
-                        return Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            for (final section in _sections)
-                              Text(
-                                section,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  fontSize: _sections.length > 25 ? 8 : 10,
-                                  fontWeight: section == active
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                  color: section == active
-                                      ? theme.colorScheme.primary
-                                      : theme.colorScheme.onSurfaceVariant
-                                          .withValues(alpha: 0.8),
-                                ),
-                              ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                );
-              },
+        // FIX: Row layout prevents the rail from overlapping the content
+        Row(
+          children: [
+            Expanded(
+              child: RepaintBoundary(child: widget.child),
             ),
-          ),
-        
+            if (_sections.length > 1)
+              Padding(
+                padding: EdgeInsets.only(
+                  top: widget.topPadding,
+                  bottom: widget.bottomPadding,
+                  right: 2,
+                ),
+                child: SizedBox(
+                  width: widget.railWidth,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final railHeight = constraints.maxHeight;
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onVerticalDragStart: (d) =>
+                            _handlePointer(d.localPosition, railHeight),
+                        onVerticalDragUpdate: (d) =>
+                            _handlePointer(d.localPosition, railHeight),
+                        onVerticalDragEnd: (_) => _endDrag(),
+                        onVerticalDragCancel: _endDrag,
+                        onTapDown: (d) =>
+                            _handlePointer(d.localPosition, railHeight),
+                        onTapUp: (_) => _endDrag(),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surface
+                                .withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: ValueListenableBuilder<String?>(
+                            valueListenable: _activeSection,
+                            builder: (context, active, _) {
+                              return Column(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  for (final section in _sections)
+                                    Text(
+                                      section,
+                                      style:
+                                          theme.textTheme.labelSmall?.copyWith(
+                                        fontSize:
+                                            _sections.length > 25 ? 8 : 10,
+                                        fontWeight: section == active
+                                            ? FontWeight.bold
+                                            : FontWeight.w500,
+                                        color: section == active
+                                            ? theme.colorScheme.primary
+                                            : theme.colorScheme.onSurfaceVariant
+                                                .withValues(alpha: 0.8),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+          ],
+        ),
+
         // M3 Expressive / Soft UI Indicator Card
         IgnorePointer(
           child: Center(
@@ -214,7 +224,8 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
                         color: theme.colorScheme.primaryContainer,
                         borderRadius: BorderRadius.circular(28),
                         border: Border.all(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                          color:
+                              theme.colorScheme.primary.withValues(alpha: 0.3),
                           width: 2,
                         ),
                         boxShadow: [

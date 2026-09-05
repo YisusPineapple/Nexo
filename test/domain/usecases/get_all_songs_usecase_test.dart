@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexo/domain/entities/audio_format.dart';
 import 'package:nexo/domain/entities/song.dart';
+import 'package:nexo/domain/entities/song_sort_option.dart';
 import 'package:nexo/domain/usecases/get_all_songs_usecase.dart';
-import 'package:nexo/domain/usecases/use_case.dart';
 import 'package:nexo/domain/value_objects/artist_id.dart';
 import 'package:nexo/domain/value_objects/song_id.dart';
 
@@ -27,7 +27,10 @@ void main() {
       final repo = FakeSongRepository(initialSongs: [_song('a'), _song('b')]);
       final useCase = GetAllSongsUseCase(repo);
 
-      final result = await useCase.call(const NoParams());
+      final result = await useCase.call((
+        sortOption: SongSortOption.title,
+        isAscending: true,
+      ));
 
       expect(result.valueOrNull?.length, 2);
     });

@@ -8,6 +8,7 @@ import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
 import '../../domain/entities/audio_format.dart';
 import '../../domain/entities/song.dart';
+import '../../domain/entities/song_sort_option.dart';
 import '../../domain/repositories/library_folder_repository.dart';
 import '../../domain/repositories/song_repository.dart';
 import '../../domain/value_objects/album_id.dart';
@@ -224,10 +225,6 @@ class SongRepositoryImpl implements SongRepository {
   bool _isScanning = false;
   bool _isExtractingCovers = false;
 
-  /// Safety cap on FTS5 results. Full result pagination through the
-  /// Presentation layer is Sprint 6 Task 2 — this constant only
-  /// prevents a pathological query (e.g. a single common letter) from
-  /// materializing thousands of rows in one shot in the meantime.
   static const int _maxSearchResults = 500;
 
   final StreamController<void> _coversUpdatedController =
@@ -395,7 +392,6 @@ class SongRepositoryImpl implements SongRepository {
           );
 
           updateBatchCount++;
-          // Notify UI every 15 covers extracted so images pop in smoothly
           if (updateBatchCount >= 15) {
             updateBatchCount = 0;
             _coversUpdatedController.add(null);
@@ -414,8 +410,18 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   @override
-  Future<Result<List<Song>, Failure>> getAllSongs() async =>
-      _mapRows(await _db.select(_db.songs).get());
+  Future<Result<List<Song>, Failure>> getAllSongs({
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  }) async {
+    try {
+      final query = _db.select(_db.songs)
+        ..orderBy([_buildOrderClause(sortOption, isAscending)]);
+      return _mapRows(await query.get());
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to fetch all songs.', cause: e));
+    }
+  }
 
   @override
   Future<Result<Song, Failure>> getSongById(SongId id) async {
@@ -463,7 +469,11 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   @override
-  Future<Result<List<Song>, Failure>> searchSongs(String query) async {
+  Future<Result<List<Song>, Failure>> searchSongs(
+    String query, {
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  }) async {
     final terms = query
         .toLowerCase()
         .split(RegExp(r'\s+'))
@@ -472,27 +482,93 @@ class SongRepositoryImpl implements SongRepository {
 
     if (terms.isEmpty) return const Ok([]);
 
-    // FIX: Removed the 'f' alias from the MATCH operator to ensure compatibility
-    // across all SQLite FTS5 versions.
     final ftsQuery = terms.map((t) => '"${_escapeFts5Term(t)}"*').join(' ');
 
-    final rows = await _db
-        .customSelect(
-          'SELECT s.* FROM songs s '
-          'JOIN songs_fts ON songs_fts.rowid = s.rowid '
-          'WHERE songs_fts MATCH ? '
-          'ORDER BY rank '
-          'LIMIT ?',
-          variables: [
-            Variable.withString(ftsQuery),
-            Variable.withInt(_maxSearchResults),
-          ],
-          readsFrom: {_db.songs},
-        )
-        .map((row) => _db.songs.map(row.data))
-        .get();
+    final orderColumn = switch (sortOption) {
+      SongSortOption.title => 'LOWER(s.title)',
+      SongSortOption.artist => 'LOWER(s.track_artist_id)',
+      SongSortOption.album => 'LOWER(s.album_id)',
+      SongSortOption.year => 's.year',
+      SongSortOption.duration => 's.duration_ms',
+      SongSortOption.dateAdded => 's.date_added_utc_ms',
+    };
+    final orderDir = isAscending ? 'ASC' : 'DESC';
 
-    return _mapRows(rows);
+    try {
+      final rows = await _db
+          .customSelect(
+            'SELECT s.* FROM songs s '
+            'JOIN songs_fts ON songs_fts.rowid = s.rowid '
+            'WHERE songs_fts MATCH ? '
+            'ORDER BY $orderColumn $orderDir '
+            'LIMIT ?',
+            variables: [
+              Variable.withString(ftsQuery),
+              Variable.withInt(_maxSearchResults),
+            ],
+            readsFrom: {_db.songs},
+          )
+          .map((row) => _db.songs.map(row.data))
+          .get();
+
+      return _mapRows(rows);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to search songs.', cause: e));
+    }
+  }
+
+  @override
+  Future<Result<List<String>, Failure>> searchArtists(String query) async {
+    final terms = query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    if (terms.isEmpty) return const Ok([]);
+    final ftsQuery = terms.map((t) => '"${_escapeFts5Term(t)}"*').join(' ');
+
+    try {
+      final rows = await _db.customSelect(
+        'SELECT DISTINCT s.track_artist_id FROM songs s '
+        'JOIN songs_fts ON songs_fts.rowid = s.rowid '
+        'WHERE songs_fts MATCH ? '
+        'LIMIT 10',
+        variables: [Variable.withString(ftsQuery)],
+        readsFrom: {_db.songs},
+      ).get();
+
+      return Ok(rows.map((r) => r.read<String>('track_artist_id')).toList());
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to search artists.', cause: e));
+    }
+  }
+
+  @override
+  Future<Result<List<String>, Failure>> searchAlbums(String query) async {
+    final terms = query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    if (terms.isEmpty) return const Ok([]);
+    final ftsQuery = terms.map((t) => '"${_escapeFts5Term(t)}"*').join(' ');
+
+    try {
+      final rows = await _db.customSelect(
+        'SELECT DISTINCT s.album_id FROM songs s '
+        'JOIN songs_fts ON songs_fts.rowid = s.rowid '
+        'WHERE songs_fts MATCH ? AND s.album_id IS NOT NULL '
+        'LIMIT 10',
+        variables: [Variable.withString(ftsQuery)],
+        readsFrom: {_db.songs},
+      ).get();
+
+      return Ok(rows.map((r) => r.read<String>('album_id')).toList());
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to search albums.', cause: e));
+    }
   }
 
   @override
@@ -511,12 +587,29 @@ class SongRepositoryImpl implements SongRepository {
     }
   }
 
-  /// Escapes a token for safe use inside a double-quoted FTS5 string
-  /// literal (doubling embedded `"` characters, per FTS5 syntax).
+  OrderingTerm Function($SongsTable) _buildOrderClause(
+      SongSortOption option, bool isAscending) {
+    final mode = isAscending ? OrderingMode.asc : OrderingMode.desc;
+    return (t) {
+      switch (option) {
+        case SongSortOption.title:
+          return OrderingTerm(expression: t.title.lower(), mode: mode);
+        case SongSortOption.artist:
+          return OrderingTerm(expression: t.trackArtistId.lower(), mode: mode);
+        case SongSortOption.album:
+          return OrderingTerm(expression: t.albumId.lower(), mode: mode);
+        case SongSortOption.year:
+          return OrderingTerm(expression: t.year, mode: mode);
+        case SongSortOption.duration:
+          return OrderingTerm(expression: t.durationMs, mode: mode);
+        case SongSortOption.dateAdded:
+          return OrderingTerm(expression: t.dateAddedUtcMs, mode: mode);
+      }
+    };
+  }
+
   String _escapeFts5Term(String term) => term.replaceAll('"', '""');
 
-  /// Escapes `\`, `%` and `_` so a folder path can be used as a LIKE
-  /// prefix pattern without its own characters being read as wildcards.
   String _escapeLikePattern(String input) {
     return input
         .replaceAll('\\', '\\\\')

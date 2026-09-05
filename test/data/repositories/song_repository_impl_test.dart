@@ -6,6 +6,7 @@ import 'package:nexo/data/local/app_database.dart';
 import 'package:nexo/data/local/mappers/song_mapper.dart';
 import 'package:nexo/data/repositories/song_repository_impl.dart';
 import 'package:nexo/domain/entities/audio_format.dart';
+import 'package:nexo/domain/entities/song_sort_option.dart';
 import 'package:nexo/domain/value_objects/album_id.dart';
 import 'package:nexo/domain/value_objects/artist_id.dart';
 import 'package:nexo/domain/entities/song.dart';
@@ -43,6 +44,7 @@ void main() {
     String? albumId,
     String title = 'Song',
     String path = '/music/song.mp3',
+    Duration duration = const Duration(minutes: 3),
   }) async {
     await db.into(db.songs).insert(const SongMapper().toCompanion(
           (Song.create(
@@ -50,7 +52,7 @@ void main() {
             title: title,
             trackArtistId: ArtistId(artist),
             albumId: albumId == null ? null : AlbumId(albumId),
-            duration: const Duration(minutes: 3),
+            duration: duration,
             filePath: path,
             format: AudioFormat.mp3,
             fileSizeBytes: 1000,
@@ -113,6 +115,18 @@ void main() {
       await seedSong(id: 's2', artist: 'artist-2');
       final result = await repo.getAllSongs();
       expect(result.valueOrNull?.length, 2);
+    });
+
+    test('getAllSongs sorts by duration descending via SQLite', () async {
+      await seedSong(
+          id: 's1', artist: 'a', duration: const Duration(minutes: 2));
+      await seedSong(
+          id: 's2', artist: 'a', duration: const Duration(minutes: 5));
+      final result = await repo.getAllSongs(
+        sortOption: SongSortOption.duration,
+        isAscending: false,
+      );
+      expect(result.valueOrNull?.map((s) => s.id.value), ['s2', 's1']);
     });
   });
 }

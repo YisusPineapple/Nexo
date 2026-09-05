@@ -1,6 +1,7 @@
 import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
 import '../entities/song.dart';
+import '../entities/song_sort_option.dart';
 import '../value_objects/album_id.dart';
 import '../value_objects/artist_id.dart';
 import '../value_objects/song_id.dart';
@@ -15,7 +16,10 @@ abstract interface class SongRepository {
     void Function(int current, int total)? onProgress,
   });
 
-  Future<Result<List<Song>, Failure>> getAllSongs();
+  Future<Result<List<Song>, Failure>> getAllSongs({
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  });
 
   Future<Result<Song, Failure>> getSongById(SongId id);
 
@@ -25,7 +29,15 @@ abstract interface class SongRepository {
 
   Future<Result<List<Song>, Failure>> getSongsByFolder(String folderPath);
 
-  Future<Result<List<Song>, Failure>> searchSongs(String query);
+  Future<Result<List<Song>, Failure>> searchSongs(
+    String query, {
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  });
+
+  Future<Result<List<String>, Failure>> searchArtists(String query);
+
+  Future<Result<List<String>, Failure>> searchAlbums(String query);
 
   Future<Result<void, Failure>> updateLyricOffset(SongId id, int offsetMs);
 

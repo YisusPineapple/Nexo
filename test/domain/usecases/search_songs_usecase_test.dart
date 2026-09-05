@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexo/domain/entities/audio_format.dart';
 import 'package:nexo/domain/entities/song.dart';
+import 'package:nexo/domain/entities/song_sort_option.dart';
 import 'package:nexo/domain/usecases/search_songs_usecase.dart';
 import 'package:nexo/domain/value_objects/artist_id.dart';
 import 'package:nexo/domain/value_objects/song_id.dart';
@@ -28,7 +29,11 @@ void main() {
       );
       final useCase = SearchSongsUseCase(repo);
 
-      final result = await useCase.call('purple');
+      final result = await useCase.call((
+        query: 'purple',
+        sortOption: SongSortOption.title,
+        isAscending: true,
+      ));
 
       expect(result.valueOrNull?.map((s) => s.id.value), ['a']);
     });

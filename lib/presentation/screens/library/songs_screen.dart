@@ -5,13 +5,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../../../domain/entities/queue_source.dart';
+import '../../../domain/entities/song_sort_option.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
-import '../../utils/song_sort.dart';
 import '../../widgets/alphabetical_scroll_view.dart';
 import '../../widgets/song_context_menu.dart';
 
 const double _songRowExtent = 72;
+
+extension _SongSortOptionLabel on SongSortOption {
+  String get label {
+    switch (this) {
+      case SongSortOption.title:
+        return 'Title';
+      case SongSortOption.artist:
+        return 'Artist';
+      case SongSortOption.album:
+        return 'Album';
+      case SongSortOption.year:
+        return 'Year';
+      case SongSortOption.duration:
+        return 'Duration';
+      case SongSortOption.dateAdded:
+        return 'Date added';
+    }
+  }
+}
 
 class SongsScreen extends ConsumerStatefulWidget {
   const SongsScreen({super.key});
@@ -81,8 +100,8 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                         : PhosphorIconsRegular.sortDescending),
                     tooltip: 'Toggle Order',
                     onPressed: () {
-                      ref.read(songSortProvider.notifier).state =
-                          sortConfig.copyWith(isAscending: !sortConfig.isAscending);
+                      ref.read(songSortProvider.notifier).state = sortConfig
+                          .copyWith(isAscending: !sortConfig.isAscending);
                     },
                   ),
                   PopupMenuButton<SongSortOption>(
@@ -129,7 +148,8 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         trailing: IconButton(
-                          icon: const Icon(PhosphorIconsRegular.dotsThreeVertical),
+                          icon: const Icon(
+                              PhosphorIconsRegular.dotsThreeVertical),
                           onPressed: () {
                             showModalBottomSheet(
                               context: context,
@@ -165,7 +185,8 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                         SongSortOption.artist => song.trackArtistId.value,
                         SongSortOption.album => song.albumId?.value ?? '#',
                         SongSortOption.year => song.year?.toString() ?? '#',
-                        SongSortOption.duration => '${song.duration.inMinutes}m',
+                        SongSortOption.duration =>
+                          '${song.duration.inMinutes}m',
                         SongSortOption.dateAdded => '${song.dateAddedUtc.year}',
                       };
                     },
