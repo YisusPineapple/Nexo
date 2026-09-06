@@ -4,12 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+import '../../../core/utils/artist_splitter.dart';
+import '../../../domain/entities/library_aggregates.dart';
 import '../../../domain/entities/queue_source.dart';
 import '../../../domain/entities/song.dart';
 import '../../../domain/value_objects/artist_id.dart';
 import '../../providers/grouped_library_providers.dart';
 import '../../providers/playback_providers.dart';
-import '../../utils/artist_splitter.dart';
 import '../../widgets/alphabetical_scroll_view.dart';
 
 const double _artistRowExtent = 92.0;
@@ -227,7 +228,7 @@ class _ArtistAvatar extends StatelessWidget {
 
 class ArtistDetailScreen extends ConsumerWidget {
   const ArtistDetailScreen({super.key, required this.artist});
-  final ArtistUiModel artist;
+  final Artist artist;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

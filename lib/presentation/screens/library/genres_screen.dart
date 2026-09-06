@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../domain/entities/library_aggregates.dart';
 import '../../../domain/entities/queue_source.dart';
 import '../../providers/grouped_library_providers.dart';
 import '../../providers/playback_providers.dart';
@@ -33,7 +34,8 @@ class _GenresScreenState extends ConsumerState<GenresScreen> {
           return const Center(child: Text('No genres found.'));
         }
 
-        final crossAxisCount = (MediaQuery.of(context).size.width / 180).floor().clamp(2, 8);
+        final crossAxisCount =
+            (MediaQuery.of(context).size.width / 180).floor().clamp(2, 8);
         final screenWidth = MediaQuery.of(context).size.width;
         final availableWidth = screenWidth - 32 - ((crossAxisCount - 1) * 16);
         final itemWidth = availableWidth / crossAxisCount;
@@ -63,7 +65,8 @@ class _GenresScreenState extends ConsumerState<GenresScreen> {
                   gradient: LinearGradient(
                     colors: [
                       theme.colorScheme.primaryContainer.withValues(alpha: 0.8),
-                      theme.colorScheme.secondaryContainer.withValues(alpha: 0.8),
+                      theme.colorScheme.secondaryContainer
+                          .withValues(alpha: 0.8),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -96,16 +99,17 @@ class _GenresScreenState extends ConsumerState<GenresScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleMedium?.copyWith(
-                                color: theme.colorScheme.onPrimaryContainer,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            color: theme.colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           '${genre.songCount} songs',
                           style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
-                              ),
+                            color: theme.colorScheme.onPrimaryContainer
+                                .withValues(alpha: 0.8),
+                          ),
                         ),
                       ],
                     ),
@@ -125,7 +129,7 @@ class _GenresScreenState extends ConsumerState<GenresScreen> {
 class GenreDetailScreen extends ConsumerWidget {
   const GenreDetailScreen({super.key, required this.genre});
 
-  final GenreUiModel genre;
+  final Genre genre;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -140,8 +144,10 @@ class GenreDetailScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final song = songs[index];
               return ListTile(
-                title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(song.trackArtistId.value, maxLines: 1, overflow: TextOverflow.ellipsis),
+                title: Text(song.title,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(song.trackArtistId.value,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
                 onTap: () {
                   ref.read(playbackControllerProvider.notifier).playSongs(
                         queueIdStr: 'genre_${genre.name}',

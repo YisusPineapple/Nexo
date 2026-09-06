@@ -5,8 +5,10 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import '../../core/error/failures.dart';
+import '../../core/utils/artist_splitter.dart';
 import '../../core/utils/result.dart';
 import '../../domain/entities/audio_format.dart';
+import '../../domain/entities/library_aggregates.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/entities/song_sort_option.dart';
 import '../../domain/repositories/library_folder_repository.dart';
@@ -15,6 +17,7 @@ import '../../domain/value_objects/album_id.dart';
 import '../../domain/value_objects/artist_id.dart';
 import '../../domain/value_objects/song_id.dart';
 import '../local/app_database.dart';
+import '../local/converters/string_list_converter.dart';
 import '../local/mappers/song_mapper.dart';
 import '../sources/audio_file_scanner.dart';
 import '../sources/song_metadata_reader.dart';
@@ -206,6 +209,120 @@ Future<void> _coverExtractionIsolateEntry(_CoverExtractionArgs args) async {
     }
   }
   args.sendPort.send('DONE');
+}
+
+// --- Isolate Grouping Functions ---
+
+typedef _ArtistIsolateArgs = ({
+  List<(String trackArtistId, String? albumId, String? coverArtPath)> data,
+  ArtistSortOption sortOption,
+  bool isAscending,
+});
+
+List<Artist> _computeArtists(_ArtistIsolateArgs args) {
+  final map = <String,
+      ({
+    String displayName,
+    int songCount,
+    Set<String> albums,
+    int collabCount,
+    String? coverArtPath
+  })>{};
+
+  for (final row in args.data) {
+    final trackArtistId = row.$1;
+    final albumId = row.$2;
+    final coverArtPath = row.$3;
+
+    final individuals = splitArtists(trackArtistId);
+    final isCollab = individuals.length > 1;
+
+    for (final artist in individuals) {
+      final key = normalizeArtist(artist);
+      if (key.isEmpty) continue;
+
+      if (!map.containsKey(key)) {
+        map[key] = (
+          displayName: artist,
+          songCount: 0,
+          albums: <String>{},
+          collabCount: 0,
+          coverArtPath: null
+        );
+      }
+      final entry = map[key]!;
+      final updatedAlbums = entry.albums.toSet();
+      if (albumId != null) updatedAlbums.add(albumId);
+
+      map[key] = (
+        displayName: entry.displayName,
+        songCount: entry.songCount + 1,
+        albums: updatedAlbums,
+        collabCount: entry.collabCount + (isCollab ? 1 : 0),
+        coverArtPath: entry.coverArtPath ?? coverArtPath,
+      );
+    }
+  }
+
+  final list = map.values
+      .map((e) => Artist(
+            name: e.displayName,
+            songCount: e.songCount,
+            albumCount: e.albums.where((a) => a.isNotEmpty).length,
+            collaborationCount: e.collabCount,
+            coverArtPath: e.coverArtPath,
+          ))
+      .toList();
+
+  list.sort((a, b) {
+    int res;
+    switch (args.sortOption) {
+      case ArtistSortOption.name:
+        res = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        break;
+      case ArtistSortOption.songCount:
+        res = a.songCount.compareTo(b.songCount);
+        break;
+      case ArtistSortOption.albumCount:
+        res = a.albumCount.compareTo(b.albumCount);
+        break;
+    }
+    return args.isAscending ? res : -res;
+  });
+  return list;
+}
+
+List<Genre> _computeGenres(List<String> rawGenresList) {
+  final map = <String, int>{};
+  const converter = StringListConverter();
+
+  for (final genreString in rawGenresList) {
+    final genres = converter.fromSql(genreString);
+    for (final genre in genres) {
+      map[genre] = (map[genre] ?? 0) + 1;
+    }
+  }
+
+  final list =
+      map.entries.map((e) => Genre(name: e.key, songCount: e.value)).toList();
+  list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  return list;
+}
+
+List<FolderSummary> _computeFolders(List<String> filePaths) {
+  final map = <String, int>{};
+  for (final path in filePaths) {
+    final dir = p.dirname(path);
+    map[dir] = (map[dir] ?? 0) + 1;
+  }
+
+  final list = map.entries
+      .map((e) => FolderSummary(
+          path: e.key, name: p.basename(e.key), songCount: e.value))
+      .toList();
+
+  list.sort((a, b) => a.path.toLowerCase().compareTo(b.path.toLowerCase()));
+  return list;
 }
 
 class SongRepositoryImpl implements SongRepository {
@@ -420,6 +537,108 @@ class SongRepositoryImpl implements SongRepository {
       return _mapRows(await query.get());
     } catch (e) {
       return Err(UnexpectedFailure('Failed to fetch all songs.', cause: e));
+    }
+  }
+
+  @override
+  Future<Result<List<Album>, Failure>> getAllAlbums({
+    AlbumSortOption sortOption = AlbumSortOption.name,
+    bool isAscending = true,
+  }) async {
+    try {
+      final orderCol = switch (sortOption) {
+        AlbumSortOption.name => 'LOWER(album_id)',
+        AlbumSortOption.artist => 'LOWER(artist)',
+        AlbumSortOption.songCount => 'song_count',
+      };
+      final orderDir = isAscending ? 'ASC' : 'DESC';
+
+      final rows = await _db.customSelect(
+        'SELECT album_id, COALESCE(album_artist_id, track_artist_id) AS artist, '
+        'MAX(cover_art_path) AS cover_art_path, COUNT(*) AS song_count '
+        'FROM songs WHERE album_id IS NOT NULL '
+        'GROUP BY album_id ORDER BY $orderCol $orderDir',
+        readsFrom: {_db.songs},
+      ).get();
+
+      final albums = rows
+          .map((r) => Album(
+                id: r.read<String>('album_id'),
+                name: r.read<String>('album_id'),
+                artist: r.read<String>('artist'),
+                songCount: r.read<int>('song_count'),
+                coverArtPath: r.read<String?>('cover_art_path'),
+              ))
+          .toList();
+
+      return Ok(albums);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to fetch albums.', cause: e));
+    }
+  }
+
+  @override
+  Future<Result<List<Artist>, Failure>> getAllArtists({
+    ArtistSortOption sortOption = ArtistSortOption.name,
+    bool isAscending = true,
+  }) async {
+    try {
+      final rows = await _db.customSelect(
+        'SELECT track_artist_id, album_id, cover_art_path FROM songs',
+        readsFrom: {_db.songs},
+      ).get();
+
+      final data = rows
+          .map((r) => (
+                r.read<String>('track_artist_id'),
+                r.read<String?>('album_id'),
+                r.read<String?>('cover_art_path'),
+              ))
+          .toList();
+
+      final artists = await Isolate.run(() => _computeArtists((
+            data: data,
+            sortOption: sortOption,
+            isAscending: isAscending,
+          )));
+
+      return Ok(artists);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to fetch artists.', cause: e));
+    }
+  }
+
+  @override
+  Future<Result<List<Genre>, Failure>> getAllGenres() async {
+    try {
+      final rows = await _db.customSelect(
+        'SELECT genre_names FROM songs',
+        readsFrom: {_db.songs},
+      ).get();
+
+      final data = rows.map((r) => r.read<String>('genre_names')).toList();
+      final genres = await Isolate.run(() => _computeGenres(data));
+
+      return Ok(genres);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to fetch genres.', cause: e));
+    }
+  }
+
+  @override
+  Future<Result<List<FolderSummary>, Failure>> getAllFolders() async {
+    try {
+      final rows = await _db.customSelect(
+        'SELECT file_path FROM songs',
+        readsFrom: {_db.songs},
+      ).get();
+
+      final data = rows.map((r) => r.read<String>('file_path')).toList();
+      final folders = await Isolate.run(() => _computeFolders(data));
+
+      return Ok(folders);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to fetch folders.', cause: e));
     }
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+import '../../domain/entities/library_aggregates.dart';
 import '../../domain/entities/queue_source.dart';
 import '../providers/library_providers.dart';
 import '../providers/playback_providers.dart';
@@ -136,12 +137,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     Navigator.of(context)
                                         .push(MaterialPageRoute(
                                       builder: (_) => ArtistDetailScreen(
-                                        artist: (
+                                        artist: Artist(
                                           name: artist,
                                           songCount: 0,
                                           albumCount: 0,
                                           collaborationCount: 0,
-                                          coverArtPath: null
+                                          coverArtPath: null,
                                         ),
                                       ),
                                     ));
@@ -193,12 +194,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     Navigator.of(context)
                                         .push(MaterialPageRoute(
                                       builder: (_) => AlbumDetailScreen(
-                                        album: (
+                                        album: Album(
                                           id: album,
                                           name: album,
                                           artist: artistName,
+                                          songCount: 0,
                                           coverArtPath: null,
-                                          songCount: 0
                                         ),
                                       ),
                                     ));

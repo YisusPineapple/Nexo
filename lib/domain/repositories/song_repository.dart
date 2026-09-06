@@ -1,5 +1,6 @@
 import '../../core/error/failures.dart';
 import '../../core/utils/result.dart';
+import '../entities/library_aggregates.dart';
 import '../entities/song.dart';
 import '../entities/song_sort_option.dart';
 import '../value_objects/album_id.dart';
@@ -20,6 +21,20 @@ abstract interface class SongRepository {
     SongSortOption sortOption = SongSortOption.title,
     bool isAscending = true,
   });
+
+  Future<Result<List<Album>, Failure>> getAllAlbums({
+    AlbumSortOption sortOption = AlbumSortOption.name,
+    bool isAscending = true,
+  });
+
+  Future<Result<List<Artist>, Failure>> getAllArtists({
+    ArtistSortOption sortOption = ArtistSortOption.name,
+    bool isAscending = true,
+  });
+
+  Future<Result<List<Genre>, Failure>> getAllGenres();
+
+  Future<Result<List<FolderSummary>, Failure>> getAllFolders();
 
   Future<Result<Song, Failure>> getSongById(SongId id);
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+import '../../../domain/entities/library_aggregates.dart';
 import '../../../domain/entities/queue_source.dart';
 import '../../../domain/value_objects/album_id.dart';
 import '../../providers/grouped_library_providers.dart';
@@ -37,7 +38,8 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Row(
                 children: [
                   Text(
@@ -54,8 +56,8 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                         : PhosphorIconsRegular.sortDescending),
                     tooltip: 'Toggle Order',
                     onPressed: () {
-                      ref.read(albumSortProvider.notifier).state =
-                          sortConfig.copyWith(isAscending: !sortConfig.isAscending);
+                      ref.read(albumSortProvider.notifier).state = sortConfig
+                          .copyWith(isAscending: !sortConfig.isAscending);
                     },
                   ),
                   PopupMenuButton<AlbumSortOption>(
@@ -67,7 +69,9 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                         .state = sortConfig.copyWith(option: option),
                     itemBuilder: (context) => [
                       for (final option in AlbumSortOption.values)
-                        PopupMenuItem(value: option, child: Text('Sort by ${option.name}')),
+                        PopupMenuItem(
+                            value: option,
+                            child: Text('Sort by ${option.name}')),
                     ],
                   ),
                 ],
@@ -76,11 +80,17 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
             Expanded(
               child: albumsAsync.when(
                 data: (albums) {
-                  if (albums.isEmpty) return const Center(child: Text('No albums found.'));
-                  
-                  final crossAxisCount = (MediaQuery.of(context).size.width / 160).floor().clamp(2, 10);
+                  if (albums.isEmpty) {
+                    return const Center(child: Text('No albums found.'));
+                  }
+
+                  final crossAxisCount =
+                      (MediaQuery.of(context).size.width / 160)
+                          .floor()
+                          .clamp(2, 10);
                   final screenWidth = MediaQuery.of(context).size.width;
-                  final availableWidth = screenWidth - 32 - ((crossAxisCount - 1) * 16);
+                  final availableWidth =
+                      screenWidth - 32 - ((crossAxisCount - 1) * 16);
                   final itemWidth = availableWidth / crossAxisCount;
                   final itemHeight = (itemWidth / 0.75) + 16;
 
@@ -124,37 +134,44 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                           ),
                           clipBehavior: Clip.antiAlias,
                           child: InkWell(
-                            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => AlbumDetailScreen(album: album))),
+                            onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        AlbumDetailScreen(album: album))),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 AspectRatio(
                                   aspectRatio: 1,
                                   child: Container(
-                                    color: theme.colorScheme.surfaceContainerHighest,
+                                    color: theme
+                                        .colorScheme.surfaceContainerHighest,
                                     child: album.coverArtPath != null
-                                        ? Image.file(File(album.coverArtPath!), fit: BoxFit.cover, cacheWidth: 400)
+                                        ? Image.file(File(album.coverArtPath!),
+                                            fit: BoxFit.cover, cacheWidth: 400)
                                         : const Icon(Icons.album, size: 48),
                                   ),
                                 ),
                                 Padding(
                                   padding: const EdgeInsets.all(12.0),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        album.name, 
-                                        maxLines: 1, 
-                                        overflow: TextOverflow.ellipsis, 
-                                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)
-                                      ),
+                                      Text(album.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.titleSmall
+                                              ?.copyWith(
+                                                  fontWeight: FontWeight.bold)),
                                       const SizedBox(height: 2),
-                                      Text(
-                                        album.artist, 
-                                        maxLines: 1, 
-                                        overflow: TextOverflow.ellipsis, 
-                                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)
-                                      ),
+                                      Text(album.artist,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                  color: theme.colorScheme
+                                                      .onSurfaceVariant)),
                                     ],
                                   ),
                                 ),
@@ -179,7 +196,7 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
 
 class AlbumDetailScreen extends ConsumerWidget {
   const AlbumDetailScreen({super.key, required this.album});
-  final AlbumUiModel album;
+  final Album album;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -197,10 +214,23 @@ class AlbumDetailScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final song = songs[index];
                 return ListTile(
-                  leading: Text(song.trackNumber?.toString() ?? '-', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                  title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Text(song.trackArtistId.value, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  onTap: () => ref.read(playbackControllerProvider.notifier).playSongs(queueIdStr: 'album_${album.id}', songs: songs, startIndex: index, source: AlbumQueueSource(albumId: AlbumId(album.id), albumName: album.name)),
+                  leading: Text(song.trackNumber?.toString() ?? '-',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant)),
+                  title: Text(song.title,
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(song.trackArtistId.value,
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  onTap: () => ref
+                      .read(playbackControllerProvider.notifier)
+                      .playSongs(
+                          queueIdStr: 'album_${album.id}',
+                          songs: songs,
+                          startIndex: index,
+                          source: AlbumQueueSource(
+                              albumId: AlbumId(album.id),
+                              albumName: album.name)),
                 );
               },
             ),

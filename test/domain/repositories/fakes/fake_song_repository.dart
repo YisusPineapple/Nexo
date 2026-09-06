@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:nexo/core/error/failures.dart';
+import 'package:nexo/core/utils/artist_splitter.dart';
 import 'package:nexo/core/utils/result.dart';
+import 'package:nexo/domain/entities/library_aggregates.dart';
 import 'package:nexo/domain/entities/song.dart';
 import 'package:nexo/domain/entities/song_sort_option.dart';
 import 'package:nexo/domain/repositories/song_repository.dart';
@@ -85,6 +87,152 @@ class FakeSongRepository implements SongRepository {
   }
 
   @override
+  Future<Result<List<Album>, Failure>> getAllAlbums({
+    AlbumSortOption sortOption = AlbumSortOption.name,
+    bool isAscending = true,
+  }) async {
+    final map = <String, Album>{};
+    for (final song in _songs) {
+      final albumId = song.albumId?.value;
+      if (albumId == null) continue;
+      if (!map.containsKey(albumId)) {
+        map[albumId] = Album(
+          id: albumId,
+          name: albumId,
+          artist: song.albumArtistId?.value ?? song.trackArtistId.value,
+          songCount: 1,
+          coverArtPath: song.coverArtPath,
+        );
+      } else {
+        final existing = map[albumId]!;
+        map[albumId] = Album(
+          id: existing.id,
+          name: existing.name,
+          artist: existing.artist,
+          songCount: existing.songCount + 1,
+          coverArtPath: existing.coverArtPath ?? song.coverArtPath,
+        );
+      }
+    }
+    final list = map.values.toList();
+    list.sort((a, b) {
+      int res;
+      switch (sortOption) {
+        case AlbumSortOption.name:
+          res = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          break;
+        case AlbumSortOption.artist:
+          res = a.artist.toLowerCase().compareTo(b.artist.toLowerCase());
+          break;
+        case AlbumSortOption.songCount:
+          res = a.songCount.compareTo(b.songCount);
+          break;
+      }
+      return isAscending ? res : -res;
+    });
+    return Ok(list);
+  }
+
+  @override
+  Future<Result<List<Artist>, Failure>> getAllArtists({
+    ArtistSortOption sortOption = ArtistSortOption.name,
+    bool isAscending = true,
+  }) async {
+    final map = <String,
+        ({
+      String displayName,
+      int songCount,
+      Set<String> albums,
+      int collabCount,
+      String? coverArtPath
+    })>{};
+    for (final song in _songs) {
+      final individuals = splitArtists(song.trackArtistId.value);
+      final isCollab = individuals.length > 1;
+      for (final artist in individuals) {
+        final key = normalizeArtist(artist);
+        if (key.isEmpty) continue;
+        if (!map.containsKey(key)) {
+          map[key] = (
+            displayName: artist,
+            songCount: 0,
+            albums: <String>{},
+            collabCount: 0,
+            coverArtPath: null
+          );
+        }
+        final entry = map[key]!;
+        final updatedAlbums = entry.albums.toSet();
+        if (song.albumId != null) updatedAlbums.add(song.albumId!.value);
+        map[key] = (
+          displayName: entry.displayName,
+          songCount: entry.songCount + 1,
+          albums: updatedAlbums,
+          collabCount: entry.collabCount + (isCollab ? 1 : 0),
+          coverArtPath: entry.coverArtPath ?? song.coverArtPath,
+        );
+      }
+    }
+    final list = map.values
+        .map((e) => Artist(
+              name: e.displayName,
+              songCount: e.songCount,
+              albumCount: e.albums.where((a) => a.isNotEmpty).length,
+              collaborationCount: e.collabCount,
+              coverArtPath: e.coverArtPath,
+            ))
+        .toList();
+    list.sort((a, b) {
+      int res;
+      switch (sortOption) {
+        case ArtistSortOption.name:
+          res = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          break;
+        case ArtistSortOption.songCount:
+          res = a.songCount.compareTo(b.songCount);
+          break;
+        case ArtistSortOption.albumCount:
+          res = a.albumCount.compareTo(b.albumCount);
+          break;
+      }
+      return isAscending ? res : -res;
+    });
+    return Ok(list);
+  }
+
+  @override
+  Future<Result<List<Genre>, Failure>> getAllGenres() async {
+    final map = <String, int>{};
+    for (final song in _songs) {
+      for (final genre in song.genreNames) {
+        map[genre] = (map[genre] ?? 0) + 1;
+      }
+    }
+    final list =
+        map.entries.map((e) => Genre(name: e.key, songCount: e.value)).toList();
+    list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return Ok(list);
+  }
+
+  @override
+  Future<Result<List<FolderSummary>, Failure>> getAllFolders() async {
+    final map = <String, int>{};
+    for (final song in _songs) {
+      final dir = song.filePath.substring(0, song.filePath.lastIndexOf('/'));
+      map[dir] = (map[dir] ?? 0) + 1;
+    }
+    final list = map.entries
+        .map((e) => FolderSummary(
+              path: e.key,
+              name: e.key.split('/').last,
+              songCount: e.value,
+            ))
+        .toList();
+    list.sort((a, b) => a.path.toLowerCase().compareTo(b.path.toLowerCase()));
+    return Ok(list);
+  }
+
+  @override
   Future<Result<Song, Failure>> getSongById(SongId id) async {
     for (final song in _songs) {
       if (song.id == id) {
@@ -132,7 +280,6 @@ class FakeSongRepository implements SongRepository {
   @override
   Future<Result<List<String>, Failure>> searchArtists(String query) async {
     final normalized = query.toLowerCase();
-    // Emulate SQLite FTS5: find matching songs and extract their unique artists
     final matchingSongs = _songs.where((s) =>
         s.trackArtistId.value.toLowerCase().contains(normalized) ||
         s.title.toLowerCase().contains(normalized) ||
@@ -146,7 +293,6 @@ class FakeSongRepository implements SongRepository {
   @override
   Future<Result<List<String>, Failure>> searchAlbums(String query) async {
     final normalized = query.toLowerCase();
-    // Emulate SQLite FTS5: find matching songs and extract their unique albums
     final matchingSongs = _songs.where((s) =>
         (s.albumId?.value ?? '').toLowerCase().contains(normalized) ||
         s.title.toLowerCase().contains(normalized) ||

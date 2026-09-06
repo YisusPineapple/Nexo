@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
+import '../../../domain/entities/library_aggregates.dart';
 import '../../../domain/entities/queue_source.dart';
 import '../../providers/grouped_library_providers.dart';
 import '../../providers/playback_providers.dart';
@@ -76,7 +77,8 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
                           color: theme.colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(PhosphorIconsFill.folder, color: theme.colorScheme.primary),
+                        child: Icon(PhosphorIconsFill.folder,
+                            color: theme.colorScheme.primary),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -84,14 +86,23 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(folder.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            Text(folder.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
                             const SizedBox(height: 2),
-                            Text(folder.path, maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                            Text(folder.path,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant)),
                           ],
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text('${folder.songCount}', style: theme.textTheme.bodySmall),
+                      Text('${folder.songCount}',
+                          style: theme.textTheme.bodySmall),
                       const SizedBox(width: 8),
                       const Icon(PhosphorIconsRegular.caretRight, size: 16),
                     ],
@@ -119,7 +130,7 @@ class _FoldersScreenState extends ConsumerState<FoldersScreen> {
 class FolderDetailScreen extends ConsumerWidget {
   const FolderDetailScreen({super.key, required this.folder});
 
-  final FolderUiModel folder;
+  final FolderSummary folder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -148,8 +159,10 @@ class FolderDetailScreen extends ConsumerWidget {
               final song = songs[index];
               return ListTile(
                 leading: const Icon(PhosphorIconsRegular.fileAudio),
-                title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(song.trackArtistId.value, maxLines: 1, overflow: TextOverflow.ellipsis),
+                title: Text(song.title,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(song.trackArtistId.value,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
                 onTap: () {
                   ref.read(playbackControllerProvider.notifier).playSongs(
                         queueIdStr: 'folder_${folder.path}',
