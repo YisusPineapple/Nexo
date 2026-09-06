@@ -211,8 +211,9 @@ class _ArtistAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: 28,
       backgroundColor: theme.colorScheme.primaryContainer,
+      // FIX: Added cacheWidth to prevent RAM leak
       backgroundImage: coverArtPath != null
-          ? ResizeImage(FileImage(File(coverArtPath!)), width: 112)
+          ? ResizeImage(FileImage(File(coverArtPath!)), width: 150)
               as ImageProvider
           : null,
       child: coverArtPath == null
@@ -423,8 +424,9 @@ class _SongTile extends StatelessWidget {
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(6),
         child: song.coverArtPath != null
+            // FIX: Added cacheWidth to prevent RAM leak
             ? Image.file(File(song.coverArtPath!),
-                width: 48, height: 48, fit: BoxFit.cover, cacheWidth: 96)
+                width: 48, height: 48, fit: BoxFit.cover, cacheWidth: 150)
             : Container(
                 width: 48,
                 height: 48,

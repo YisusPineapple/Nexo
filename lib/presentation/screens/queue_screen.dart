@@ -45,7 +45,9 @@ class QueueScreen extends ConsumerWidget {
             child: ReorderableListView.builder(
               itemCount: queue.songs.length,
               onReorderItem: (int oldIndex, int newIndex) {
-                ref.read(playbackControllerProvider.notifier).reorderQueue(oldIndex, newIndex);
+                ref
+                    .read(playbackControllerProvider.notifier)
+                    .reorderQueue(oldIndex, newIndex);
               },
               itemBuilder: (context, index) {
                 final song = queue.songs[index];
@@ -54,10 +56,12 @@ class QueueScreen extends ConsumerWidget {
                 return ListTile(
                   key: ValueKey('${song.id.value}_$index'),
                   selected: isCurrent,
-                  selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  selectedTileColor:
+                      theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
                   leading: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: song.coverArtPath != null
+                        // FIX: Added cacheWidth to prevent RAM leak
                         ? Image.file(
                             File(song.coverArtPath!),
                             width: 48,
@@ -77,7 +81,8 @@ class QueueScreen extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                      fontWeight:
+                          isCurrent ? FontWeight.bold : FontWeight.normal,
                       color: isCurrent ? theme.colorScheme.primary : null,
                     ),
                   ),
@@ -88,10 +93,13 @@ class QueueScreen extends ConsumerWidget {
                   ),
                   trailing: ReorderableDragStartListener(
                     index: index,
-                    child: const Icon(PhosphorIconsRegular.dotsSixVertical, size: 28),
+                    child: const Icon(PhosphorIconsRegular.dotsSixVertical,
+                        size: 28),
                   ),
                   onTap: () {
-                    ref.read(playbackControllerProvider.notifier).skipToIndex(index);
+                    ref
+                        .read(playbackControllerProvider.notifier)
+                        .skipToIndex(index);
                   },
                 );
               },

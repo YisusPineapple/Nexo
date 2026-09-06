@@ -207,6 +207,9 @@ Future<void> _coverExtractionIsolateEntry(_CoverExtractionArgs args) async {
     } catch (e) {
       args.sendPort.send({'id': song.id.value, 'path': null});
     }
+
+    // FIX: Throttle the isolate to prevent 100% CPU usage and overheating
+    await Future.delayed(const Duration(milliseconds: 50));
   }
   args.sendPort.send('DONE');
 }

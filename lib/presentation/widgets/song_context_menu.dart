@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/entities/queue_source.dart';
+import '../../domain/entities/item_interaction.dart';
 import '../providers/playback_providers.dart';
+import '../providers/user_metrics_providers.dart';
 import 'add_to_playlist_dialog.dart';
 
 class SongContextMenu extends ConsumerWidget {
@@ -43,6 +45,7 @@ class SongContextMenu extends ConsumerWidget {
                       width: 160,
                       height: 160,
                       fit: BoxFit.cover,
+                      cacheWidth: 320,
                     ),
                   ),
                 ),
@@ -73,6 +76,11 @@ class SongContextMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+
+    // FIX: Bug 2.5 - Fetch interaction state for this song
+    final interactionAsync = ref.watch(
+        itemInteractionProvider((id: song.id.value, type: ItemType.song)));
+    final interaction = interactionAsync.valueOrNull;
 
     return SafeArea(
       child: Container(
@@ -126,6 +134,7 @@ class SongContextMenu extends ConsumerWidget {
                             width: 56,
                             height: 56,
                             fit: BoxFit.cover,
+                            cacheWidth: 150,
                           )
                         : Container(
                             width: 56,
@@ -159,6 +168,41 @@ class SongContextMenu extends ConsumerWidget {
                         ),
                       ],
                     ),
+                  ),
+                  // FIX: Bug 2.5 - Like/Dislike buttons in context menu
+                  IconButton(
+                    icon: Icon(
+                      interaction == InteractionType.dislike
+                          ? PhosphorIconsFill.heartBreak
+                          : PhosphorIconsRegular.heartBreak,
+                      color: interaction == InteractionType.dislike
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                    onPressed: () {
+                      ref.read(userMetricsControllerProvider).toggleInteraction(
+                            song.id.value,
+                            ItemType.song,
+                            InteractionType.dislike,
+                          );
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      interaction == InteractionType.like
+                          ? PhosphorIconsFill.heart
+                          : PhosphorIconsRegular.heart,
+                      color: interaction == InteractionType.like
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                    onPressed: () {
+                      ref.read(userMetricsControllerProvider).toggleInteraction(
+                            song.id.value,
+                            ItemType.song,
+                            InteractionType.like,
+                          );
+                    },
                   ),
                 ],
               ),

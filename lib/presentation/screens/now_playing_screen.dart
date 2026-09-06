@@ -145,16 +145,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                 const Icon(PhosphorIconsRegular.moon),
                 if (sleepTimer != null)
                   Positioned(
-                    right: -4,
+                    right: -10,
                     bottom: -4,
                     child: Container(
-                      padding: const EdgeInsets.all(3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2),
                       decoration: BoxDecoration(
                         color: theme.colorScheme.primary,
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        '${sleepTimer.inMinutes}',
+                        // FIX: Bug 2.4 - Show sleep timer as m:ss
+                        _formatDuration(sleepTimer),
                         style: TextStyle(
                           fontSize: 9,
                           color: theme.colorScheme.onPrimary,
@@ -279,8 +281,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 AnimatedInteractionButton(
-                  key: ValueKey(
-                      'dislike_${currentSong.id.value}'), // FIX: Prevents ghost animation
+                  key: ValueKey('dislike_${currentSong.id.value}'),
                   icon: interaction == InteractionType.dislike
                       ? PhosphorIconsFill.heartBreak
                       : PhosphorIconsRegular.heartBreak,
@@ -295,8 +296,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                           InteractionType.dislike),
                 ),
                 AnimatedInteractionButton(
-                  key: ValueKey(
-                      'like_${currentSong.id.value}'), // FIX: Prevents ghost animation
+                  key: ValueKey('like_${currentSong.id.value}'),
                   icon: interaction == InteractionType.like
                       ? PhosphorIconsFill.heart
                       : PhosphorIconsRegular.heart,
@@ -587,6 +587,7 @@ class _CoverArtView extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: coverArtPath != null
+            // FIX: Added cacheWidth to prevent RAM leak
             ? Image.file(File(coverArtPath!),
                 fit: BoxFit.cover, cacheWidth: 600)
             : Icon(PhosphorIconsRegular.musicNotes,

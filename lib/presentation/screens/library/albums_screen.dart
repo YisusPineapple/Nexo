@@ -92,7 +92,9 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                   final availableWidth =
                       screenWidth - 32 - ((crossAxisCount - 1) * 16);
                   final itemWidth = availableWidth / crossAxisCount;
-                  final itemHeight = (itemWidth / 0.75) + 16;
+
+                  // FIX: Changed aspect ratio from 0.75 to 0.65 to prevent 19px overflow on PC
+                  final itemHeight = (itemWidth / 0.65) + 16;
 
                   return AlphabeticalScrollView(
                     controller: _scrollController,
@@ -115,7 +117,8 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                         crossAxisCount: crossAxisCount,
                         crossAxisSpacing: 16,
                         mainAxisSpacing: 16,
-                        childAspectRatio: 0.75,
+                        childAspectRatio:
+                            0.65, // FIX: Match the new aspect ratio
                       ),
                       itemCount: albums.length,
                       itemBuilder: (context, index) {
@@ -147,8 +150,9 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                                     color: theme
                                         .colorScheme.surfaceContainerHighest,
                                     child: album.coverArtPath != null
+                                        // FIX: Added cacheWidth to prevent RAM leak
                                         ? Image.file(File(album.coverArtPath!),
-                                            fit: BoxFit.cover, cacheWidth: 400)
+                                            fit: BoxFit.cover, cacheWidth: 300)
                                         : const Icon(Icons.album, size: 48),
                                   ),
                                 ),

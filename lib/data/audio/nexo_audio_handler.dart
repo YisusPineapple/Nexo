@@ -212,10 +212,14 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         await p.setClip(start: startTrim, end: effectiveEnd);
       }
 
+      // FIX: Added .clamp(0.0, 1.0) to prevent audio clipping/saturation on PC
       final double targetDb = -14.0;
       final double? gainDb = song.replayGainTrackDb ?? song.replayGainAlbumDb;
-      final double gainFactor =
-          gainDb != null ? pow(10, (gainDb - targetDb) / 20.0).toDouble() : 1.0;
+      final double gainFactor = (gainDb != null
+              ? pow(10, (gainDb - targetDb) / 20.0).toDouble()
+              : 1.0)
+          .clamp(0.0, 1.0);
+
       await p.setVolume(gainFactor);
 
       if (identical(p, _playerA)) {
@@ -429,11 +433,9 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
       _crossfadeProgress = rawProgress;
 
-      // Smoothstep: t^2 * (3 - 2t)
       final double t = _crossfadeProgress;
       final double smooth = t * t * (3 - 2 * t);
 
-      // Constant power: cos/sin
       final double angle = smooth * (pi / 2);
       final double volA = cos(angle) * (_isPlayerAActive ? _gainA : _gainB);
       final double volB = sin(angle) * (_isPlayerAActive ? _gainB : _gainA);

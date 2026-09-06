@@ -184,7 +184,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   ),
                                   subtitle: const Text('Album'),
                                   onTap: () {
-                                    // Fallback artist name since we only queried distinct album names
                                     final artistName = songs
                                         .firstWhere(
                                             (s) => s.albumId?.value == album,
@@ -226,11 +225,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   leading: ClipRRect(
                                     borderRadius: BorderRadius.circular(6),
                                     child: songs[i].coverArtPath != null
+                                        // FIX: Added cacheWidth to prevent RAM leak
                                         ? Image.file(
                                             File(songs[i].coverArtPath!),
                                             width: 48,
                                             height: 48,
                                             fit: BoxFit.cover,
+                                            cacheWidth: 150,
                                           )
                                         : Container(
                                             width: 48,
