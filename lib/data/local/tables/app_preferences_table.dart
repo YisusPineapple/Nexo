@@ -7,7 +7,7 @@ import '../converters/performance_profile_converter.dart';
 @DataClassName('AppPreferencesRow')
 class AppPreferencesTable extends Table {
   IntColumn get id => integer().withDefault(const Constant(0))();
-  
+
   BoolColumn get isOnboardingCompleted =>
       boolean().withDefault(const Constant(false))();
   TextColumn get performanceProfile =>
@@ -23,6 +23,8 @@ class AppPreferencesTable extends Table {
       boolean().withDefault(const Constant(true))();
   BoolColumn get lyricsHighlightWords =>
       boolean().withDefault(const Constant(true))();
+  BoolColumn get useSystemFont =>
+      boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

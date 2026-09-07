@@ -35,9 +35,6 @@ QueryExecutor openConnection(File file) {
   return NativeDatabase.createInBackground(
     file,
     setup: (db) {
-      // WAL lets the background cover-extraction isolate write while
-      // the UI isolate keeps reading the library — no reader/writer
-      // lock contention on the Helio G85 / Pentium E5800 targets.
       db.execute('PRAGMA journal_mode=WAL;');
       db.execute('PRAGMA synchronous=NORMAL;');
     },
@@ -64,7 +61,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -81,6 +78,7 @@ class AppDatabase extends _$AppDatabase {
               lyricsFontSize: const Value(LyricsFontSize.medium),
               lyricsBlurEnabled: const Value(true),
               lyricsHighlightWords: const Value(true),
+              useSystemFont: const Value(false),
             ),
           );
         },
@@ -109,6 +107,7 @@ class AppDatabase extends _$AppDatabase {
                 lyricsFontSize: const Value(LyricsFontSize.medium),
                 lyricsBlurEnabled: const Value(true),
                 lyricsHighlightWords: const Value(true),
+                useSystemFont: const Value(false),
               ),
             );
           }
@@ -141,27 +140,13 @@ class AppDatabase extends _$AppDatabase {
             await _createSearchSchema();
             await _backfillFtsFromExistingSongs();
           }
+          if (from < 13) {
+            await m.addColumn(
+                appPreferencesTable, appPreferencesTable.useSystemFont);
+          }
         },
       );
 
-  /// Creates the FTS5 virtual table used for instant search plus the
-  /// btree indices Sprint 6 needs to stop full-table scans on
-  /// [Songs.albumId] and [Songs.trackArtistId].
-  ///
-  /// `songs_fts` is an "external content" FTS5 table: it stores only
-  /// the search index, not a second copy of the text, keeping disk
-  /// usage close to zero extra overhead — important on the 4GB
-  /// Pentium E5800 target. Three triggers keep it in sync with
-  /// `songs` on insert/update/delete, including the upsert path used
-  /// by `insertAllOnConflictUpdate` during scanning (SQLite fires the
-  /// UPDATE trigger, not INSERT, for the conflicting rows in an
-  /// `ON CONFLICT DO UPDATE`).
-  ///
-  /// Raw SQL is used deliberately instead of a typed Drift table:
-  /// FTS5 virtual tables and triggers aren't representable through
-  /// drift_dev's table DSL, and raw `customStatement` calls behave
-  /// identically on `onCreate` and `onUpgrade`, so there is exactly
-  /// one code path to keep correct.
   Future<void> _createSearchSchema() async {
     await customStatement('''
 CREATE VIRTUAL TABLE IF NOT EXISTS songs_fts USING fts5(
@@ -205,10 +190,6 @@ END;
     );
   }
 
-  /// One-time backfill for libraries that already had rows before
-  /// the FTS5 table existed. Triggers only cover future writes, so
-  /// upgrading users need this to make existing songs searchable
-  /// immediately instead of only after the next rescan.
   Future<void> _backfillFtsFromExistingSongs() async {
     await customStatement('''
 INSERT INTO songs_fts(rowid, title, track_artist_id, album_id)

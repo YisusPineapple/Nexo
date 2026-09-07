@@ -138,7 +138,8 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                                   child: album.coverArtPath != null
                                       ? Image.file(File(album.coverArtPath!),
                                           fit: BoxFit.cover, cacheWidth: 300)
-                                      : const Icon(Icons.album, size: 48),
+                                      : const Icon(PhosphorIconsRegular.disc,
+                                          size: 48),
                                 ),
                               ),
                               Padding(
@@ -188,39 +189,159 @@ class AlbumDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final songsAsync = ref.watch(albumSongsProvider(album.id));
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: Text(album.name)),
       body: songsAsync.when(
         data: (songs) {
-          return Scrollbar(
-            interactive: true,
-            thickness: 8,
-            radius: const Radius.circular(4),
-            child: ListView.builder(
-              itemCount: songs.length,
-              itemBuilder: (context, index) {
-                final song = songs[index];
-                return ListTile(
-                  leading: Text(song.trackNumber?.toString() ?? '-',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant)),
-                  title: Text(song.title,
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Text(song.trackArtistId.value,
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  onTap: () => ref
-                      .read(playbackControllerProvider.notifier)
-                      .playSongs(
-                          queueIdStr: 'album_${album.id}',
-                          songs: songs,
-                          startIndex: index,
-                          source: AlbumQueueSource(
-                              albumId: AlbumId(album.id),
-                              albumName: album.name)),
-                );
-              },
-            ),
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 300.0,
+                pinned: true,
+                stretch: true,
+                backgroundColor: theme.colorScheme.surface,
+                flexibleSpace: FlexibleSpaceBar(
+                  titlePadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  title: Text(
+                    album.name,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface,
+                      shadows: [
+                        Shadow(
+                          color: theme.colorScheme.surface,
+                          blurRadius: 12,
+                        ),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (album.coverArtPath != null)
+                        Image.file(
+                          File(album.coverArtPath!),
+                          fit: BoxFit.cover,
+                          cacheWidth: 600,
+                        )
+                      else
+                        Container(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          child: Icon(
+                            PhosphorIconsRegular.disc,
+                            size: 100,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      // Gradient overlay to ensure text is readable and blends into the list
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              theme.colorScheme.surface.withValues(alpha: 0.2),
+                              theme.colorScheme.surface,
+                            ],
+                            stops: const [0.5, 0.8, 1.0],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              album.artist,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${album.songCount} songs',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      FloatingActionButton(
+                        onPressed: () {
+                          if (songs.isNotEmpty) {
+                            ref
+                                .read(playbackControllerProvider.notifier)
+                                .playSongs(
+                                  queueIdStr: 'album_${album.id}',
+                                  songs: songs,
+                                  startIndex: 0,
+                                  source: AlbumQueueSource(
+                                      albumId: AlbumId(album.id),
+                                      albumName: album.name),
+                                );
+                          }
+                        },
+                        elevation: 0,
+                        child: const Icon(PhosphorIconsFill.play),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final song = songs[index];
+                    return ListTile(
+                      leading: SizedBox(
+                        width: 32,
+                        child: Center(
+                          child: Text(
+                            song.trackNumber?.toString() ?? '-',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      title: Text(song.title,
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(song.trackArtistId.value,
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      onTap: () => ref
+                          .read(playbackControllerProvider.notifier)
+                          .playSongs(
+                            queueIdStr: 'album_${album.id}',
+                            songs: songs,
+                            startIndex: index,
+                            source: AlbumQueueSource(
+                                albumId: AlbumId(album.id),
+                                albumName: album.name),
+                          ),
+                    );
+                  },
+                  childCount: songs.length,
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),

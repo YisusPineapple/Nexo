@@ -125,8 +125,9 @@ class NexoApp extends ConsumerWidget {
     return MaterialApp(
       title: 'Nexo',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      // FIX: Apply useSystemFont dynamically based on user preferences
+      theme: AppTheme.lightTheme(useSystemFont: prefs.useSystemFont),
+      darkTheme: AppTheme.darkTheme(useSystemFont: prefs.useSystemFont),
       themeMode: themeMode,
       home: prefs.isOnboardingCompleted
           ? const HomeShell()

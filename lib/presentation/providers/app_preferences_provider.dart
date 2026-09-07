@@ -47,6 +47,11 @@ class AppPreferencesNotifier extends Notifier<AppPreferences> {
     await _save(updated);
   }
 
+  Future<void> toggleSystemFont(bool enabled) async {
+    final updated = state.copyWith(useSystemFont: enabled);
+    await _save(updated);
+  }
+
   Future<void> completeOnboarding() async {
     final updated = state.copyWith(isOnboardingCompleted: true);
     await _save(updated);

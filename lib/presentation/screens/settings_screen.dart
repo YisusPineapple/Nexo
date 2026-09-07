@@ -559,6 +559,18 @@ class SettingsScreen extends ConsumerWidget {
                       },
                     ),
                   ),
+                  const _GroupDivider(),
+                  // FIX: Option to toggle system font to save RAM
+                  SwitchListTile(
+                    secondary: const Icon(PhosphorIconsRegular.textAa),
+                    title: const Text('Use System Font'),
+                    subtitle: const Text(
+                        'Saves RAM by using native OS font instead of custom Outfit font'),
+                    value: prefs.useSystemFont,
+                    onChanged: (val) => unawaited(ref
+                        .read(appPreferencesProvider.notifier)
+                        .toggleSystemFont(val)),
+                  ),
                 ],
               ),
               _SettingsGroup(

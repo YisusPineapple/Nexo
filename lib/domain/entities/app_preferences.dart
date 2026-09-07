@@ -37,6 +37,7 @@ final class AppPreferences {
     required this.lyricsFontSize,
     required this.lyricsBlurEnabled,
     required this.lyricsHighlightWords,
+    required this.useSystemFont,
   });
 
   final bool isOnboardingCompleted;
@@ -46,6 +47,7 @@ final class AppPreferences {
   final LyricsFontSize lyricsFontSize;
   final bool lyricsBlurEnabled;
   final bool lyricsHighlightWords;
+  final bool useSystemFont;
 
   static const AppPreferences defaults = AppPreferences._(
     isOnboardingCompleted: false,
@@ -55,6 +57,7 @@ final class AppPreferences {
     lyricsFontSize: LyricsFontSize.medium,
     lyricsBlurEnabled: true,
     lyricsHighlightWords: true,
+    useSystemFont: false,
   );
 
   static Result<AppPreferences, Failure> create({
@@ -65,6 +68,7 @@ final class AppPreferences {
     LyricsFontSize lyricsFontSize = LyricsFontSize.medium,
     bool lyricsBlurEnabled = true,
     bool lyricsHighlightWords = true,
+    bool useSystemFont = false,
   }) {
     return Ok(AppPreferences._(
       isOnboardingCompleted: isOnboardingCompleted,
@@ -74,6 +78,7 @@ final class AppPreferences {
       lyricsFontSize: lyricsFontSize,
       lyricsBlurEnabled: lyricsBlurEnabled,
       lyricsHighlightWords: lyricsHighlightWords,
+      useSystemFont: useSystemFont,
     ));
   }
 
@@ -85,6 +90,7 @@ final class AppPreferences {
     LyricsFontSize? lyricsFontSize,
     bool? lyricsBlurEnabled,
     bool? lyricsHighlightWords,
+    bool? useSystemFont,
   }) {
     return AppPreferences._(
       isOnboardingCompleted:
@@ -94,8 +100,8 @@ final class AppPreferences {
       lyricsAlignment: lyricsAlignment ?? this.lyricsAlignment,
       lyricsFontSize: lyricsFontSize ?? this.lyricsFontSize,
       lyricsBlurEnabled: lyricsBlurEnabled ?? this.lyricsBlurEnabled,
-      lyricsHighlightWords:
-          lyricsHighlightWords ?? this.lyricsHighlightWords,
+      lyricsHighlightWords: lyricsHighlightWords ?? this.lyricsHighlightWords,
+      useSystemFont: useSystemFont ?? this.useSystemFont,
     );
   }
 
@@ -109,7 +115,8 @@ final class AppPreferences {
           other.lyricsAlignment == lyricsAlignment &&
           other.lyricsFontSize == lyricsFontSize &&
           other.lyricsBlurEnabled == lyricsBlurEnabled &&
-          other.lyricsHighlightWords == lyricsHighlightWords);
+          other.lyricsHighlightWords == lyricsHighlightWords &&
+          other.useSystemFont == useSystemFont);
 
   @override
   int get hashCode => Object.hash(
@@ -120,5 +127,6 @@ final class AppPreferences {
         lyricsFontSize,
         lyricsBlurEnabled,
         lyricsHighlightWords,
+        useSystemFont,
       );
 }

@@ -216,10 +216,6 @@ class ArtistDetailScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(artist.name),
-        leading: const BackButton(),
-      ),
       body: songsAsync.when(
         data: (songs) {
           if (songs.isEmpty) {
@@ -246,39 +242,77 @@ class ArtistDetailScreen extends ConsumerWidget {
             radius: const Radius.circular(4),
             child: CustomScrollView(
               slivers: [
+                SliverAppBar(
+                  expandedHeight: 250.0,
+                  pinned: true,
+                  stretch: true,
+                  backgroundColor: theme.colorScheme.surface,
+                  flexibleSpace: FlexibleSpaceBar(
+                    titlePadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
+                    title: Text(
+                      artist.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                        shadows: [
+                          Shadow(
+                            color: theme.colorScheme.surface,
+                            blurRadius: 12,
+                          ),
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    background: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (artist.coverArtPath != null)
+                          Image.file(
+                            File(artist.coverArtPath!),
+                            fit: BoxFit.cover,
+                            cacheWidth: 600,
+                          )
+                        else
+                          Container(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            child: Icon(
+                              PhosphorIconsRegular.user,
+                              size: 100,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                theme.colorScheme.surface
+                                    .withValues(alpha: 0.2),
+                                theme.colorScheme.surface,
+                              ],
+                              stops: const [0.5, 0.8, 1.0],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            _ArtistAvatar(
-                                name: artist.name,
-                                coverArtPath: artist.coverArtPath),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(artist.name,
-                                      style: theme.textTheme.headlineSmall
-                                          ?.copyWith(
-                                              fontWeight: FontWeight.bold),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                      '${artist.songCount} songs • ${artist.albumCount} albums • ${artist.collaborationCount} collabs',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                              color: theme.colorScheme
-                                                  .onSurfaceVariant)),
-                                ],
-                              ),
-                            ),
-                          ],
+                        Text(
+                          '${artist.songCount} songs • ${artist.albumCount} albums • ${artist.collaborationCount} collabs',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         Row(

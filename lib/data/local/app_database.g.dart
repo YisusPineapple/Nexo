@@ -3412,6 +3412,16 @@ class $AppPreferencesTableTable extends AppPreferencesTable
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("lyrics_highlight_words" IN (0, 1))'),
       defaultValue: const Constant(true));
+  static const VerificationMeta _useSystemFontMeta =
+      const VerificationMeta('useSystemFont');
+  @override
+  late final GeneratedColumn<bool> useSystemFont = GeneratedColumn<bool>(
+      'use_system_font', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("use_system_font" IN (0, 1))'),
+      defaultValue: const Constant(false));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -3421,7 +3431,8 @@ class $AppPreferencesTableTable extends AppPreferencesTable
         lyricsAlignment,
         lyricsFontSize,
         lyricsBlurEnabled,
-        lyricsHighlightWords
+        lyricsHighlightWords,
+        useSystemFont
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3454,6 +3465,12 @@ class $AppPreferencesTableTable extends AppPreferencesTable
           lyricsHighlightWords.isAcceptableOrUnknown(
               data['lyrics_highlight_words']!, _lyricsHighlightWordsMeta));
     }
+    if (data.containsKey('use_system_font')) {
+      context.handle(
+          _useSystemFontMeta,
+          useSystemFont.isAcceptableOrUnknown(
+              data['use_system_font']!, _useSystemFontMeta));
+    }
     return context;
   }
 
@@ -3484,6 +3501,8 @@ class $AppPreferencesTableTable extends AppPreferencesTable
           DriftSqlType.bool, data['${effectivePrefix}lyrics_blur_enabled'])!,
       lyricsHighlightWords: attachedDatabase.typeMapping.read(
           DriftSqlType.bool, data['${effectivePrefix}lyrics_highlight_words'])!,
+      useSystemFont: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}use_system_font'])!,
     );
   }
 
@@ -3512,6 +3531,7 @@ class AppPreferencesRow extends DataClass
   final LyricsFontSize lyricsFontSize;
   final bool lyricsBlurEnabled;
   final bool lyricsHighlightWords;
+  final bool useSystemFont;
   const AppPreferencesRow(
       {required this.id,
       required this.isOnboardingCompleted,
@@ -3520,7 +3540,8 @@ class AppPreferencesRow extends DataClass
       required this.lyricsAlignment,
       required this.lyricsFontSize,
       required this.lyricsBlurEnabled,
-      required this.lyricsHighlightWords});
+      required this.lyricsHighlightWords,
+      required this.useSystemFont});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3547,6 +3568,7 @@ class AppPreferencesRow extends DataClass
     }
     map['lyrics_blur_enabled'] = Variable<bool>(lyricsBlurEnabled);
     map['lyrics_highlight_words'] = Variable<bool>(lyricsHighlightWords);
+    map['use_system_font'] = Variable<bool>(useSystemFont);
     return map;
   }
 
@@ -3560,6 +3582,7 @@ class AppPreferencesRow extends DataClass
       lyricsFontSize: Value(lyricsFontSize),
       lyricsBlurEnabled: Value(lyricsBlurEnabled),
       lyricsHighlightWords: Value(lyricsHighlightWords),
+      useSystemFont: Value(useSystemFont),
     );
   }
 
@@ -3580,6 +3603,7 @@ class AppPreferencesRow extends DataClass
       lyricsBlurEnabled: serializer.fromJson<bool>(json['lyricsBlurEnabled']),
       lyricsHighlightWords:
           serializer.fromJson<bool>(json['lyricsHighlightWords']),
+      useSystemFont: serializer.fromJson<bool>(json['useSystemFont']),
     );
   }
   @override
@@ -3595,6 +3619,7 @@ class AppPreferencesRow extends DataClass
       'lyricsFontSize': serializer.toJson<LyricsFontSize>(lyricsFontSize),
       'lyricsBlurEnabled': serializer.toJson<bool>(lyricsBlurEnabled),
       'lyricsHighlightWords': serializer.toJson<bool>(lyricsHighlightWords),
+      'useSystemFont': serializer.toJson<bool>(useSystemFont),
     };
   }
 
@@ -3606,7 +3631,8 @@ class AppPreferencesRow extends DataClass
           LyricsAlignment? lyricsAlignment,
           LyricsFontSize? lyricsFontSize,
           bool? lyricsBlurEnabled,
-          bool? lyricsHighlightWords}) =>
+          bool? lyricsHighlightWords,
+          bool? useSystemFont}) =>
       AppPreferencesRow(
         id: id ?? this.id,
         isOnboardingCompleted:
@@ -3617,6 +3643,7 @@ class AppPreferencesRow extends DataClass
         lyricsFontSize: lyricsFontSize ?? this.lyricsFontSize,
         lyricsBlurEnabled: lyricsBlurEnabled ?? this.lyricsBlurEnabled,
         lyricsHighlightWords: lyricsHighlightWords ?? this.lyricsHighlightWords,
+        useSystemFont: useSystemFont ?? this.useSystemFont,
       );
   AppPreferencesRow copyWithCompanion(AppPreferencesTableCompanion data) {
     return AppPreferencesRow(
@@ -3640,6 +3667,9 @@ class AppPreferencesRow extends DataClass
       lyricsHighlightWords: data.lyricsHighlightWords.present
           ? data.lyricsHighlightWords.value
           : this.lyricsHighlightWords,
+      useSystemFont: data.useSystemFont.present
+          ? data.useSystemFont.value
+          : this.useSystemFont,
     );
   }
 
@@ -3653,7 +3683,8 @@ class AppPreferencesRow extends DataClass
           ..write('lyricsAlignment: $lyricsAlignment, ')
           ..write('lyricsFontSize: $lyricsFontSize, ')
           ..write('lyricsBlurEnabled: $lyricsBlurEnabled, ')
-          ..write('lyricsHighlightWords: $lyricsHighlightWords')
+          ..write('lyricsHighlightWords: $lyricsHighlightWords, ')
+          ..write('useSystemFont: $useSystemFont')
           ..write(')'))
         .toString();
   }
@@ -3667,7 +3698,8 @@ class AppPreferencesRow extends DataClass
       lyricsAlignment,
       lyricsFontSize,
       lyricsBlurEnabled,
-      lyricsHighlightWords);
+      lyricsHighlightWords,
+      useSystemFont);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3679,7 +3711,8 @@ class AppPreferencesRow extends DataClass
           other.lyricsAlignment == this.lyricsAlignment &&
           other.lyricsFontSize == this.lyricsFontSize &&
           other.lyricsBlurEnabled == this.lyricsBlurEnabled &&
-          other.lyricsHighlightWords == this.lyricsHighlightWords);
+          other.lyricsHighlightWords == this.lyricsHighlightWords &&
+          other.useSystemFont == this.useSystemFont);
 }
 
 class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
@@ -3691,6 +3724,7 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
   final Value<LyricsFontSize> lyricsFontSize;
   final Value<bool> lyricsBlurEnabled;
   final Value<bool> lyricsHighlightWords;
+  final Value<bool> useSystemFont;
   const AppPreferencesTableCompanion({
     this.id = const Value.absent(),
     this.isOnboardingCompleted = const Value.absent(),
@@ -3700,6 +3734,7 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
     this.lyricsFontSize = const Value.absent(),
     this.lyricsBlurEnabled = const Value.absent(),
     this.lyricsHighlightWords = const Value.absent(),
+    this.useSystemFont = const Value.absent(),
   });
   AppPreferencesTableCompanion.insert({
     this.id = const Value.absent(),
@@ -3710,6 +3745,7 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
     this.lyricsFontSize = const Value.absent(),
     this.lyricsBlurEnabled = const Value.absent(),
     this.lyricsHighlightWords = const Value.absent(),
+    this.useSystemFont = const Value.absent(),
   })  : performanceProfile = Value(performanceProfile),
         themeMode = Value(themeMode);
   static Insertable<AppPreferencesRow> custom({
@@ -3721,6 +3757,7 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
     Expression<String>? lyricsFontSize,
     Expression<bool>? lyricsBlurEnabled,
     Expression<bool>? lyricsHighlightWords,
+    Expression<bool>? useSystemFont,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3733,6 +3770,7 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
       if (lyricsBlurEnabled != null) 'lyrics_blur_enabled': lyricsBlurEnabled,
       if (lyricsHighlightWords != null)
         'lyrics_highlight_words': lyricsHighlightWords,
+      if (useSystemFont != null) 'use_system_font': useSystemFont,
     });
   }
 
@@ -3744,7 +3782,8 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
       Value<LyricsAlignment>? lyricsAlignment,
       Value<LyricsFontSize>? lyricsFontSize,
       Value<bool>? lyricsBlurEnabled,
-      Value<bool>? lyricsHighlightWords}) {
+      Value<bool>? lyricsHighlightWords,
+      Value<bool>? useSystemFont}) {
     return AppPreferencesTableCompanion(
       id: id ?? this.id,
       isOnboardingCompleted:
@@ -3755,6 +3794,7 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
       lyricsFontSize: lyricsFontSize ?? this.lyricsFontSize,
       lyricsBlurEnabled: lyricsBlurEnabled ?? this.lyricsBlurEnabled,
       lyricsHighlightWords: lyricsHighlightWords ?? this.lyricsHighlightWords,
+      useSystemFont: useSystemFont ?? this.useSystemFont,
     );
   }
 
@@ -3794,6 +3834,9 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
       map['lyrics_highlight_words'] =
           Variable<bool>(lyricsHighlightWords.value);
     }
+    if (useSystemFont.present) {
+      map['use_system_font'] = Variable<bool>(useSystemFont.value);
+    }
     return map;
   }
 
@@ -3807,7 +3850,8 @@ class AppPreferencesTableCompanion extends UpdateCompanion<AppPreferencesRow> {
           ..write('lyricsAlignment: $lyricsAlignment, ')
           ..write('lyricsFontSize: $lyricsFontSize, ')
           ..write('lyricsBlurEnabled: $lyricsBlurEnabled, ')
-          ..write('lyricsHighlightWords: $lyricsHighlightWords')
+          ..write('lyricsHighlightWords: $lyricsHighlightWords, ')
+          ..write('useSystemFont: $useSystemFont')
           ..write(')'))
         .toString();
   }
@@ -6854,6 +6898,7 @@ typedef $$AppPreferencesTableTableCreateCompanionBuilder
   Value<LyricsFontSize> lyricsFontSize,
   Value<bool> lyricsBlurEnabled,
   Value<bool> lyricsHighlightWords,
+  Value<bool> useSystemFont,
 });
 typedef $$AppPreferencesTableTableUpdateCompanionBuilder
     = AppPreferencesTableCompanion Function({
@@ -6865,6 +6910,7 @@ typedef $$AppPreferencesTableTableUpdateCompanionBuilder
   Value<LyricsFontSize> lyricsFontSize,
   Value<bool> lyricsBlurEnabled,
   Value<bool> lyricsHighlightWords,
+  Value<bool> useSystemFont,
 });
 
 class $$AppPreferencesTableTableFilterComposer
@@ -6910,6 +6956,9 @@ class $$AppPreferencesTableTableFilterComposer
   ColumnFilters<bool> get lyricsHighlightWords => $composableBuilder(
       column: $table.lyricsHighlightWords,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get useSystemFont => $composableBuilder(
+      column: $table.useSystemFont, builder: (column) => ColumnFilters(column));
 }
 
 class $$AppPreferencesTableTableOrderingComposer
@@ -6950,6 +6999,10 @@ class $$AppPreferencesTableTableOrderingComposer
   ColumnOrderings<bool> get lyricsHighlightWords => $composableBuilder(
       column: $table.lyricsHighlightWords,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get useSystemFont => $composableBuilder(
+      column: $table.useSystemFont,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$AppPreferencesTableTableAnnotationComposer
@@ -6987,6 +7040,9 @@ class $$AppPreferencesTableTableAnnotationComposer
 
   GeneratedColumn<bool> get lyricsHighlightWords => $composableBuilder(
       column: $table.lyricsHighlightWords, builder: (column) => column);
+
+  GeneratedColumn<bool> get useSystemFont => $composableBuilder(
+      column: $table.useSystemFont, builder: (column) => column);
 }
 
 class $$AppPreferencesTableTableTableManager extends RootTableManager<
@@ -7027,6 +7083,7 @@ class $$AppPreferencesTableTableTableManager extends RootTableManager<
             Value<LyricsFontSize> lyricsFontSize = const Value.absent(),
             Value<bool> lyricsBlurEnabled = const Value.absent(),
             Value<bool> lyricsHighlightWords = const Value.absent(),
+            Value<bool> useSystemFont = const Value.absent(),
           }) =>
               AppPreferencesTableCompanion(
             id: id,
@@ -7037,6 +7094,7 @@ class $$AppPreferencesTableTableTableManager extends RootTableManager<
             lyricsFontSize: lyricsFontSize,
             lyricsBlurEnabled: lyricsBlurEnabled,
             lyricsHighlightWords: lyricsHighlightWords,
+            useSystemFont: useSystemFont,
           ),
           createCompanionCallback: ({
             Value<int> id = const Value.absent(),
@@ -7047,6 +7105,7 @@ class $$AppPreferencesTableTableTableManager extends RootTableManager<
             Value<LyricsFontSize> lyricsFontSize = const Value.absent(),
             Value<bool> lyricsBlurEnabled = const Value.absent(),
             Value<bool> lyricsHighlightWords = const Value.absent(),
+            Value<bool> useSystemFont = const Value.absent(),
           }) =>
               AppPreferencesTableCompanion.insert(
             id: id,
@@ -7057,6 +7116,7 @@ class $$AppPreferencesTableTableTableManager extends RootTableManager<
             lyricsFontSize: lyricsFontSize,
             lyricsBlurEnabled: lyricsBlurEnabled,
             lyricsHighlightWords: lyricsHighlightWords,
+            useSystemFont: useSystemFont,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

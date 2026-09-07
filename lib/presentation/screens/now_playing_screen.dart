@@ -155,7 +155,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        // FIX: Bug 2.4 - Show sleep timer as m:ss
                         _formatDuration(sleepTimer),
                         style: TextStyle(
                           fontSize: 9,
@@ -224,204 +223,215 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       }
     });
 
-    final coverWidget = GestureDetector(
-      onVerticalDragUpdate: widget.onVerticalDragUpdate,
-      onVerticalDragEnd: widget.onVerticalDragEnd,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 400),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        child: _showLyrics
-            ? _LyricsView(
-                key: const ValueKey('lyrics'),
-                ref: ref,
-                lines: lyricsList,
-                currentIndex: currentLyricIndex,
-                activeSegment: currentSegment,
-                scrollController: _lyricsScrollController,
-                onToggleFullScreen: _toggleFullScreen,
-                isFullScreen: _isFullScreen,
-                itemExtent: itemExtent,
-              )
-            : Hero(
-                tag: 'cover_${currentSong.id.value}',
-                child: _CoverArtView(
-                    key: const ValueKey('cover'),
-                    coverArtPath: currentSong.coverArtPath),
-              ),
+    // FIX: RepaintBoundary around the cover/lyrics.
+    // Prevents the heavy image/blur from repainting when the slider moves.
+    final coverWidget = RepaintBoundary(
+      child: GestureDetector(
+        onVerticalDragUpdate: widget.onVerticalDragUpdate,
+        onVerticalDragEnd: widget.onVerticalDragEnd,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          child: _showLyrics
+              ? _LyricsView(
+                  key: const ValueKey('lyrics'),
+                  ref: ref,
+                  lines: lyricsList,
+                  currentIndex: currentLyricIndex,
+                  activeSegment: currentSegment,
+                  scrollController: _lyricsScrollController,
+                  onToggleFullScreen: _toggleFullScreen,
+                  isFullScreen: _isFullScreen,
+                  itemExtent: itemExtent,
+                )
+              : Hero(
+                  tag: 'cover_${currentSong.id.value}',
+                  child: _CoverArtView(
+                      key: const ValueKey('cover'),
+                      coverArtPath: currentSong.coverArtPath),
+                ),
+        ),
       ),
     );
 
-    final controlsWidget = Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    // FIX: RepaintBoundary around the controls.
+    // The slider and time text update 60 times per second during seek, and 1 time per second during play.
+    final controlsWidget = RepaintBoundary(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    MarqueeText(
+                      text: currentSong.title,
+                      style: theme.textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      currentSong.trackArtistId.value,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  MarqueeText(
-                    text: currentSong.title,
-                    style: theme.textTheme.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                  AnimatedInteractionButton(
+                    key: ValueKey('dislike_${currentSong.id.value}'),
+                    icon: interaction == InteractionType.dislike
+                        ? PhosphorIconsFill.heartBreak
+                        : PhosphorIconsRegular.heartBreak,
+                    color: interaction == InteractionType.dislike
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                    isActive: interaction == InteractionType.dislike,
+                    showBurst: false,
+                    onPressed: () => ref
+                        .read(userMetricsControllerProvider)
+                        .toggleInteraction(currentSong.id.value, ItemType.song,
+                            InteractionType.dislike),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    currentSong.trackArtistId.value,
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  AnimatedInteractionButton(
+                    key: ValueKey('like_${currentSong.id.value}'),
+                    icon: interaction == InteractionType.like
+                        ? PhosphorIconsFill.heart
+                        : PhosphorIconsRegular.heart,
+                    color: interaction == InteractionType.like
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                    isActive: interaction == InteractionType.like,
+                    showBurst: true,
+                    onPressed: () => ref
+                        .read(userMetricsControllerProvider)
+                        .toggleInteraction(currentSong.id.value, ItemType.song,
+                            InteractionType.like),
                   ),
                 ],
               ),
-            ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedInteractionButton(
-                  key: ValueKey('dislike_${currentSong.id.value}'),
-                  icon: interaction == InteractionType.dislike
-                      ? PhosphorIconsFill.heartBreak
-                      : PhosphorIconsRegular.heartBreak,
-                  color: interaction == InteractionType.dislike
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant,
-                  isActive: interaction == InteractionType.dislike,
-                  showBurst: false,
-                  onPressed: () => ref
-                      .read(userMetricsControllerProvider)
-                      .toggleInteraction(currentSong.id.value, ItemType.song,
-                          InteractionType.dislike),
-                ),
-                AnimatedInteractionButton(
-                  key: ValueKey('like_${currentSong.id.value}'),
-                  icon: interaction == InteractionType.like
-                      ? PhosphorIconsFill.heart
-                      : PhosphorIconsRegular.heart,
-                  color: interaction == InteractionType.like
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant,
-                  isActive: interaction == InteractionType.like,
-                  showBurst: true,
-                  onPressed: () => ref
-                      .read(userMetricsControllerProvider)
-                      .toggleInteraction(currentSong.id.value, ItemType.song,
-                          InteractionType.like),
-                ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 32),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 6,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
-            activeTrackColor: theme.colorScheme.primary,
-            inactiveTrackColor:
-                theme.colorScheme.primary.withValues(alpha: 0.2),
-            thumbColor: theme.colorScheme.primary,
-          ),
-          child: Slider(
-            value: position.inMilliseconds
-                .toDouble()
-                .clamp(0, duration.inMilliseconds.toDouble()),
-            max: duration.inMilliseconds.toDouble(),
-            onChanged: (value) => ref
-                .read(playbackControllerProvider.notifier)
-                .seekTo(Duration(milliseconds: value.toInt())),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(_formatDuration(position),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600)),
-              Text(_formatDuration(duration),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600)),
             ],
           ),
-        ),
-        const SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            IconButton(
-              icon: const Icon(PhosphorIconsRegular.shuffle),
-              color: queue!.shuffleEnabled
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
-              onPressed: () =>
-                  ref.read(playbackControllerProvider.notifier).toggleShuffle(),
+          const SizedBox(height: 32),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 6,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+              activeTrackColor: theme.colorScheme.primary,
+              inactiveTrackColor:
+                  theme.colorScheme.primary.withValues(alpha: 0.2),
+              thumbColor: theme.colorScheme.primary,
             ),
-            IconButton(
-              icon: const Icon(PhosphorIconsFill.skipBack),
-              iconSize: 40,
-              color: theme.colorScheme.onSurface,
-              onPressed: () =>
-                  ref.read(playbackControllerProvider.notifier).skipPrevious(),
+            child: Slider(
+              value: position.inMilliseconds
+                  .toDouble()
+                  .clamp(0, duration.inMilliseconds.toDouble()),
+              max: duration.inMilliseconds.toDouble(),
+              onChanged: (value) => ref
+                  .read(playbackControllerProvider.notifier)
+                  .seekTo(Duration(milliseconds: value.toInt())),
             ),
-            Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: theme.colorScheme.primaryContainer,
-                boxShadow: [
-                  BoxShadow(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                      blurRadius: 16,
-                      offset: const Offset(0, 8))
-                ],
-              ),
-              child: IconButton(
-                padding: const EdgeInsets.all(20),
-                iconSize: 40,
-                color: theme.colorScheme.onPrimaryContainer,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(_formatDuration(position),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600)),
+                Text(_formatDuration(duration),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              IconButton(
+                icon: const Icon(PhosphorIconsRegular.shuffle),
+                color: queue!.shuffleEnabled
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
                 onPressed: () => ref
                     .read(playbackControllerProvider.notifier)
-                    .togglePlayPause(),
-                icon: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  transitionBuilder: (child, anim) => RotationTransition(
-                      turns: Tween<double>(begin: 0.8, end: 1.0).animate(anim),
-                      child: ScaleTransition(scale: anim, child: child)),
-                  child: Icon(
-                      isPlaying
-                          ? PhosphorIconsFill.pause
-                          : PhosphorIconsFill.play,
-                      key: ValueKey(isPlaying)),
+                    .toggleShuffle(),
+              ),
+              IconButton(
+                icon: const Icon(PhosphorIconsFill.skipBack),
+                iconSize: 40,
+                color: theme.colorScheme.onSurface,
+                onPressed: () => ref
+                    .read(playbackControllerProvider.notifier)
+                    .skipPrevious(),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: theme.colorScheme.primaryContainer,
+                  boxShadow: [
+                    BoxShadow(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8))
+                  ],
+                ),
+                child: IconButton(
+                  padding: const EdgeInsets.all(20),
+                  iconSize: 40,
+                  color: theme.colorScheme.onPrimaryContainer,
+                  onPressed: () => ref
+                      .read(playbackControllerProvider.notifier)
+                      .togglePlayPause(),
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    transitionBuilder: (child, anim) => RotationTransition(
+                        turns:
+                            Tween<double>(begin: 0.8, end: 1.0).animate(anim),
+                        child: ScaleTransition(scale: anim, child: child)),
+                    child: Icon(
+                        isPlaying
+                            ? PhosphorIconsFill.pause
+                            : PhosphorIconsFill.play,
+                        key: ValueKey(isPlaying)),
+                  ),
                 ),
               ),
-            ),
-            IconButton(
-              icon: const Icon(PhosphorIconsFill.skipForward),
-              iconSize: 40,
-              color: theme.colorScheme.onSurface,
-              onPressed: () =>
-                  ref.read(playbackControllerProvider.notifier).skipNext(),
-            ),
-            IconButton(
-              icon: Icon(queue.repeatMode == RepeatMode.one
-                  ? PhosphorIconsRegular.repeatOnce
-                  : PhosphorIconsRegular.repeat),
-              color: queue.repeatMode != RepeatMode.off
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
-              onPressed: () => ref
-                  .read(playbackControllerProvider.notifier)
-                  .toggleRepeatMode(),
-            ),
-          ],
-        ),
-      ],
+              IconButton(
+                icon: const Icon(PhosphorIconsFill.skipForward),
+                iconSize: 40,
+                color: theme.colorScheme.onSurface,
+                onPressed: () =>
+                    ref.read(playbackControllerProvider.notifier).skipNext(),
+              ),
+              IconButton(
+                icon: Icon(queue.repeatMode == RepeatMode.one
+                    ? PhosphorIconsRegular.repeatOnce
+                    : PhosphorIconsRegular.repeat),
+                color: queue.repeatMode != RepeatMode.off
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+                onPressed: () => ref
+                    .read(playbackControllerProvider.notifier)
+                    .toggleRepeatMode(),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
 
     return Scaffold(
@@ -437,9 +447,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           ),
         ),
         child: SafeArea(
-          child: OrientationBuilder(
-            builder: (context, orientation) {
-              if (orientation == Orientation.landscape) {
+          // FIX: LayoutBuilder instead of OrientationBuilder.
+          // This ensures it responds to actual available space (e.g., resizing a PC window)
+          // rather than just the device's physical orientation.
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > constraints.maxHeight ||
+                  constraints.maxWidth > 800;
+
+              if (isWide) {
                 return Column(
                   children: [
                     AnimatedSize(
@@ -462,7 +478,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                             child: Padding(
                               padding: EdgeInsets.fromLTRB(
                                   32, 0, _isFullScreen ? 32 : 16, 32),
-                              child: coverWidget,
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 600),
+                                  child: coverWidget,
+                                ),
+                              ),
                             ),
                           ),
                           AnimatedSize(
@@ -471,8 +493,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                             child: _isFullScreen
                                 ? const SizedBox(width: 0)
                                 : SizedBox(
-                                    width:
-                                        MediaQuery.of(context).size.width / 2,
+                                    width: (constraints.maxWidth / 2)
+                                        .clamp(300.0, 600.0),
                                     child: Padding(
                                       padding: const EdgeInsets.fromLTRB(
                                           16, 0, 32, 32),
@@ -587,7 +609,6 @@ class _CoverArtView extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: coverArtPath != null
-            // FIX: Added cacheWidth to prevent RAM leak
             ? Image.file(File(coverArtPath!),
                 fit: BoxFit.cover, cacheWidth: 600)
             : Icon(PhosphorIconsRegular.musicNotes,

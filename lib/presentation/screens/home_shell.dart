@@ -8,7 +8,7 @@ import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import '../../core/error/failures.dart';
 import '../providers/library_providers.dart';
 import '../providers/navigation_providers.dart';
-import '../providers/playback_providers.dart'; // FIX: Added to watch queue state
+import '../providers/playback_providers.dart';
 import '../widgets/mini_player.dart';
 import 'for_you_screen.dart';
 import 'library/library_hub_screen.dart';
@@ -109,8 +109,7 @@ class _HomeShellState extends ConsumerState<HomeShell>
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(selectedNavIndexProvider);
     final indexState = ref.watch(indexDirectoriesControllerProvider);
-    
-    // FIX: Watch the queue to know if the MiniPlayer is visible
+
     final queueAsync = ref.watch(playbackControllerProvider);
     final hasQueue = queueAsync.valueOrNull != null;
 
@@ -132,8 +131,6 @@ class _HomeShellState extends ConsumerState<HomeShell>
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= HomeShell._wideBreakpoint;
 
-        // FIX: Dynamic bottom padding. 80px reserves space for the MiniPlayer (68px height + 12px margin)
-        // This single source of truth prevents the MiniPlayer from covering the last items in ANY screen.
         final body = Padding(
           padding: EdgeInsets.only(bottom: hasQueue ? 80.0 : 0.0),
           child: IndexedStack(
@@ -146,35 +143,39 @@ class _HomeShellState extends ConsumerState<HomeShell>
         void onSelect(int i) =>
             ref.read(selectedNavIndexProvider.notifier).state = i;
 
-        final miniPlayerWithProgress = Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (progress != null)
-              LinearProgressIndicator(
-                value: progress.total == 0
-                    ? null
-                    : progress.current / progress.total,
-                backgroundColor:
-                    Theme.of(context).colorScheme.surfaceContainerHighest,
+        // FIX: RepaintBoundary isolates the constantly updating MiniPlayer and Progress bar
+        // from the heavy IndexedStack (which holds the entire library UI).
+        final miniPlayerWithProgress = RepaintBoundary(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (progress != null)
+                LinearProgressIndicator(
+                  value: progress.total == 0
+                      ? null
+                      : progress.current / progress.total,
+                  backgroundColor:
+                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                ),
+              AnimatedBuilder(
+                animation: _playerAnim,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: (1.0 - (_playerAnim.value * 2)).clamp(0.0, 1.0),
+                    child: IgnorePointer(
+                      ignoring: _playerAnim.value > 0.5,
+                      child: child,
+                    ),
+                  );
+                },
+                child: MiniPlayer(
+                  onTap: _togglePlayer,
+                  onVerticalDragUpdate: _handleDragUpdate,
+                  onVerticalDragEnd: _handleDragEnd,
+                ),
               ),
-            AnimatedBuilder(
-              animation: _playerAnim,
-              builder: (context, child) {
-                return Opacity(
-                  opacity: (1.0 - (_playerAnim.value * 2)).clamp(0.0, 1.0),
-                  child: IgnorePointer(
-                    ignoring: _playerAnim.value > 0.5,
-                    child: child,
-                  ),
-                );
-              },
-              child: MiniPlayer(
-                onTap: _togglePlayer,
-                onVerticalDragUpdate: _handleDragUpdate,
-                onVerticalDragEnd: _handleDragEnd,
-              ),
-            ),
-          ],
+            ],
+          ),
         );
 
         Widget scaffold;
@@ -204,7 +205,13 @@ class _HomeShellState extends ConsumerState<HomeShell>
                         bottom: 0,
                         left: 0,
                         right: 0,
-                        child: miniPlayerWithProgress,
+                        child: Center(
+                          // Constrain MiniPlayer width on ultra-wide PC monitors
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 800),
+                            child: miniPlayerWithProgress,
+                          ),
+                        ),
                       ),
                     ],
                   ),

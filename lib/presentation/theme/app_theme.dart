@@ -21,7 +21,7 @@ class AppTheme {
     },
   );
 
-  static ThemeData get lightTheme {
+  static ThemeData lightTheme({bool useSystemFont = false}) {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
@@ -30,7 +30,7 @@ class AppTheme {
         surface: _surfaceLight,
         surfaceContainerHighest: const Color(0xFFF0EBE1),
       ),
-      fontFamily: 'Outfit',
+      fontFamily: useSystemFont ? null : 'Outfit',
       pageTransitionsTheme: _pageTransitions,
       appBarTheme: const AppBarTheme(
         centerTitle: true,
@@ -45,7 +45,6 @@ class AppTheme {
         useIndicator: true,
         indicatorShape: StadiumBorder(),
       ),
-      // Make standard cards transparent so they don't conflict with SoftCard
       cardTheme: const CardThemeData(
         elevation: 0,
         color: Colors.transparent,
@@ -53,7 +52,7 @@ class AppTheme {
     );
   }
 
-  static ThemeData get darkTheme {
+  static ThemeData darkTheme({bool useSystemFont = false}) {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
@@ -62,7 +61,7 @@ class AppTheme {
         surface: _surfaceDark,
         surfaceContainerHighest: const Color(0xFF2A1F1A),
       ),
-      fontFamily: 'Outfit',
+      fontFamily: useSystemFont ? null : 'Outfit',
       pageTransitionsTheme: _pageTransitions,
       appBarTheme: const AppBarTheme(
         centerTitle: true,

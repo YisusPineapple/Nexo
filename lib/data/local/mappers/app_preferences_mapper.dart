@@ -17,6 +17,7 @@ class AppPreferencesMapper {
       lyricsFontSize: row.lyricsFontSize,
       lyricsBlurEnabled: row.lyricsBlurEnabled,
       lyricsHighlightWords: row.lyricsHighlightWords,
+      useSystemFont: row.useSystemFont,
     );
   }
 
@@ -30,6 +31,7 @@ class AppPreferencesMapper {
       lyricsFontSize: Value(entity.lyricsFontSize),
       lyricsBlurEnabled: Value(entity.lyricsBlurEnabled),
       lyricsHighlightWords: Value(entity.lyricsHighlightWords),
+      useSystemFont: Value(entity.useSystemFont),
     );
   }
 }
