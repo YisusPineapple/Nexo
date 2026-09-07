@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart' as reader;
 import 'package:flutter/foundation.dart';
-import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
 class ExtractedMetadata {
@@ -43,7 +42,6 @@ class SongMetadataReader {
     if (input == null || input.trim().isEmpty) {
       return null;
     }
-    // Encode to UTF-8 (which replaces unpaired surrogates with U+FFFD) and decode back safely
     final cleaned =
         utf8.decode(utf8.encode(input), allowMalformed: true).trim();
     if (cleaned.isEmpty) {
@@ -130,27 +128,16 @@ class SongMetadataReader {
 
     await Directory(cacheDirectory).create(recursive: true);
 
+    // FIX: Removed the 'image' package dependency.
+    // Decoding and resizing in pure Dart was causing 100% CPU usage and overheating.
+    // We now save the raw bytes instantly. Flutter's Image.file(cacheWidth: X)
+    // will handle the resizing efficiently in C++ via Skia/Impeller.
     try {
-      final decoded = img.decodeImage(coverBytes);
-      if (decoded != null) {
-        img.Image processed = decoded;
-        if (decoded.width > 500 || decoded.height > 500) {
-          processed = img.copyResize(
-            decoded,
-            width: decoded.width >= decoded.height ? 500 : null,
-            height: decoded.height > decoded.width ? 500 : null,
-            interpolation: img.Interpolation.average,
-          );
-        }
-        final compressed = img.encodeJpg(processed, quality: 75);
-        await file.writeAsBytes(compressed);
-        return outPath;
-      }
+      await file.writeAsBytes(coverBytes);
+      return outPath;
     } catch (e) {
-      debugPrint('Cover art resize error for $coverId: $e');
+      debugPrint('Failed to write cover art for $coverId: $e');
+      return null;
     }
-
-    await file.writeAsBytes(coverBytes);
-    return outPath;
   }
 }

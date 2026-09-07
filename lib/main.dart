@@ -27,6 +27,11 @@ Future<void> main() async {
       await Permission.notification.request();
     }
 
+    final supportDir = await getApplicationSupportDirectory();
+
+    // Initialize offline crash reporting
+    CrashLogger.init(supportDir.path);
+
     JustAudioMediaKit.ensureInitialized(
       linux: true,
       windows: true,
@@ -34,11 +39,6 @@ Future<void> main() async {
       iOS: false,
       macOS: false,
     );
-
-    final supportDir = await getApplicationSupportDirectory();
-
-    // Initialize offline crash reporting
-    CrashLogger.init(supportDir.path);
 
     final dbFile = File(p.join(supportDir.path, 'nexo.sqlite'));
     final coverArtDir = p.join(supportDir.path, 'covers');

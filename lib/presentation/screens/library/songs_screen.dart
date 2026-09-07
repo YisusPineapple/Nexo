@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -136,6 +137,26 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                     itemBuilder: (context, index) {
                       final song = songs[index];
                       return ListTile(
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: song.coverArtPath != null
+                              // FIX: Added cacheWidth to prevent RAM leak
+                              ? Image.file(
+                                  File(song.coverArtPath!),
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                  cacheWidth: 150,
+                                )
+                              : Container(
+                                  width: 48,
+                                  height: 48,
+                                  color:
+                                      theme.colorScheme.surfaceContainerHighest,
+                                  child: const Icon(
+                                      PhosphorIconsRegular.musicNotes),
+                                ),
+                        ),
                         title: Text(
                           song.title,
                           maxLines: 1,

@@ -60,6 +60,10 @@ Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
   const metadataReader = SongMetadataReader();
 
   try {
+    // FIX: Send an immediate progress event so the UI doesn't hang for 2 minutes
+    // while the scanner recursively reads the filesystem.
+    args.sendPort.send(const _IndexingProgress(0, 0, null));
+
     final foundMap = <String, AudioFormat>{};
     for (final directoryPath in args.directoryPaths) {
       final scanned = await scanner.scan(
