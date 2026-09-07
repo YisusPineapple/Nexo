@@ -45,6 +45,11 @@ class AppTheme {
         useIndicator: true,
         indicatorShape: StadiumBorder(),
       ),
+      // Make standard cards transparent so they don't conflict with SoftCard
+      cardTheme: const CardThemeData(
+        elevation: 0,
+        color: Colors.transparent,
+      ),
     );
   }
 
@@ -71,6 +76,10 @@ class AppTheme {
       navigationRailTheme: const NavigationRailThemeData(
         useIndicator: true,
         indicatorShape: StadiumBorder(),
+      ),
+      cardTheme: const CardThemeData(
+        elevation: 0,
+        color: Colors.transparent,
       ),
     );
   }

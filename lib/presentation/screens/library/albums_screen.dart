@@ -10,6 +10,7 @@ import '../../../domain/value_objects/album_id.dart';
 import '../../providers/grouped_library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/alphabetical_scroll_view.dart';
+import '../../widgets/soft_card.dart';
 
 class AlbumsScreen extends ConsumerStatefulWidget {
   const AlbumsScreen({super.key});
@@ -93,7 +94,6 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                       screenWidth - 32 - ((crossAxisCount - 1) * 16);
                   final itemWidth = availableWidth / crossAxisCount;
 
-                  // FIX: Changed aspect ratio from 0.75 to 0.65 to prevent 19px overflow on PC
                   final itemHeight = (itemWidth / 0.65) + 16;
 
                   return AlphabeticalScrollView(
@@ -117,70 +117,53 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                         crossAxisCount: crossAxisCount,
                         crossAxisSpacing: 16,
                         mainAxisSpacing: 16,
-                        childAspectRatio:
-                            0.65, // FIX: Match the new aspect ratio
+                        childAspectRatio: 0.65,
                       ),
                       itemCount: albums.length,
                       itemBuilder: (context, index) {
                         final album = albums[index];
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.04),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                        return SoftCard(
+                          onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      AlbumDetailScreen(album: album))),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AspectRatio(
+                                aspectRatio: 1,
+                                child: Container(
+                                  color:
+                                      theme.colorScheme.surfaceContainerHighest,
+                                  child: album.coverArtPath != null
+                                      ? Image.file(File(album.coverArtPath!),
+                                          fit: BoxFit.cover, cacheWidth: 300)
+                                      : const Icon(Icons.album, size: 48),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(album.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.titleSmall
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 2),
+                                    Text(album.artist,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                                color: theme.colorScheme
+                                                    .onSurfaceVariant)),
+                                  ],
+                                ),
                               ),
                             ],
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: InkWell(
-                            onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                    builder: (_) =>
-                                        AlbumDetailScreen(album: album))),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                AspectRatio(
-                                  aspectRatio: 1,
-                                  child: Container(
-                                    color: theme
-                                        .colorScheme.surfaceContainerHighest,
-                                    child: album.coverArtPath != null
-                                        // FIX: Added cacheWidth to prevent RAM leak
-                                        ? Image.file(File(album.coverArtPath!),
-                                            fit: BoxFit.cover, cacheWidth: 300)
-                                        : const Icon(Icons.album, size: 48),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(album.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: theme.textTheme.titleSmall
-                                              ?.copyWith(
-                                                  fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 2),
-                                      Text(album.artist,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                                  color: theme.colorScheme
-                                                      .onSurfaceVariant)),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
                         );
                       },

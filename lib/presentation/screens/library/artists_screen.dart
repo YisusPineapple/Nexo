@@ -12,6 +12,7 @@ import '../../../domain/value_objects/artist_id.dart';
 import '../../providers/grouped_library_providers.dart';
 import '../../providers/playback_providers.dart';
 import '../../widgets/alphabetical_scroll_view.dart';
+import '../../widgets/soft_card.dart';
 
 const double _artistRowExtent = 92.0;
 
@@ -94,80 +95,59 @@ class _ArtistsScreenState extends ConsumerState<ArtistsScreen> {
                     itemCount: artists.length,
                     itemBuilder: (context, index) {
                       final artist = artists[index];
-                      return Container(
+                      return SoftCard(
                         margin: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surface,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: InkWell(
-                          onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                  builder: (_) =>
-                                      ArtistDetailScreen(artist: artist))),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Row(
-                              children: [
-                                _ArtistAvatar(
-                                    name: artist.name,
-                                    coverArtPath: artist.coverArtPath),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                        onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    ArtistDetailScreen(artist: artist))),
+                        padding: const EdgeInsets.all(12.0),
+                        child: Row(
+                          children: [
+                            _ArtistAvatar(
+                                name: artist.name,
+                                coverArtPath: artist.coverArtPath),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(artist.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 4),
+                                  Row(
                                     children: [
-                                      Text(artist.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w600)),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Text('${artist.songCount} songs',
-                                              style: theme.textTheme.bodySmall),
-                                          if (artist.albumCount > 0) ...[
-                                            Text(' • ',
-                                                style:
-                                                    theme.textTheme.bodySmall),
-                                            Text('${artist.albumCount} albums',
-                                                style:
-                                                    theme.textTheme.bodySmall)
-                                          ],
-                                          if (artist.collaborationCount >
-                                              0) ...[
-                                            Text(' • ',
-                                                style:
-                                                    theme.textTheme.bodySmall),
-                                            Text(
-                                                '${artist.collaborationCount} collabs',
-                                                style: theme.textTheme.bodySmall
-                                                    ?.copyWith(
-                                                        color: theme.colorScheme
-                                                            .primary))
-                                          ],
-                                        ],
-                                      ),
+                                      Text('${artist.songCount} songs',
+                                          style: theme.textTheme.bodySmall),
+                                      if (artist.albumCount > 0) ...[
+                                        Text(' • ',
+                                            style: theme.textTheme.bodySmall),
+                                        Text('${artist.albumCount} albums',
+                                            style: theme.textTheme.bodySmall)
+                                      ],
+                                      if (artist.collaborationCount > 0) ...[
+                                        Text(' • ',
+                                            style: theme.textTheme.bodySmall),
+                                        Text(
+                                            '${artist.collaborationCount} collabs',
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                    color: theme
+                                                        .colorScheme.primary))
+                                      ],
                                     ],
                                   ),
-                                ),
-                                const Icon(PhosphorIconsRegular.caretRight,
-                                    size: 16),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
+                            const Icon(PhosphorIconsRegular.caretRight,
+                                size: 16),
+                          ],
                         ),
                       );
                     },
@@ -211,7 +191,6 @@ class _ArtistAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: 28,
       backgroundColor: theme.colorScheme.primaryContainer,
-      // FIX: Added cacheWidth to prevent RAM leak
       backgroundImage: coverArtPath != null
           ? ResizeImage(FileImage(File(coverArtPath!)), width: 150)
               as ImageProvider
@@ -424,9 +403,8 @@ class _SongTile extends StatelessWidget {
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(6),
         child: song.coverArtPath != null
-            // FIX: Added cacheWidth to prevent RAM leak
             ? Image.file(File(song.coverArtPath!),
-                width: 48, height: 48, fit: BoxFit.cover, cacheWidth: 150)
+                width: 48, height: 48, fit: BoxFit.cover, cacheWidth: 96)
             : Container(
                 width: 48,
                 height: 48,
