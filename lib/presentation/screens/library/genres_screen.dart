@@ -40,7 +40,9 @@ class _GenresScreenState extends ConsumerState<GenresScreen> {
         final screenWidth = MediaQuery.of(context).size.width;
         final availableWidth = screenWidth - 32 - ((crossAxisCount - 1) * 16);
         final itemWidth = availableWidth / crossAxisCount;
-        final itemHeight = (itemWidth / 2.0) + 16;
+
+        // FIX: Changed aspect ratio to 2.2 to prevent 1.9px overflow
+        final itemHeight = (itemWidth / 2.2) + 16;
 
         return AlphabeticalScrollView(
           controller: _scrollController,
@@ -55,7 +57,7 @@ class _GenresScreenState extends ConsumerState<GenresScreen> {
               crossAxisCount: crossAxisCount,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
-              childAspectRatio: 2.0,
+              childAspectRatio: 2.2, // FIX: Match the new aspect ratio
             ),
             itemCount: genres.length,
             itemBuilder: (context, index) {

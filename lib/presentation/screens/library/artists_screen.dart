@@ -206,13 +206,26 @@ class _ArtistAvatar extends StatelessWidget {
   }
 }
 
-class ArtistDetailScreen extends ConsumerWidget {
+class ArtistDetailScreen extends ConsumerStatefulWidget {
   const ArtistDetailScreen({super.key, required this.artist});
   final Artist artist;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final songsAsync = ref.watch(multiArtistSongsProvider(artist.name));
+  ConsumerState<ArtistDetailScreen> createState() => _ArtistDetailScreenState();
+}
+
+class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final songsAsync = ref.watch(multiArtistSongsProvider(widget.artist.name));
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -221,7 +234,7 @@ class ArtistDetailScreen extends ConsumerWidget {
           if (songs.isEmpty) {
             return const Center(child: Text('No songs found.'));
           }
-          final normalizedTarget = normalizeArtist(artist.name);
+          final normalizedTarget = normalizeArtist(widget.artist.name);
           final mainSongs = <Song>[];
           final collabSongs = <Song>[];
 
@@ -237,21 +250,33 @@ class ArtistDetailScreen extends ConsumerWidget {
           }
 
           return Scrollbar(
+            controller: _scrollController,
             interactive: true,
             thickness: 8,
             radius: const Radius.circular(4),
             child: CustomScrollView(
+              controller: _scrollController,
               slivers: [
                 SliverAppBar(
                   expandedHeight: 250.0,
                   pinned: true,
                   stretch: true,
                   backgroundColor: theme.colorScheme.surface,
+                  // FIX: Protected back button
+                  leading: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: CircleAvatar(
+                      backgroundColor:
+                          theme.colorScheme.surface.withValues(alpha: 0.6),
+                      child: const BackButton(),
+                    ),
+                  ),
                   flexibleSpace: FlexibleSpaceBar(
-                    titlePadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 16),
+                    // FIX: Adjusted padding to prevent overlap with back button
+                    titlePadding:
+                        const EdgeInsets.only(left: 64, right: 16, bottom: 16),
                     title: Text(
-                      artist.name,
+                      widget.artist.name,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: theme.colorScheme.onSurface,
@@ -268,9 +293,9 @@ class ArtistDetailScreen extends ConsumerWidget {
                     background: Stack(
                       fit: StackFit.expand,
                       children: [
-                        if (artist.coverArtPath != null)
+                        if (widget.artist.coverArtPath != null)
                           Image.file(
-                            File(artist.coverArtPath!),
+                            File(widget.artist.coverArtPath!),
                             fit: BoxFit.cover,
                             cacheWidth: 600,
                           )
@@ -309,7 +334,7 @@ class ArtistDetailScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${artist.songCount} songs • ${artist.albumCount} albums • ${artist.collaborationCount} collabs',
+                          '${widget.artist.songCount} songs • ${widget.artist.albumCount} albums • ${widget.artist.collaborationCount} collabs',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -322,12 +347,14 @@ class ArtistDetailScreen extends ConsumerWidget {
                                 onPressed: () => ref
                                     .read(playbackControllerProvider.notifier)
                                     .playSongs(
-                                        queueIdStr: 'artist_${artist.name}',
+                                        queueIdStr:
+                                            'artist_${widget.artist.name}',
                                         songs: songs,
                                         startIndex: 0,
                                         source: ArtistQueueSource(
-                                            artistId: ArtistId(artist.name),
-                                            artistName: artist.name)),
+                                            artistId:
+                                                ArtistId(widget.artist.name),
+                                            artistName: widget.artist.name)),
                                 icon: const Icon(PhosphorIconsFill.play),
                                 label: const Text('Play All'),
                               ),
@@ -339,12 +366,13 @@ class ArtistDetailScreen extends ConsumerWidget {
                                     .read(playbackControllerProvider.notifier)
                                     .playSongs(
                                       queueIdStr:
-                                          'artist_${artist.name}_${DateTime.now().millisecondsSinceEpoch}',
+                                          'artist_${widget.artist.name}_${DateTime.now().millisecondsSinceEpoch}',
                                       songs: songs,
                                       startIndex: 0,
                                       source: ArtistQueueSource(
-                                          artistId: ArtistId(artist.name),
-                                          artistName: artist.name),
+                                          artistId:
+                                              ArtistId(widget.artist.name),
+                                          artistName: widget.artist.name),
                                       openAsNewTab: true,
                                     );
                                 if (error != null && context.mounted) {
@@ -380,12 +408,14 @@ class ArtistDetailScreen extends ConsumerWidget {
                               onTap: () => ref
                                   .read(playbackControllerProvider.notifier)
                                   .playSongs(
-                                      queueIdStr: 'artist_main_${artist.name}',
+                                      queueIdStr:
+                                          'artist_main_${widget.artist.name}',
                                       songs: mainSongs,
                                       startIndex: index,
                                       source: ArtistQueueSource(
-                                          artistId: ArtistId(artist.name),
-                                          artistName: artist.name))),
+                                          artistId:
+                                              ArtistId(widget.artist.name),
+                                          artistName: widget.artist.name))),
                           childCount: mainSongs.length)),
                 ],
                 if (collabSongs.isNotEmpty) ...[
@@ -404,12 +434,13 @@ class ArtistDetailScreen extends ConsumerWidget {
                                   .read(playbackControllerProvider.notifier)
                                   .playSongs(
                                       queueIdStr:
-                                          'artist_collab_${artist.name}',
+                                          'artist_collab_${widget.artist.name}',
                                       songs: collabSongs,
                                       startIndex: index,
                                       source: ArtistQueueSource(
-                                          artistId: ArtistId(artist.name),
-                                          artistName: artist.name))),
+                                          artistId:
+                                              ArtistId(widget.artist.name),
+                                          artistName: widget.artist.name))),
                           childCount: collabSongs.length)),
                 ],
                 const SliverToBoxAdapter(child: SizedBox(height: 32)),

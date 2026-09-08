@@ -60,38 +60,36 @@ Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
   const metadataReader = SongMetadataReader();
 
   try {
-    // FIX: Send an immediate progress event so the UI doesn't hang for 2 minutes
-    // while the scanner recursively reads the filesystem.
+    // Send immediate initial progress
     args.sendPort.send(const _IndexingProgress(0, 0, null));
 
-    final foundMap = <String, AudioFormat>{};
+    int totalFound = 0;
+    int processed = 0;
+
     for (final directoryPath in args.directoryPaths) {
-      final scanned = await scanner.scan(
+      // FIX: Consume the stream. As soon as a file is found, process it.
+      // This eliminates the 2-minute wait time.
+      await for (final (path, format) in scanner.scan(
         directoryPath,
         excludedPaths: args.excludedPaths,
-      );
-      for (final (path, format) in scanned) {
-        foundMap[path] = format;
+      )) {
+        totalFound++;
+
+        Song? song;
+        try {
+          song = await _buildSong(
+            path,
+            format,
+            metadataReader: metadataReader,
+            coverArtCacheDirectory: args.coverArtCacheDirectory,
+            extractCover: false,
+          );
+        } catch (_) {}
+
+        processed++;
+        // The UI will show "1/1", "2/2", "50/50" as it discovers files live.
+        args.sendPort.send(_IndexingProgress(processed, totalFound, song));
       }
-    }
-
-    final entries = foundMap.entries.toList();
-    final total = entries.length;
-
-    for (var i = 0; i < total; i++) {
-      final path = entries[i].key;
-      final format = entries[i].value;
-      Song? song;
-      try {
-        song = await _buildSong(
-          path,
-          format,
-          metadataReader: metadataReader,
-          coverArtCacheDirectory: args.coverArtCacheDirectory,
-          extractCover: false,
-        );
-      } catch (_) {}
-      args.sendPort.send(_IndexingProgress(i + 1, total, song));
     }
     args.sendPort.send(const _IndexingDone());
   } catch (e) {
@@ -212,7 +210,6 @@ Future<void> _coverExtractionIsolateEntry(_CoverExtractionArgs args) async {
       args.sendPort.send({'id': song.id.value, 'path': null});
     }
 
-    // FIX: Throttle the isolate to prevent 100% CPU usage and overheating
     await Future.delayed(const Duration(milliseconds: 50));
   }
   args.sendPort.send('DONE');

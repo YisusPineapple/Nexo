@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -77,7 +78,6 @@ class SongContextMenu extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
-    // FIX: Bug 2.5 - Fetch interaction state for this song
     final interactionAsync = ref.watch(
         itemInteractionProvider((id: song.id.value, type: ItemType.song)));
     final interaction = interactionAsync.valueOrNull;
@@ -169,7 +169,6 @@ class SongContextMenu extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  // FIX: Bug 2.5 - Like/Dislike buttons in context menu
                   IconButton(
                     icon: Icon(
                       interaction == InteractionType.dislike
@@ -179,12 +178,17 @@ class SongContextMenu extends ConsumerWidget {
                           ? theme.colorScheme.primary
                           : theme.colorScheme.onSurfaceVariant,
                     ),
-                    onPressed: () {
-                      ref.read(userMetricsControllerProvider).toggleInteraction(
+                    onPressed: () async {
+                      // FIX: Added unawaited to satisfy the linter
+                      unawaited(ref
+                          .read(userMetricsControllerProvider)
+                          .toggleInteraction(
                             song.id.value,
                             ItemType.song,
                             InteractionType.dislike,
-                          );
+                          ));
+                      await Future.delayed(const Duration(milliseconds: 400));
+                      if (context.mounted) Navigator.pop(context);
                     },
                   ),
                   IconButton(
@@ -196,12 +200,17 @@ class SongContextMenu extends ConsumerWidget {
                           ? theme.colorScheme.primary
                           : theme.colorScheme.onSurfaceVariant,
                     ),
-                    onPressed: () {
-                      ref.read(userMetricsControllerProvider).toggleInteraction(
+                    onPressed: () async {
+                      // FIX: Added unawaited to satisfy the linter
+                      unawaited(ref
+                          .read(userMetricsControllerProvider)
+                          .toggleInteraction(
                             song.id.value,
                             ItemType.song,
                             InteractionType.like,
-                          );
+                          ));
+                      await Future.delayed(const Duration(milliseconds: 400));
+                      if (context.mounted) Navigator.pop(context);
                     },
                   ),
                 ],

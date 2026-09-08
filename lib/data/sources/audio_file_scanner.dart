@@ -30,28 +30,26 @@ class AudioFileScanner {
     '.m4v': AudioFormat.aac,
   };
 
-  Future<List<(String path, AudioFormat format)>> scan(
+  /// Returns a Stream that yields files as soon as they are discovered.
+  /// This prevents the UI from hanging while scanning massive directories.
+  Stream<(String path, AudioFormat format)> scan(
     String directoryPath, {
     Set<String> excludedPaths = const {},
-  }) async {
+  }) async* {
     final dir = Directory(directoryPath);
     if (!await dir.exists()) {
-      return const [];
+      return;
     }
 
-    final results = <String, AudioFormat>{};
     final visited = <String>{};
-
-    await _scanRecursive(dir, excludedPaths, results, visited);
-    return results.entries.map((e) => (e.key, e.value)).toList();
+    yield* _scanRecursive(dir, excludedPaths, visited);
   }
 
-  Future<void> _scanRecursive(
+  Stream<(String path, AudioFormat format)> _scanRecursive(
     Directory dir,
     Set<String> excludedPaths,
-    Map<String, AudioFormat> results,
     Set<String> visited,
-  ) async {
+  ) async* {
     if (excludedPaths.contains(dir.path)) {
       return;
     }
@@ -66,12 +64,12 @@ class AudioFileScanner {
       await for (final entity
           in dir.list(recursive: false, followLinks: true)) {
         if (entity is Directory) {
-          await _scanRecursive(entity, excludedPaths, results, visited);
+          yield* _scanRecursive(entity, excludedPaths, visited);
         } else if (entity is File) {
           final normalizedPath = _canonicalFilePath(entity);
           final format = formatForPath(normalizedPath);
           if (format != null) {
-            results[normalizedPath] = format;
+            yield (normalizedPath, format);
           }
         }
       }
