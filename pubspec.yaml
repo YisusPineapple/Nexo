@@ -4,7 +4,7 @@ description: >-
   interface, smooth transitions, and extreme optimization for devices
   with limited resources. FOSS & AI-Maintained.
 publish_to: 'none'
-version: 0.0.11-beta+78
+version: 0.0.11-beta+79
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -21,7 +21,12 @@ dev_dependencies:
 dependencies:
   flutter:
     sdk: flutter
+  # Fast fallback for audio duration
   audio_metadata_reader: ^1.7.0
+  # High-performance C++ FFI for tags and cover art
+  flutter_taglib:
+    git:
+      url: https://github.com/MSOB7YY/flutter_taglib
   drift: ^2.34.3
   path: ^1.9.1
   sqlite3: ^3.5.0
@@ -60,6 +65,7 @@ flutter_launcher_icons:
   windows:
     generate: true
     image_path: "assets/icon.png"
+    icon_size: 256
   linux:
     generate: true
     image_path: "assets/icon.png"

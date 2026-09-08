@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -20,7 +21,7 @@ import '../local/app_database.dart';
 import '../local/converters/string_list_converter.dart';
 import '../local/mappers/song_mapper.dart';
 import '../sources/audio_file_scanner.dart';
-import '../sources/song_metadata_reader.dart';
+import '../sources/taglib_metadata_datasource.dart';
 
 sealed class _IndexingMessage {
   const _IndexingMessage();
@@ -42,65 +43,59 @@ final class _IndexingFailed extends _IndexingMessage {
   final String message;
 }
 
-class _IndexingIsolateArgs {
-  const _IndexingIsolateArgs({
-    required this.directoryPaths,
+class _WorkerArgs {
+  const _WorkerArgs({
+    required this.files,
     required this.coverArtCacheDirectory,
     required this.sendPort,
-    required this.excludedPaths,
+    required this.extractCover,
   });
-  final List<String> directoryPaths;
+  final List<(String path, AudioFormat format)> files;
   final String coverArtCacheDirectory;
   final SendPort sendPort;
-  final Set<String> excludedPaths;
+  final bool extractCover;
 }
 
-Future<void> _indexingIsolateEntry(_IndexingIsolateArgs args) async {
-  const scanner = AudioFileScanner();
-  const metadataReader = SongMetadataReader();
+Future<void> _workerIsolateEntry(_WorkerArgs args) async {
+  const metadataReader = TagLibMetadataDatasource();
 
   try {
-    // Send immediate initial progress
-    args.sendPort.send(const _IndexingProgress(0, 0, null));
+    for (final (path, format) in args.files) {
+      Song? song;
+      try {
+        song = await _buildSong(
+          path,
+          format,
+          metadataReader: metadataReader,
+          coverArtCacheDirectory: args.coverArtCacheDirectory,
+          extractCover: args.extractCover,
+        );
+      } catch (_) {}
 
-    int totalFound = 0;
-    int processed = 0;
-
-    for (final directoryPath in args.directoryPaths) {
-      // FIX: Consume the stream. As soon as a file is found, process it.
-      // This eliminates the 2-minute wait time.
-      await for (final (path, format) in scanner.scan(
-        directoryPath,
-        excludedPaths: args.excludedPaths,
-      )) {
-        totalFound++;
-
-        Song? song;
-        try {
-          song = await _buildSong(
-            path,
-            format,
-            metadataReader: metadataReader,
-            coverArtCacheDirectory: args.coverArtCacheDirectory,
-            extractCover: false,
-          );
-        } catch (_) {}
-
-        processed++;
-        // The UI will show "1/1", "2/2", "50/50" as it discovers files live.
-        args.sendPort.send(_IndexingProgress(processed, totalFound, song));
+      if (args.extractCover) {
+        // Phase 2: Only send back the cover path
+        args.sendPort.send({'id': song?.id.value, 'path': song?.coverArtPath});
+        // Throttle slightly to prevent thermal throttling during heavy I/O
+        await Future.delayed(const Duration(milliseconds: 10));
+      } else {
+        // Phase 1: Send the full song
+        args.sendPort.send(_IndexingProgress(0, 0, song));
       }
     }
-    args.sendPort.send(const _IndexingDone());
+    args.sendPort.send(args.extractCover ? 'DONE' : const _IndexingDone());
   } catch (e) {
-    args.sendPort.send(_IndexingFailed(e.toString()));
+    if (!args.extractCover) {
+      args.sendPort.send(_IndexingFailed(e.toString()));
+    } else {
+      args.sendPort.send('DONE');
+    }
   }
 }
 
 Future<Song?> _buildSong(
   String path,
   AudioFormat format, {
-  required SongMetadataReader metadataReader,
+  required TagLibMetadataDatasource metadataReader,
   required String coverArtCacheDirectory,
   required bool extractCover,
 }) async {
@@ -169,50 +164,6 @@ Future<Song?> _buildSong(
     dateAddedUtc: DateTime.now().toUtc(),
     hasNoCover: false,
   ).valueOrNull;
-}
-
-class _CoverExtractionArgs {
-  const _CoverExtractionArgs({
-    required this.songs,
-    required this.coverArtCacheDirectory,
-    required this.sendPort,
-  });
-  final List<Song> songs;
-  final String coverArtCacheDirectory;
-  final SendPort sendPort;
-}
-
-Future<void> _coverExtractionIsolateEntry(_CoverExtractionArgs args) async {
-  const metadataReader = SongMetadataReader();
-  for (final song in args.songs) {
-    try {
-      final file = File(song.filePath);
-      if (!file.existsSync()) {
-        continue;
-      }
-
-      final extracted = await metadataReader.read(file, extractCover: true);
-      if (extracted.coverArtBytes != null) {
-        final coverHash =
-            '${song.albumId?.value ?? 'unknown'}_${song.albumArtistId?.value ?? song.trackArtistId.value}'
-                .hashCode
-                .toRadixString(16);
-        final path = await metadataReader.cacheCoverArt(
-          coverBytes: extracted.coverArtBytes!,
-          cacheDirectory: args.coverArtCacheDirectory,
-          coverId: coverHash,
-        );
-        args.sendPort.send({'id': song.id.value, 'path': path});
-      } else {
-        args.sendPort.send({'id': song.id.value, 'path': null});
-      }
-    } catch (e) {
-      args.sendPort.send({'id': song.id.value, 'path': null});
-    }
-
-    await Future.delayed(const Duration(milliseconds: 50));
-  }
-  args.sendPort.send('DONE');
 }
 
 // --- Isolate Grouping Functions ---
@@ -390,16 +341,36 @@ class SongRepositoryImpl implements SongRepository {
     final excludedPaths =
         excludedResult.valueOrNull?.map((e) => e.path).toSet() ?? {};
 
-    final receivePort = ReceivePort();
-    final exitPort = ReceivePort();
+    // 1. Fast directory traversal in main isolate
+    onProgress?.call(0, 0);
+    const scanner = AudioFileScanner();
+    final allFiles = <(String, AudioFormat)>[];
+
+    for (final dir in directoryPaths) {
+      await for (final file
+          in scanner.scan(dir, excludedPaths: excludedPaths)) {
+        allFiles.add(file);
+        onProgress?.call(allFiles.length, 0); // Show discovery progress
+      }
+    }
+
+    if (allFiles.isEmpty) {
+      _isScanning = false;
+      return const Ok(null);
+    }
+
+    // 2. Distribute work across Isolate Pool
+    final workerCount = math.min(Platform.numberOfProcessors, 4);
+    final chunkSize = (allFiles.length / workerCount).ceil();
+
     final completer = Completer<Result<void, Failure>>();
     final batchSongs = <Song>[];
-    bool isDoneReceived = false;
+    int activeWorkers = workerCount;
+    int processedCount = 0;
+    final totalCount = allFiles.length;
 
     Future<void> flushBatch() async {
-      if (batchSongs.isEmpty) {
-        return;
-      }
+      if (batchSongs.isEmpty) return;
       final toInsert = List<Song>.of(batchSongs);
       batchSongs.clear();
       await _db.batch((batch) {
@@ -420,55 +391,61 @@ class SongRepositoryImpl implements SongRepository {
       }
     }
 
-    receivePort.listen((rawMessage) async {
-      try {
-        switch (rawMessage) {
-          case _IndexingProgress(:final current, :final total, :final song):
-            if (song != null) {
-              batchSongs.add(song);
-              if (batchSongs.length >= 50) {
-                await flushBatch();
+    for (var i = 0; i < workerCount; i++) {
+      final start = i * chunkSize;
+      if (start >= allFiles.length) {
+        activeWorkers--;
+        continue;
+      }
+      final end = math.min(start + chunkSize, allFiles.length);
+      final chunk = allFiles.sublist(start, end);
+
+      final receivePort = ReceivePort();
+
+      receivePort.listen((rawMessage) async {
+        try {
+          switch (rawMessage) {
+            case _IndexingProgress(:final song):
+              if (song != null) {
+                batchSongs.add(song);
+                if (batchSongs.length >= 100) {
+                  await flushBatch();
+                }
               }
-            }
-            onProgress?.call(current, total);
-          case _IndexingDone():
-            isDoneReceived = true;
-            await flushBatch();
-            finish(const Ok(null));
-          case _IndexingFailed(:final message):
-            finish(Err(UnexpectedFailure(message)));
+              processedCount++;
+              onProgress?.call(processedCount, totalCount);
+            case _IndexingDone():
+              activeWorkers--;
+              if (activeWorkers == 0) {
+                await flushBatch();
+                finish(const Ok(null));
+              }
+              receivePort.close();
+            case _IndexingFailed(:final message):
+              finish(Err(UnexpectedFailure(message)));
+              receivePort.close();
+          }
+        } catch (e) {
+          finish(Err(UnexpectedFailure('Database error during indexing: $e')));
         }
-      } catch (e) {
-        finish(Err(UnexpectedFailure('Database error during indexing: $e')));
-      }
-    });
+      });
 
-    exitPort.listen((_) {
-      if (!isDoneReceived) {
-        finish(
-          const Err(
-            UnexpectedFailure('Indexing isolate exited unexpectedly.'),
-          ),
-        );
-      }
-    });
-
-    try {
       await Isolate.spawn(
-        _indexingIsolateEntry,
-        _IndexingIsolateArgs(
-          directoryPaths: directoryPaths,
+        _workerIsolateEntry,
+        _WorkerArgs(
+          files: chunk,
           coverArtCacheDirectory: _coverArtCacheDirectory,
           sendPort: receivePort.sendPort,
-          excludedPaths: excludedPaths,
+          extractCover: false,
         ),
-        onExit: exitPort.sendPort,
       );
-      return await completer.future;
-    } catch (e) {
-      _isScanning = false;
-      return Err(UnexpectedFailure('Failed to index directories.', cause: e));
     }
+
+    if (activeWorkers == 0) {
+      finish(const Ok(null));
+    }
+
+    return await completer.future;
   }
 
   Future<void> _startBackgroundCoverExtraction() async {
@@ -485,48 +462,64 @@ class SongRepositoryImpl implements SongRepository {
     }
 
     _isExtractingCovers = true;
-    final receivePort = ReceivePort();
+
+    // Phase 2 is I/O bound (writing images to disk), so 1 or 2 workers is enough
+    final workerCount = math.min(Platform.numberOfProcessors, 2);
+    final chunkSize = (songsWithoutCover.length / workerCount).ceil();
+
+    int activeWorkers = workerCount;
     var updateBatchCount = 0;
 
-    try {
-      await Isolate.spawn(
-        _coverExtractionIsolateEntry,
-        _CoverExtractionArgs(
-          songs: songsWithoutCover
-              .map((r) => _mapper.toEntity(r).valueOrNull!)
-              .toList(),
-          coverArtCacheDirectory: _coverArtCacheDirectory,
-          sendPort: receivePort.sendPort,
-        ),
-      );
+    for (var i = 0; i < workerCount; i++) {
+      final start = i * chunkSize;
+      if (start >= songsWithoutCover.length) {
+        activeWorkers--;
+        continue;
+      }
+      final end = math.min(start + chunkSize, songsWithoutCover.length);
+      final chunk = songsWithoutCover.sublist(start, end);
+
+      final files = chunk.map((r) => (r.filePath, r.format)).toList();
+      final receivePort = ReceivePort();
 
       receivePort.listen((message) async {
         if (message is Map<String, dynamic>) {
-          final id = message['id'] as String;
+          final id = message['id'] as String?;
           final path = message['path'] as String?;
 
-          await (_db.update(_db.songs)..where((t) => t.id.equals(id))).write(
-            SongsCompanion(
-              coverArtPath: Value(path),
-              hasNoCover: Value(path == null),
-            ),
-          );
+          if (id != null) {
+            await (_db.update(_db.songs)..where((t) => t.id.equals(id))).write(
+              SongsCompanion(
+                coverArtPath: Value(path),
+                hasNoCover: Value(path == null),
+              ),
+            );
 
-          updateBatchCount++;
-          if (updateBatchCount >= 15) {
-            updateBatchCount = 0;
-            _coversUpdatedController.add(null);
+            updateBatchCount++;
+            if (updateBatchCount >= 15) {
+              updateBatchCount = 0;
+              _coversUpdatedController.add(null);
+            }
           }
         } else if (message == 'DONE') {
-          _isExtractingCovers = false;
-          _coversUpdatedController.add(null);
+          activeWorkers--;
+          if (activeWorkers == 0) {
+            _isExtractingCovers = false;
+            _coversUpdatedController.add(null);
+          }
           receivePort.close();
         }
       });
-    } catch (e) {
-      _isExtractingCovers = false;
-      receivePort.close();
-      debugPrint('Failed to start background cover extraction: $e');
+
+      await Isolate.spawn(
+        _workerIsolateEntry,
+        _WorkerArgs(
+          files: files,
+          coverArtCacheDirectory: _coverArtCacheDirectory,
+          sendPort: receivePort.sendPort,
+          extractCover: true,
+        ),
+      );
     }
   }
 
