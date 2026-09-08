@@ -143,20 +143,32 @@ class _HomeShellState extends ConsumerState<HomeShell>
         void onSelect(int i) =>
             ref.read(selectedNavIndexProvider.notifier).state = i;
 
-        // FIX: RepaintBoundary isolates the constantly updating MiniPlayer and Progress bar
-        // from the heavy IndexedStack (which holds the entire library UI).
         final miniPlayerWithProgress = RepaintBoundary(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (progress != null)
+              if (progress != null) ...[
+                // FIX: Indeterminate progress bar since we don't know the total upfront with Streams
                 LinearProgressIndicator(
-                  value: progress.total == 0
-                      ? null
-                      : progress.current / progress.total,
                   backgroundColor:
                       Theme.of(context).colorScheme.surfaceContainerHighest,
                 ),
+                Container(
+                  width: double.infinity,
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+                  child: Text(
+                    'Discovering files... ${progress.current} found',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
               AnimatedBuilder(
                 animation: _playerAnim,
                 builder: (context, child) {
@@ -206,7 +218,6 @@ class _HomeShellState extends ConsumerState<HomeShell>
                         left: 0,
                         right: 0,
                         child: Center(
-                          // Constrain MiniPlayer width on ultra-wide PC monitors
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 800),
                             child: miniPlayerWithProgress,

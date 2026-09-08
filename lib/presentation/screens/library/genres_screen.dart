@@ -40,8 +40,6 @@ class _GenresScreenState extends ConsumerState<GenresScreen> {
         final screenWidth = MediaQuery.of(context).size.width;
         final availableWidth = screenWidth - 32 - ((crossAxisCount - 1) * 16);
         final itemWidth = availableWidth / crossAxisCount;
-
-        // FIX: Changed aspect ratio to 2.2 to prevent 1.9px overflow
         final itemHeight = (itemWidth / 2.2) + 16;
 
         return AlphabeticalScrollView(
@@ -57,7 +55,7 @@ class _GenresScreenState extends ConsumerState<GenresScreen> {
               crossAxisCount: crossAxisCount,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
-              childAspectRatio: 2.2, // FIX: Match the new aspect ratio
+              childAspectRatio: 2.2,
             ),
             itemCount: genres.length,
             itemBuilder: (context, index) {
@@ -76,14 +74,18 @@ class _GenresScreenState extends ConsumerState<GenresScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min, // FIX: Prevent overflow
                   children: [
-                    Text(
-                      genre.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      // FIX: Allow text to truncate safely
+                      child: Text(
+                        genre.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
