@@ -26,11 +26,12 @@ void main() {
   const mapper = PlaybackQueueMapper();
 
   test('toEntity rebuilds an unshuffled queue from row + current songs', () {
-    final row = PlaybackQueueRow(
+    // FIX: Added const to constructor call
+    const row = PlaybackQueueRow(
       id: 'q1',
       currentIndex: 1,
       repeatMode: RepeatMode.all,
-      source: const ManualQueueSource(),
+      source: ManualQueueSource(),
       shuffleEnabled: false,
       preShuffleCurrentIndex: null,
       positionMs: 15000,
@@ -50,11 +51,12 @@ void main() {
   test(
       'toEntity rebuilds a shuffled queue with its exact pre-shuffle '
       'snapshot', () {
-    final row = PlaybackQueueRow(
+    // FIX: Added const to constructor call
+    const row = PlaybackQueueRow(
       id: 'q1',
       currentIndex: 2,
       repeatMode: RepeatMode.off,
-      source: const ManualQueueSource(),
+      source: ManualQueueSource(),
       shuffleEnabled: true,
       preShuffleCurrentIndex: 0,
       positionMs: 45000,
@@ -86,11 +88,12 @@ void main() {
     final b = _song('b');
     final queue = mapper
         .toEntity(
-          row: PlaybackQueueRow(
+          // FIX: Added const to constructor call
+          row: const PlaybackQueueRow(
             id: 'q1',
             currentIndex: 0,
             repeatMode: RepeatMode.off,
-            source: const ManualQueueSource(),
+            source: ManualQueueSource(),
             shuffleEnabled: false,
             preShuffleCurrentIndex: null,
             positionMs: 0,

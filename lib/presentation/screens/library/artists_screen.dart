@@ -188,11 +188,14 @@ class _ArtistAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cacheAvatarSize =
+        (150 * MediaQuery.devicePixelRatioOf(context)).round();
+
     return CircleAvatar(
       radius: 28,
       backgroundColor: theme.colorScheme.primaryContainer,
       backgroundImage: coverArtPath != null
-          ? ResizeImage(FileImage(File(coverArtPath!)), width: 150)
+          ? ResizeImage(FileImage(File(coverArtPath!)), width: cacheAvatarSize)
               as ImageProvider
           : null,
       child: coverArtPath == null
@@ -227,6 +230,8 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   Widget build(BuildContext context) {
     final songsAsync = ref.watch(multiArtistSongsProvider(widget.artist.name));
     final theme = Theme.of(context);
+    final cacheHeaderSize =
+        (600 * MediaQuery.devicePixelRatioOf(context)).round();
 
     return Scaffold(
       body: songsAsync.when(
@@ -262,7 +267,6 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                   pinned: true,
                   stretch: true,
                   backgroundColor: theme.colorScheme.surface,
-                  // FIX: Protected back button
                   leading: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: CircleAvatar(
@@ -272,7 +276,6 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                     ),
                   ),
                   flexibleSpace: FlexibleSpaceBar(
-                    // FIX: Adjusted padding to prevent overlap with back button
                     titlePadding:
                         const EdgeInsets.only(left: 64, right: 16, bottom: 16),
                     title: Text(
@@ -297,7 +300,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                           Image.file(
                             File(widget.artist.coverArtPath!),
                             fit: BoxFit.cover,
-                            cacheWidth: 600,
+                            cacheWidth: cacheHeaderSize,
                           )
                         else
                           Container(
@@ -463,13 +466,19 @@ class _SongTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cacheSongItemSize =
+        (96 * MediaQuery.devicePixelRatioOf(context)).round();
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(6),
         child: song.coverArtPath != null
             ? Image.file(File(song.coverArtPath!),
-                width: 48, height: 48, fit: BoxFit.cover, cacheWidth: 96)
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                cacheWidth: cacheSongItemSize)
             : Container(
                 width: 48,
                 height: 48,

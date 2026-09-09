@@ -32,7 +32,6 @@ final _watchAllFoldersUseCaseProvider = Provider<WatchAllFoldersUseCase>((ref) {
   return WatchAllFoldersUseCase(ref.watch(songRepositoryProvider));
 });
 
-// FIX: Changed from FutureProvider to StreamProvider for native Drift reactivity
 final albumsProvider = StreamProvider<List<Album>>((ref) {
   final sortConfig = ref.watch(albumSortProvider);
 
@@ -65,8 +64,9 @@ final foldersProvider = StreamProvider<List<FolderSummary>>((ref) {
       .map((result) => result.unwrapOrThrow());
 });
 
-final multiArtistSongsProvider =
-    FutureProvider.family<List<Song>, String>((ref, artistName) async {
+// FIX: Added .autoDispose to all detail providers to prevent RAM leaks
+final multiArtistSongsProvider = FutureProvider.autoDispose
+    .family<List<Song>, String>((ref, artistName) async {
   final allSongs = await ref.watch(sortedSongsProvider.future);
   final target = normalizeArtist(artistName);
   return allSongs.where((song) {
@@ -76,7 +76,7 @@ final multiArtistSongsProvider =
 });
 
 final albumSongsProvider =
-    StreamProvider.family<List<Song>, String>((ref, albumId) {
+    StreamProvider.autoDispose.family<List<Song>, String>((ref, albumId) {
   final repo = ref.watch(songRepositoryProvider);
   return repo
       .watchSongsByAlbum(AlbumId(albumId))
@@ -84,7 +84,7 @@ final albumSongsProvider =
 });
 
 final artistSongsProvider =
-    StreamProvider.family<List<Song>, String>((ref, artistId) {
+    StreamProvider.autoDispose.family<List<Song>, String>((ref, artistId) {
   final repo = ref.watch(songRepositoryProvider);
   return repo
       .watchSongsByArtist(ArtistId(artistId))
@@ -92,7 +92,7 @@ final artistSongsProvider =
 });
 
 final folderSongsProvider =
-    StreamProvider.family<List<Song>, String>((ref, folderPath) {
+    StreamProvider.autoDispose.family<List<Song>, String>((ref, folderPath) {
   final repo = ref.watch(songRepositoryProvider);
   return repo
       .watchSongsByFolder(folderPath)
@@ -100,7 +100,7 @@ final folderSongsProvider =
 });
 
 final genreSongsProvider =
-    FutureProvider.family<List<Song>, String>((ref, genre) async {
+    FutureProvider.autoDispose.family<List<Song>, String>((ref, genre) async {
   final allSongs = await ref.watch(sortedSongsProvider.future);
   return allSongs.where((s) => s.genreNames.contains(genre)).toList();
 });

@@ -42,6 +42,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final theme = Theme.of(context);
     final query = ref.watch(globalSearchQueryProvider);
     final searchAsync = ref.watch(globalSearchResultsProvider);
+    final cacheSize = (150 * MediaQuery.devicePixelRatioOf(context)).round();
 
     return Scaffold(
       body: SafeArea(
@@ -225,13 +226,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   leading: ClipRRect(
                                     borderRadius: BorderRadius.circular(6),
                                     child: songs[i].coverArtPath != null
-                                        // FIX: Added cacheWidth to prevent RAM leak
                                         ? Image.file(
                                             File(songs[i].coverArtPath!),
                                             width: 48,
                                             height: 48,
                                             fit: BoxFit.cover,
-                                            cacheWidth: 150,
+                                            cacheWidth: cacheSize,
                                           )
                                         : Container(
                                             width: 48,

@@ -29,3 +29,7 @@ linter:
     # in this codebase (every use case's `call`, every entity method)
     # — catches the one that slips through by habit instead of intent.
     - always_declare_return_types
+
+    # Enforce const constructors to save RAM and CPU cycles during rebuilds.
+    # Crucial for lists with 15,000+ items on low-end hardware.
+    - prefer_const_constructors

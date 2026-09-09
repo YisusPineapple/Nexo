@@ -33,6 +33,8 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
     final albumsAsync = ref.watch(albumsProvider);
     final sortConfig = ref.watch(albumSortProvider);
     final theme = Theme.of(context);
+    final cacheGridSize =
+        (300 * MediaQuery.devicePixelRatioOf(context)).round();
 
     return Scaffold(
       body: SafeArea(
@@ -93,7 +95,6 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                   final availableWidth =
                       screenWidth - 32 - ((crossAxisCount - 1) * 16);
                   final itemWidth = availableWidth / crossAxisCount;
-
                   final itemHeight = (itemWidth / 0.65) + 16;
 
                   return AlphabeticalScrollView(
@@ -137,7 +138,8 @@ class _AlbumsScreenState extends ConsumerState<AlbumsScreen> {
                                       theme.colorScheme.surfaceContainerHighest,
                                   child: album.coverArtPath != null
                                       ? Image.file(File(album.coverArtPath!),
-                                          fit: BoxFit.cover, cacheWidth: 300)
+                                          fit: BoxFit.cover,
+                                          cacheWidth: cacheGridSize)
                                       : const Icon(PhosphorIconsRegular.disc,
                                           size: 48),
                                 ),
@@ -203,6 +205,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   Widget build(BuildContext context) {
     final songsAsync = ref.watch(albumSongsProvider(widget.album.id));
     final theme = Theme.of(context);
+    final cacheHeaderSize =
+        (600 * MediaQuery.devicePixelRatioOf(context)).round();
 
     return Scaffold(
       body: songsAsync.when(
@@ -220,7 +224,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                   pinned: true,
                   stretch: true,
                   backgroundColor: theme.colorScheme.surface,
-                  // FIX: Protected back button
                   leading: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: CircleAvatar(
@@ -230,7 +233,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     ),
                   ),
                   flexibleSpace: FlexibleSpaceBar(
-                    // FIX: Adjusted padding to prevent overlap with back button
                     titlePadding:
                         const EdgeInsets.only(left: 64, right: 16, bottom: 16),
                     title: Text(
@@ -255,7 +257,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           Image.file(
                             File(widget.album.coverArtPath!),
                             fit: BoxFit.cover,
-                            cacheWidth: 600,
+                            cacheWidth: cacheHeaderSize,
                           )
                         else
                           Container(

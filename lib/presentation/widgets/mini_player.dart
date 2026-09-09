@@ -24,8 +24,9 @@ class MiniPlayer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final queueAsync = ref.watch(playbackControllerProvider);
     final isPlaying = ref.watch(playingStreamProvider).valueOrNull ?? false;
-    final position = ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
-    
+    final position =
+        ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
+
     final queue = queueAsync.valueOrNull;
     final currentSong = queue?.currentSong;
 
@@ -39,31 +40,34 @@ class MiniPlayer extends ConsumerWidget {
         : 0.0;
 
     final theme = Theme.of(context);
+    final cacheSize = (150 * MediaQuery.devicePixelRatioOf(context)).round();
     double dragDistanceX = 0;
 
-    // FIX: Removed Dismissible. It was conflicting with the vertical drag gesture.
     return GestureDetector(
-      onTap: onTap ?? () {
-        showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          useSafeArea: true,
-          backgroundColor: theme.colorScheme.surface,
-          builder: (context) => const NowPlayingScreen(),
-        );
-      },
+      onTap: onTap ??
+          () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              backgroundColor: theme.colorScheme.surface,
+              builder: (context) => const NowPlayingScreen(),
+            );
+          },
       onVerticalDragUpdate: onVerticalDragUpdate,
-      onVerticalDragEnd: onVerticalDragEnd ?? (details) {
-        if (details.primaryVelocity != null && details.primaryVelocity! < -100) {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            useSafeArea: true,
-            backgroundColor: theme.colorScheme.surface,
-            builder: (context) => const NowPlayingScreen(),
-          );
-        }
-      },
+      onVerticalDragEnd: onVerticalDragEnd ??
+          (details) {
+            if (details.primaryVelocity != null &&
+                details.primaryVelocity! < -100) {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                useSafeArea: true,
+                backgroundColor: theme.colorScheme.surface,
+                builder: (context) => const NowPlayingScreen(),
+              );
+            }
+          },
       onHorizontalDragStart: (_) => dragDistanceX = 0,
       onHorizontalDragUpdate: (details) => dragDistanceX += details.delta.dx,
       onHorizontalDragEnd: (_) {
@@ -112,7 +116,7 @@ class MiniPlayer extends ConsumerWidget {
                             width: 52,
                             height: 52,
                             fit: BoxFit.cover,
-                            cacheWidth: 150,
+                            cacheWidth: cacheSize,
                           ),
                         )
                       : Container(
@@ -122,7 +126,8 @@ class MiniPlayer extends ConsumerWidget {
                             color: theme.colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: Icon(PhosphorIconsRegular.musicNotes, color: theme.colorScheme.onSurfaceVariant),
+                          child: Icon(PhosphorIconsRegular.musicNotes,
+                              color: theme.colorScheme.onSurfaceVariant),
                         ),
                 ),
                 const SizedBox(width: 12),
@@ -143,21 +148,27 @@ class MiniPlayer extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.8),
-                            ),
+                          color: theme.colorScheme.onSecondaryContainer
+                              .withValues(alpha: 0.8),
+                        ),
                       ),
                     ],
                   ),
                 ),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 200),
-                  transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
+                  transitionBuilder: (child, animation) =>
+                      ScaleTransition(scale: animation, child: child),
                   child: IconButton(
                     key: ValueKey(isPlaying),
-                    icon: Icon(isPlaying ? PhosphorIconsFill.pause : PhosphorIconsFill.play),
+                    icon: Icon(isPlaying
+                        ? PhosphorIconsFill.pause
+                        : PhosphorIconsFill.play),
                     color: theme.colorScheme.onSecondaryContainer,
                     onPressed: () {
-                      ref.read(playbackControllerProvider.notifier).togglePlayPause();
+                      ref
+                          .read(playbackControllerProvider.notifier)
+                          .togglePlayPause();
                     },
                   ),
                 ),
@@ -178,13 +189,15 @@ class MiniPlayer extends ConsumerWidget {
                 color: Colors.transparent,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
-                  onTap: () => ref.read(playbackControllerProvider.notifier).stop(),
+                  onTap: () =>
+                      ref.read(playbackControllerProvider.notifier).stop(),
                   child: Padding(
                     padding: const EdgeInsets.all(4.0),
                     child: Icon(
                       PhosphorIconsRegular.x,
                       size: 14,
-                      color: theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.4),
+                      color: theme.colorScheme.onSecondaryContainer
+                          .withValues(alpha: 0.4),
                     ),
                   ),
                 ),

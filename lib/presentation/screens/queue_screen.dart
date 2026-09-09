@@ -22,6 +22,7 @@ class QueueScreen extends ConsumerWidget {
     }
 
     final theme = Theme.of(context);
+    final cacheSize = (150 * MediaQuery.devicePixelRatioOf(context)).round();
 
     return Scaffold(
       appBar: AppBar(
@@ -61,13 +62,12 @@ class QueueScreen extends ConsumerWidget {
                   leading: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: song.coverArtPath != null
-                        // FIX: Added cacheWidth to prevent RAM leak
                         ? Image.file(
                             File(song.coverArtPath!),
                             width: 48,
                             height: 48,
                             fit: BoxFit.cover,
-                            cacheWidth: 150,
+                            cacheWidth: cacheSize,
                           )
                         : Container(
                             width: 48,

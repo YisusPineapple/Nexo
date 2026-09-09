@@ -47,7 +47,8 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
             ..where((t) => t.id.equals(id.value)))
           .getSingleOrNull();
       if (row == null) {
-        return Err(NotFoundFailure('Playlist not found.'));
+        // FIX: Added const to satisfy prefer_const_constructors
+        return const Err(NotFoundFailure('Playlist not found.'));
       }
       return _playlistMapper.toEntity(row);
     } catch (e) {

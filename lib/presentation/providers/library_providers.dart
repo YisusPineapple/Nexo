@@ -51,11 +51,18 @@ final _refreshLibraryUseCaseProvider = Provider<RefreshLibraryUseCase>((ref) {
   return RefreshLibraryUseCase(ref.watch(songRepositoryProvider));
 });
 
+// FIX: Extracted to a top-level provider to avoid inline provider memory leaks
+final coversUpdatedProvider = StreamProvider<void>((ref) {
+  return ref.watch(songRepositoryProvider).coversUpdatedStream;
+});
+
 // --- Virtual Pagination Providers ---
 
-// FIX: Changed to StreamProvider to react to DB changes automatically
 final alphabeticalIndexProvider = StreamProvider<List<(String, int)>>((ref) {
   final sortConfig = ref.watch(songSortProvider);
+
+  // FIX: Watch the top-level provider instead of creating an inline one
+  ref.watch(coversUpdatedProvider);
 
   return ref
       .watch(songRepositoryProvider)
@@ -102,7 +109,9 @@ class SongsWindowNotifier extends Notifier<SongsWindowState> {
   SongsWindowState build() {
     ref.watch(songSortProvider);
 
-    // FIX: Listen to the reactive index stream to know when to refresh
+    // FIX: Listen to the top-level provider
+    ref.listen(coversUpdatedProvider, (_, __) => _refreshCurrentPages());
+
     ref.listen(alphabeticalIndexProvider, (_, next) {
       if (next is AsyncData) {
         _refreshCurrentPages();
@@ -194,12 +203,8 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(songSearchQueryProvider);
   final sortConfig = ref.watch(songSortProvider);
 
-  // FIX: Still needed for search results, but library uses virtual pagination now
-  ref.listen(
-    StreamProvider(
-        (ref) => ref.watch(songRepositoryProvider).coversUpdatedStream),
-    (_, __) => ref.invalidateSelf(),
-  );
+  // FIX: Watch the top-level provider
+  ref.watch(coversUpdatedProvider);
 
   final result = query.isEmpty
       ? await ref.watch(_getAllSongsUseCaseProvider).call((
@@ -255,7 +260,6 @@ class IndexDirectoriesController extends AsyncNotifier<IndexingProgress?> {
 
     state = result.when(
       ok: (_) {
-        // FIX: Removed manual invalidations. Drift .watch() handles it now!
         return const AsyncData(null);
       },
       err: (failure) => AsyncValue<IndexingProgress?>.error(
@@ -279,7 +283,6 @@ class IndexDirectoriesController extends AsyncNotifier<IndexingProgress?> {
 
     state = result.when(
       ok: (_) {
-        // FIX: Removed manual invalidations. Drift .watch() handles it now!
         return const AsyncData(null);
       },
       err: (failure) => AsyncValue<IndexingProgress?>.error(

@@ -147,6 +147,7 @@ class _VirtualPaginationView extends ConsumerWidget {
     final indexAsync = ref.watch(alphabeticalIndexProvider);
     final windowState = ref.watch(songsWindowProvider);
     final theme = Theme.of(context);
+    final cacheSize = (150 * MediaQuery.devicePixelRatioOf(context)).round();
 
     return indexAsync.when(
       data: (sectionIndex) {
@@ -187,7 +188,7 @@ class _VirtualPaginationView extends ConsumerWidget {
                               width: 48,
                               height: 48,
                               fit: BoxFit.cover,
-                              cacheWidth: 150,
+                              cacheWidth: cacheSize,
                             )
                           : Container(
                               width: 48,
@@ -223,7 +224,6 @@ class _VirtualPaginationView extends ConsumerWidget {
                       final allSongs =
                           await ref.read(sortedSongsProvider.future);
                       if (context.mounted) {
-                        // FIX: Added unawaited
                         unawaited(ref
                             .read(playbackControllerProvider.notifier)
                             .playSongs(
@@ -269,6 +269,7 @@ class _SearchResultsView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final songsAsync = ref.watch(sortedSongsProvider);
     final theme = Theme.of(context);
+    final cacheSize = (150 * MediaQuery.devicePixelRatioOf(context)).round();
 
     return songsAsync.when(
       data: (songs) {
@@ -291,7 +292,7 @@ class _SearchResultsView extends ConsumerWidget {
                         width: 48,
                         height: 48,
                         fit: BoxFit.cover,
-                        cacheWidth: 150,
+                        cacheWidth: cacheSize,
                       )
                     : Container(
                         width: 48,

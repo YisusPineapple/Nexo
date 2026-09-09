@@ -105,9 +105,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   Widget build(BuildContext context) {
     final queue = ref.watch(playbackControllerProvider).valueOrNull;
     final isPlaying = ref.watch(playingStreamProvider).valueOrNull ?? false;
-    final position =
-        ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
-
     final sleepTimer = ref.watch(sleepTimerProvider).valueOrNull;
 
     final currentSong = queue?.currentSong;
@@ -116,7 +113,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       return const Scaffold(body: Center(child: Text('No active playback')));
     }
 
-    final duration = currentSong.duration;
     final theme = Theme.of(context);
     final interactionAsync = ref.watch(itemInteractionProvider(
         (id: currentSong.id.value, type: ItemType.song)));
@@ -223,8 +219,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       }
     });
 
-    // FIX: RepaintBoundary around the cover/lyrics.
-    // Prevents the heavy image/blur from repainting when the slider moves.
     final coverWidget = RepaintBoundary(
       child: GestureDetector(
         onVerticalDragUpdate: widget.onVerticalDragUpdate,
@@ -255,8 +249,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
       ),
     );
 
-    // FIX: RepaintBoundary around the controls.
-    // The slider and time text update 60 times per second during seek, and 1 time per second during play.
     final controlsWidget = RepaintBoundary(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -321,42 +313,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             ],
           ),
           const SizedBox(height: 32),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 6,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
-              activeTrackColor: theme.colorScheme.primary,
-              inactiveTrackColor:
-                  theme.colorScheme.primary.withValues(alpha: 0.2),
-              thumbColor: theme.colorScheme.primary,
-            ),
-            child: Slider(
-              value: position.inMilliseconds
-                  .toDouble()
-                  .clamp(0, duration.inMilliseconds.toDouble()),
-              max: duration.inMilliseconds.toDouble(),
-              onChanged: (value) => ref
-                  .read(playbackControllerProvider.notifier)
-                  .seekTo(Duration(milliseconds: value.toInt())),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(_formatDuration(position),
-                    style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600)),
-                Text(_formatDuration(duration),
-                    style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
+          _PlaybackProgress(duration: currentSong.duration),
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -447,9 +404,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           ),
         ),
         child: SafeArea(
-          // FIX: LayoutBuilder instead of OrientationBuilder.
-          // This ensures it responds to actual available space (e.g., resizing a PC window)
-          // rather than just the device's physical orientation.
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth > constraints.maxHeight ||
@@ -559,6 +513,67 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   }
 }
 
+class _PlaybackProgress extends ConsumerWidget {
+  const _PlaybackProgress({required this.duration});
+  final Duration duration;
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes;
+    final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final position =
+        ref.watch(positionStreamProvider).valueOrNull ?? Duration.zero;
+    final positionSeconds = ref.watch(
+        positionStreamProvider.select((s) => s.valueOrNull?.inSeconds ?? 0));
+
+    return Column(
+      children: [
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 6,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+            activeTrackColor: theme.colorScheme.primary,
+            inactiveTrackColor:
+                theme.colorScheme.primary.withValues(alpha: 0.2),
+            thumbColor: theme.colorScheme.primary,
+          ),
+          child: Slider(
+            value: position.inMilliseconds
+                .toDouble()
+                .clamp(0, duration.inMilliseconds.toDouble()),
+            max: duration.inMilliseconds.toDouble(),
+            onChanged: (value) => ref
+                .read(playbackControllerProvider.notifier)
+                .seekTo(Duration(milliseconds: value.toInt())),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(_formatDuration(Duration(seconds: positionSeconds)),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600)),
+              Text(_formatDuration(duration),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TimerOption extends StatelessWidget {
   const _TimerOption(
       {required this.label, required this.minutes, required this.ref});
@@ -593,6 +608,8 @@ class _CoverArtView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cacheSize = (600 * MediaQuery.devicePixelRatioOf(context)).round();
+
     return AspectRatio(
       aspectRatio: 1,
       child: Container(
@@ -610,7 +627,7 @@ class _CoverArtView extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: coverArtPath != null
             ? Image.file(File(coverArtPath!),
-                fit: BoxFit.cover, cacheWidth: 600)
+                fit: BoxFit.cover, cacheWidth: cacheSize)
             : Icon(PhosphorIconsRegular.musicNotes,
                 size: 100, color: theme.colorScheme.onSurfaceVariant),
       ),

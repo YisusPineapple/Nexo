@@ -16,6 +16,8 @@ class SongContextMenu extends ConsumerWidget {
   final Song song;
 
   void _showSongInfo(BuildContext context) {
+    final cacheInfoSize =
+        (320 * MediaQuery.devicePixelRatioOf(context)).round();
     Navigator.pop(context);
     showDialog(
       context: context,
@@ -46,7 +48,7 @@ class SongContextMenu extends ConsumerWidget {
                       width: 160,
                       height: 160,
                       fit: BoxFit.cover,
-                      cacheWidth: 320,
+                      cacheWidth: cacheInfoSize,
                     ),
                   ),
                 ),
@@ -77,6 +79,8 @@ class SongContextMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final cacheHeaderSize =
+        (150 * MediaQuery.devicePixelRatioOf(context)).round();
 
     final interactionAsync = ref.watch(
         itemInteractionProvider((id: song.id.value, type: ItemType.song)));
@@ -134,7 +138,7 @@ class SongContextMenu extends ConsumerWidget {
                             width: 56,
                             height: 56,
                             fit: BoxFit.cover,
-                            cacheWidth: 150,
+                            cacheWidth: cacheHeaderSize,
                           )
                         : Container(
                             width: 56,
