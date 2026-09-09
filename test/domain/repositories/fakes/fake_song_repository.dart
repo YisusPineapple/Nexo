@@ -86,6 +86,47 @@ class FakeSongRepository implements SongRepository {
     return Ok(List.unmodifiable(sorted));
   }
 
+  // FIX: Added missing methods for the Fake repository
+  @override
+  Future<Result<List<(String, int)>, Failure>> getAlphabeticalIndex({
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  }) async {
+    final sorted = List<Song>.of(_songs)
+      ..sort((a, b) => _compare(a, b, sortOption, isAscending));
+
+    final result = <(String, int)>[];
+    var running = 0;
+    String? currentLetter;
+
+    for (final song in sorted) {
+      if (song.sectionKey != currentLetter) {
+        currentLetter = song.sectionKey;
+        result.add((currentLetter, running));
+      }
+      running++;
+    }
+
+    return Ok(result);
+  }
+
+  @override
+  Future<Result<List<Song>, Failure>> getSongsWindow({
+    required int offset,
+    required int limit,
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  }) async {
+    final sorted = List<Song>.of(_songs)
+      ..sort((a, b) => _compare(a, b, sortOption, isAscending));
+
+    if (offset >= sorted.length) return const Ok([]);
+
+    final end =
+        (offset + limit > sorted.length) ? sorted.length : offset + limit;
+    return Ok(sorted.sublist(offset, end));
+  }
+
   @override
   Future<Result<List<Album>, Failure>> getAllAlbums({
     AlbumSortOption sortOption = AlbumSortOption.name,

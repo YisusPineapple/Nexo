@@ -36,6 +36,9 @@ class Songs extends Table {
 
   BoolColumn get hasNoCover => boolean().withDefault(const Constant(false))();
 
+  // FIX: Added sectionKey for O(1) alphabetical grouping in SQLite
+  TextColumn get sectionKey => text().withDefault(const Constant('#'))();
+
   @override
   Set<Column> get primaryKey => {id};
 }

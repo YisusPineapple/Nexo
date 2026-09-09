@@ -42,6 +42,7 @@ class SongMapper {
       isMissing: row.isMissing,
       lyricOffsetMs: row.lyricOffsetMs,
       hasNoCover: row.hasNoCover,
+      sectionKey: row.sectionKey,
     );
   }
 
@@ -69,6 +70,7 @@ class SongMapper {
       isMissing: Value(song.isMissing),
       lyricOffsetMs: Value(song.lyricOffsetMs),
       hasNoCover: Value(song.hasNoCover),
+      sectionKey: Value(song.sectionKey),
     );
   }
 }

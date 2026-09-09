@@ -34,13 +34,11 @@ Song _fullSong() {
     dateAddedUtc: DateTime.utc(2026, 1, 15, 10, 30),
     isMissing: true,
     lyricOffsetMs: 500,
-    hasNoCover: true, // FIX: Added the new field to the test mock
+    hasNoCover: true,
+    sectionKey: 'T', // FIX: Added sectionKey to the test mock
   ).valueOrNull!;
 }
 
-/// Builds the [SongRow] a real DB round-trip through [companion]
-/// would produce, without needing an actual [AppDatabase] for this
-/// pure-mapping test.
 SongRow _rowFrom(SongsCompanion companion) {
   return SongRow(
     id: companion.id.value,
@@ -64,7 +62,8 @@ SongRow _rowFrom(SongsCompanion companion) {
     dateAddedUtcMs: companion.dateAddedUtcMs.value,
     isMissing: companion.isMissing.value,
     lyricOffsetMs: companion.lyricOffsetMs.value,
-    hasNoCover: companion.hasNoCover.value, // FIX: Mapped the new field
+    hasNoCover: companion.hasNoCover.value,
+    sectionKey: companion.sectionKey.value, // FIX: Mapped the new field
   );
 }
 
@@ -93,8 +92,9 @@ void main() {
     expect(roundTripped.dateAddedUtc, original.dateAddedUtc);
     expect(roundTripped.isMissing, original.isMissing);
     expect(roundTripped.lyricOffsetMs, original.lyricOffsetMs);
-    expect(roundTripped.hasNoCover,
-        original.hasNoCover); // FIX: Assert the new field
+    expect(roundTripped.hasNoCover, original.hasNoCover);
+    expect(roundTripped.sectionKey,
+        original.sectionKey); // FIX: Assert the new field
   });
 
   test('handles a song with no optional fields set', () {
@@ -117,6 +117,7 @@ void main() {
     expect(roundTripped.albumArtistId, isNull);
     expect(roundTripped.genreNames, isEmpty);
     expect(roundTripped.lyricOffsetMs, 0);
-    expect(roundTripped.hasNoCover, isFalse); // Defaults to false
+    expect(roundTripped.hasNoCover, isFalse);
+    expect(roundTripped.sectionKey, '#'); // Defaults to '#'
   });
 }

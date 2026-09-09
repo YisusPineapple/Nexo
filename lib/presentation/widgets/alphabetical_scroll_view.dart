@@ -6,21 +6,30 @@ class AlphabeticalScrollView extends StatefulWidget {
     super.key,
     required this.child,
     required this.controller,
-    required this.itemCount,
     required this.itemExtent,
-    required this.labelBuilder,
+    this.sectionIndex,
+    this.itemCount,
+    this.labelBuilder,
     this.crossAxisCount = 1,
     this.version,
     this.railWidth = 32,
     this.topPadding = 8,
     this.bottomPadding = 8,
-  });
+  }) : assert(sectionIndex != null ||
+            (itemCount != null && labelBuilder != null));
 
   final Widget child;
   final ScrollController controller;
-  final int itemCount;
   final double itemExtent;
-  final String Function(int index) labelBuilder;
+
+  /// A precomputed list of (Letter, FirstIndex) from SQLite.
+  /// Used for virtualized lists (like Songs) to save RAM.
+  final List<(String letter, int firstIndex)>? sectionIndex;
+
+  /// Used for in-memory lists (like Albums, Artists) to compute the index on the fly.
+  final int? itemCount;
+  final String Function(int index)? labelBuilder;
+
   final int crossAxisCount;
   final Object? version;
   final double railWidth;
@@ -32,30 +41,26 @@ class AlphabeticalScrollView extends StatefulWidget {
 }
 
 class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
-  List<String> _sections = const [];
-  Map<String, int> _firstIndexForSection = const {};
-
+  List<(String, int)> _sections = const [];
   final ValueNotifier<String?> _activeSection = ValueNotifier(null);
   int? _lastPointerBucket;
 
   @override
   void initState() {
     super.initState();
-    final index = _computeIndex();
-    _sections = index.$1;
-    _firstIndexForSection = index.$2;
+    _sections = widget.sectionIndex ?? _computeIndex();
   }
 
   @override
   void didUpdateWidget(covariant AlphabeticalScrollView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.itemCount != widget.itemCount ||
+    if (widget.sectionIndex != null) {
+      if (oldWidget.sectionIndex != widget.sectionIndex) {
+        setState(() => _sections = widget.sectionIndex!);
+      }
+    } else if (oldWidget.itemCount != widget.itemCount ||
         oldWidget.version != widget.version) {
-      final index = _computeIndex();
-      setState(() {
-        _sections = index.$1;
-        _firstIndexForSection = index.$2;
-      });
+      setState(() => _sections = _computeIndex());
     }
   }
 
@@ -69,54 +74,50 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
     if (raw.isEmpty) return '#';
     final firstChar = raw.trim().characters.first.toUpperCase();
 
-    if (RegExp(r'[0-9]').hasMatch(firstChar)) {
-      return '#';
-    }
+    if (RegExp(r'[0-9]').hasMatch(firstChar)) return '#';
 
     const withDia = 'ÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜÑ';
     const withoutDia = 'AAAAAAEEEEIIIIOOOOOUUUUN';
     final diaIndex = withDia.indexOf(firstChar);
-    if (diaIndex != -1) {
-      return withoutDia[diaIndex];
-    }
+    if (diaIndex != -1) return withoutDia[diaIndex];
 
-    if (RegExp(r'[A-ZА-Я]').hasMatch(firstChar)) {
-      return firstChar;
-    }
+    if (RegExp(r'[A-ZА-Я]').hasMatch(firstChar)) return firstChar;
 
     return '#';
   }
 
-  (List<String>, Map<String, int>) _computeIndex() {
+  List<(String, int)> _computeIndex() {
+    if (widget.itemCount == null || widget.labelBuilder == null) return [];
     final firstIndex = <String, int>{};
-    for (var i = 0; i < widget.itemCount; i++) {
-      final raw = widget.labelBuilder(i);
+    for (var i = 0; i < widget.itemCount!; i++) {
+      final raw = widget.labelBuilder!(i);
       final key = _cleanSectionKey(raw);
       firstIndex.putIfAbsent(key, () => i);
     }
-
-    final sections = firstIndex.keys.toList();
-    return (sections, firstIndex);
+    return firstIndex.entries.map((e) => (e.key, e.value)).toList();
   }
 
   void _handlePointer(Offset localPosition, double railHeight) {
     if (_sections.isEmpty || railHeight <= 0) return;
+
     final ratio = (localPosition.dy / railHeight).clamp(0.0, 0.999);
     final bucket = (ratio * _sections.length).floor();
+
     if (bucket == _lastPointerBucket) return;
     _lastPointerBucket = bucket;
 
     final section = _sections[bucket];
-    _activeSection.value = section;
+    _activeSection.value = section.$1;
     HapticFeedback.selectionClick();
 
-    final targetIndex = _firstIndexForSection[section]!;
+    final targetIndex = section.$2;
     final rowIndex = targetIndex ~/ widget.crossAxisCount;
 
     final maxExtent = widget.controller.hasClients
         ? widget.controller.position.maxScrollExtent
         : double.infinity;
     final offset = (rowIndex * widget.itemExtent).clamp(0.0, maxExtent);
+
     widget.controller.jumpTo(offset);
   }
 
@@ -131,7 +132,6 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
 
     return Stack(
       children: [
-        // FIX: Row layout prevents the rail from overlapping the content
         Row(
           children: [
             Expanded(
@@ -176,15 +176,15 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
                                 children: [
                                   for (final section in _sections)
                                     Text(
-                                      section,
+                                      section.$1,
                                       style:
                                           theme.textTheme.labelSmall?.copyWith(
                                         fontSize:
                                             _sections.length > 25 ? 8 : 10,
-                                        fontWeight: section == active
+                                        fontWeight: section.$1 == active
                                             ? FontWeight.bold
                                             : FontWeight.w500,
-                                        color: section == active
+                                        color: section.$1 == active
                                             ? theme.colorScheme.primary
                                             : theme.colorScheme.onSurfaceVariant
                                                 .withValues(alpha: 0.8),
@@ -202,8 +202,6 @@ class _AlphabeticalScrollViewState extends State<AlphabeticalScrollView> {
               ),
           ],
         ),
-
-        // M3 Expressive / Soft UI Indicator Card
         IgnorePointer(
           child: Center(
             child: ValueListenableBuilder<String?>(

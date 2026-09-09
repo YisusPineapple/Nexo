@@ -62,7 +62,7 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final songsAsync = ref.watch(sortedSongsProvider);
+    final query = ref.watch(songSearchQueryProvider);
     final sortConfig = ref.watch(songSortProvider);
     final theme = Theme.of(context);
 
@@ -121,113 +121,221 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
               ),
             ),
             Expanded(
-              child: songsAsync.when(
-                data: (songs) {
-                  if (songs.isEmpty) {
-                    return const Center(
-                      child: Text(
-                          'No songs found. Go to Library to add a folder.'),
-                    );
-                  }
-
-                  final list = ListView.builder(
-                    controller: _scrollController,
-                    itemExtent: _songRowExtent,
-                    itemCount: songs.length,
-                    itemBuilder: (context, index) {
-                      final song = songs[index];
-                      return ListTile(
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: song.coverArtPath != null
-                              // FIX: Added cacheWidth to prevent RAM leak
-                              ? Image.file(
-                                  File(song.coverArtPath!),
-                                  width: 48,
-                                  height: 48,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: 150,
-                                )
-                              : Container(
-                                  width: 48,
-                                  height: 48,
-                                  color:
-                                      theme.colorScheme.surfaceContainerHighest,
-                                  child: const Icon(
-                                      PhosphorIconsRegular.musicNotes),
-                                ),
-                        ),
-                        title: Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          '${song.trackArtistId.value} • '
-                          '${_formatDuration(song.duration)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(
-                              PhosphorIconsRegular.dotsThreeVertical),
-                          onPressed: () {
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (context) => SongContextMenu(song: song),
-                            );
-                          },
-                        ),
-                        onTap: () {
-                          ref
-                              .read(playbackControllerProvider.notifier)
-                              .playSongs(
-                                queueIdStr: 'library_songs',
-                                songs: songs,
-                                startIndex: index,
-                                source: const ManualQueueSource(),
-                              );
-                        },
-                      );
-                    },
-                  );
-
-                  return AlphabeticalScrollView(
-                    controller: _scrollController,
-                    itemCount: songs.length,
-                    itemExtent: _songRowExtent,
-                    version: sortConfig,
-                    labelBuilder: (index) {
-                      final song = songs[index];
-                      return switch (sortConfig.option) {
-                        SongSortOption.title => song.title,
-                        SongSortOption.artist => song.trackArtistId.value,
-                        SongSortOption.album => song.albumId?.value ?? '#',
-                        SongSortOption.year => song.year?.toString() ?? '#',
-                        SongSortOption.duration =>
-                          '${song.duration.inMinutes}m',
-                        SongSortOption.dateAdded => '${song.dateAddedUtc.year}',
-                      };
-                    },
-                    child: list,
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stackTrace) =>
-                    Center(child: Text('Error: $error')),
-              ),
+              child: query.isNotEmpty
+                  ? _SearchResultsView(scrollController: _scrollController)
+                  : _VirtualPaginationView(scrollController: _scrollController),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+class _VirtualPaginationView extends ConsumerWidget {
+  const _VirtualPaginationView({required this.scrollController});
+  final ScrollController scrollController;
 
   String _formatDuration(Duration d) {
     final minutes = d.inMinutes;
     final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final indexAsync = ref.watch(alphabeticalIndexProvider);
+    final windowState = ref.watch(songsWindowProvider);
+    final theme = Theme.of(context);
+
+    return indexAsync.when(
+      data: (sectionIndex) {
+        if (windowState.totalCount == 0) {
+          return const Center(
+            child: Text('No songs found. Go to Library to add a folder.'),
+          );
+        }
+
+        final list = CustomScrollView(
+          controller: scrollController,
+          slivers: [
+            SliverFixedExtentList(
+              itemExtent: _songRowExtent,
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  Future.microtask(() => ref
+                      .read(songsWindowProvider.notifier)
+                      .ensureLoaded(index));
+
+                  final song = ref
+                      .read(songsWindowProvider.notifier)
+                      .getSongAtIndex(index);
+
+                  if (song == null) {
+                    return const ListTile(
+                      leading: CircularProgressIndicator(),
+                      title: Text('Loading...'),
+                    );
+                  }
+
+                  return ListTile(
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: song.coverArtPath != null
+                          ? Image.file(
+                              File(song.coverArtPath!),
+                              width: 48,
+                              height: 48,
+                              fit: BoxFit.cover,
+                              cacheWidth: 150,
+                            )
+                          : Container(
+                              width: 48,
+                              height: 48,
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              child:
+                                  const Icon(PhosphorIconsRegular.musicNotes),
+                            ),
+                    ),
+                    title: Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      '${song.trackArtistId.value} • '
+                      '${_formatDuration(song.duration)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(PhosphorIconsRegular.dotsThreeVertical),
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => SongContextMenu(song: song),
+                        );
+                      },
+                    ),
+                    onTap: () async {
+                      final allSongs =
+                          await ref.read(sortedSongsProvider.future);
+                      if (context.mounted) {
+                        // FIX: Added unawaited
+                        unawaited(ref
+                            .read(playbackControllerProvider.notifier)
+                            .playSongs(
+                              queueIdStr: 'library_songs',
+                              songs: allSongs,
+                              startIndex: index,
+                              source: const ManualQueueSource(),
+                            ));
+                      }
+                    },
+                  );
+                },
+                childCount: windowState.totalCount,
+              ),
+            ),
+          ],
+        );
+
+        return AlphabeticalScrollView(
+          controller: scrollController,
+          itemExtent: _songRowExtent,
+          sectionIndex: sectionIndex,
+          child: list,
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, st) => Center(child: Text('Error: $e')),
+    );
+  }
+}
+
+class _SearchResultsView extends ConsumerWidget {
+  const _SearchResultsView({required this.scrollController});
+  final ScrollController scrollController;
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes;
+    final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final songsAsync = ref.watch(sortedSongsProvider);
+    final theme = Theme.of(context);
+
+    return songsAsync.when(
+      data: (songs) {
+        if (songs.isEmpty) {
+          return const Center(child: Text('No results found.'));
+        }
+
+        return ListView.builder(
+          controller: scrollController,
+          itemExtent: _songRowExtent,
+          itemCount: songs.length,
+          itemBuilder: (context, index) {
+            final song = songs[index];
+            return ListTile(
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: song.coverArtPath != null
+                    ? Image.file(
+                        File(song.coverArtPath!),
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        cacheWidth: 150,
+                      )
+                    : Container(
+                        width: 48,
+                        height: 48,
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: const Icon(PhosphorIconsRegular.musicNotes),
+                      ),
+              ),
+              title: Text(
+                song.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                '${song.trackArtistId.value} • '
+                '${_formatDuration(song.duration)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: IconButton(
+                icon: const Icon(PhosphorIconsRegular.dotsThreeVertical),
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => SongContextMenu(song: song),
+                  );
+                },
+              ),
+              onTap: () {
+                ref.read(playbackControllerProvider.notifier).playSongs(
+                      queueIdStr: 'search_results',
+                      songs: songs,
+                      startIndex: index,
+                      source: const ManualQueueSource(),
+                    );
+              },
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, st) => Center(child: Text('Error: $e')),
+    );
   }
 }

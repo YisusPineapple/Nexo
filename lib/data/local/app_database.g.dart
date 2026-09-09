@@ -149,6 +149,14 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("has_no_cover" IN (0, 1))'),
       defaultValue: const Constant(false));
+  static const VerificationMeta _sectionKeyMeta =
+      const VerificationMeta('sectionKey');
+  @override
+  late final GeneratedColumn<String> sectionKey = GeneratedColumn<String>(
+      'section_key', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('#'));
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -172,7 +180,8 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
         dateAddedUtcMs,
         isMissing,
         lyricOffsetMs,
-        hasNoCover
+        hasNoCover,
+        sectionKey
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -305,6 +314,12 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
           hasNoCover.isAcceptableOrUnknown(
               data['has_no_cover']!, _hasNoCoverMeta));
     }
+    if (data.containsKey('section_key')) {
+      context.handle(
+          _sectionKeyMeta,
+          sectionKey.isAcceptableOrUnknown(
+              data['section_key']!, _sectionKeyMeta));
+    }
     return context;
   }
 
@@ -359,6 +374,8 @@ class $SongsTable extends Songs with TableInfo<$SongsTable, SongRow> {
           .read(DriftSqlType.int, data['${effectivePrefix}lyric_offset_ms'])!,
       hasNoCover: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}has_no_cover'])!,
+      sectionKey: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}section_key'])!,
     );
   }
 
@@ -396,6 +413,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
   final bool isMissing;
   final int lyricOffsetMs;
   final bool hasNoCover;
+  final String sectionKey;
   const SongRow(
       {required this.id,
       required this.title,
@@ -418,7 +436,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
       required this.dateAddedUtcMs,
       required this.isMissing,
       required this.lyricOffsetMs,
-      required this.hasNoCover});
+      required this.hasNoCover,
+      required this.sectionKey});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -466,6 +485,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
     map['is_missing'] = Variable<bool>(isMissing);
     map['lyric_offset_ms'] = Variable<int>(lyricOffsetMs);
     map['has_no_cover'] = Variable<bool>(hasNoCover);
+    map['section_key'] = Variable<String>(sectionKey);
     return map;
   }
 
@@ -507,6 +527,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
       isMissing: Value(isMissing),
       lyricOffsetMs: Value(lyricOffsetMs),
       hasNoCover: Value(hasNoCover),
+      sectionKey: Value(sectionKey),
     );
   }
 
@@ -538,6 +559,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
       isMissing: serializer.fromJson<bool>(json['isMissing']),
       lyricOffsetMs: serializer.fromJson<int>(json['lyricOffsetMs']),
       hasNoCover: serializer.fromJson<bool>(json['hasNoCover']),
+      sectionKey: serializer.fromJson<String>(json['sectionKey']),
     );
   }
   @override
@@ -566,6 +588,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
       'isMissing': serializer.toJson<bool>(isMissing),
       'lyricOffsetMs': serializer.toJson<int>(lyricOffsetMs),
       'hasNoCover': serializer.toJson<bool>(hasNoCover),
+      'sectionKey': serializer.toJson<String>(sectionKey),
     };
   }
 
@@ -591,7 +614,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           int? dateAddedUtcMs,
           bool? isMissing,
           int? lyricOffsetMs,
-          bool? hasNoCover}) =>
+          bool? hasNoCover,
+          String? sectionKey}) =>
       SongRow(
         id: id ?? this.id,
         title: title ?? this.title,
@@ -621,6 +645,7 @@ class SongRow extends DataClass implements Insertable<SongRow> {
         isMissing: isMissing ?? this.isMissing,
         lyricOffsetMs: lyricOffsetMs ?? this.lyricOffsetMs,
         hasNoCover: hasNoCover ?? this.hasNoCover,
+        sectionKey: sectionKey ?? this.sectionKey,
       );
   SongRow copyWithCompanion(SongsCompanion data) {
     return SongRow(
@@ -671,6 +696,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           : this.lyricOffsetMs,
       hasNoCover:
           data.hasNoCover.present ? data.hasNoCover.value : this.hasNoCover,
+      sectionKey:
+          data.sectionKey.present ? data.sectionKey.value : this.sectionKey,
     );
   }
 
@@ -698,7 +725,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           ..write('dateAddedUtcMs: $dateAddedUtcMs, ')
           ..write('isMissing: $isMissing, ')
           ..write('lyricOffsetMs: $lyricOffsetMs, ')
-          ..write('hasNoCover: $hasNoCover')
+          ..write('hasNoCover: $hasNoCover, ')
+          ..write('sectionKey: $sectionKey')
           ..write(')'))
         .toString();
   }
@@ -726,7 +754,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
         dateAddedUtcMs,
         isMissing,
         lyricOffsetMs,
-        hasNoCover
+        hasNoCover,
+        sectionKey
       ]);
   @override
   bool operator ==(Object other) =>
@@ -753,7 +782,8 @@ class SongRow extends DataClass implements Insertable<SongRow> {
           other.dateAddedUtcMs == this.dateAddedUtcMs &&
           other.isMissing == this.isMissing &&
           other.lyricOffsetMs == this.lyricOffsetMs &&
-          other.hasNoCover == this.hasNoCover);
+          other.hasNoCover == this.hasNoCover &&
+          other.sectionKey == this.sectionKey);
 }
 
 class SongsCompanion extends UpdateCompanion<SongRow> {
@@ -779,6 +809,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
   final Value<bool> isMissing;
   final Value<int> lyricOffsetMs;
   final Value<bool> hasNoCover;
+  final Value<String> sectionKey;
   final Value<int> rowid;
   const SongsCompanion({
     this.id = const Value.absent(),
@@ -803,6 +834,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     this.isMissing = const Value.absent(),
     this.lyricOffsetMs = const Value.absent(),
     this.hasNoCover = const Value.absent(),
+    this.sectionKey = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SongsCompanion.insert({
@@ -828,6 +860,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     this.isMissing = const Value.absent(),
     this.lyricOffsetMs = const Value.absent(),
     this.hasNoCover = const Value.absent(),
+    this.sectionKey = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         title = Value(title),
@@ -861,6 +894,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     Expression<bool>? isMissing,
     Expression<int>? lyricOffsetMs,
     Expression<bool>? hasNoCover,
+    Expression<String>? sectionKey,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -886,6 +920,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
       if (isMissing != null) 'is_missing': isMissing,
       if (lyricOffsetMs != null) 'lyric_offset_ms': lyricOffsetMs,
       if (hasNoCover != null) 'has_no_cover': hasNoCover,
+      if (sectionKey != null) 'section_key': sectionKey,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -913,6 +948,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
       Value<bool>? isMissing,
       Value<int>? lyricOffsetMs,
       Value<bool>? hasNoCover,
+      Value<String>? sectionKey,
       Value<int>? rowid}) {
     return SongsCompanion(
       id: id ?? this.id,
@@ -937,6 +973,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
       isMissing: isMissing ?? this.isMissing,
       lyricOffsetMs: lyricOffsetMs ?? this.lyricOffsetMs,
       hasNoCover: hasNoCover ?? this.hasNoCover,
+      sectionKey: sectionKey ?? this.sectionKey,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1012,6 +1049,9 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
     if (hasNoCover.present) {
       map['has_no_cover'] = Variable<bool>(hasNoCover.value);
     }
+    if (sectionKey.present) {
+      map['section_key'] = Variable<String>(sectionKey.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1043,6 +1083,7 @@ class SongsCompanion extends UpdateCompanion<SongRow> {
           ..write('isMissing: $isMissing, ')
           ..write('lyricOffsetMs: $lyricOffsetMs, ')
           ..write('hasNoCover: $hasNoCover, ')
+          ..write('sectionKey: $sectionKey, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4315,6 +4356,7 @@ typedef $$SongsTableCreateCompanionBuilder = SongsCompanion Function({
   Value<bool> isMissing,
   Value<int> lyricOffsetMs,
   Value<bool> hasNoCover,
+  Value<String> sectionKey,
   Value<int> rowid,
 });
 typedef $$SongsTableUpdateCompanionBuilder = SongsCompanion Function({
@@ -4340,6 +4382,7 @@ typedef $$SongsTableUpdateCompanionBuilder = SongsCompanion Function({
   Value<bool> isMissing,
   Value<int> lyricOffsetMs,
   Value<bool> hasNoCover,
+  Value<String> sectionKey,
   Value<int> rowid,
 });
 
@@ -4474,6 +4517,9 @@ class $$SongsTableFilterComposer extends Composer<_$AppDatabase, $SongsTable> {
 
   ColumnFilters<bool> get hasNoCover => $composableBuilder(
       column: $table.hasNoCover, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sectionKey => $composableBuilder(
+      column: $table.sectionKey, builder: (column) => ColumnFilters(column));
 
   Expression<bool> queueSongsRefs(
       Expression<bool> Function($$QueueSongsTableFilterComposer f) f) {
@@ -4623,6 +4669,9 @@ class $$SongsTableOrderingComposer
 
   ColumnOrderings<bool> get hasNoCover => $composableBuilder(
       column: $table.hasNoCover, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sectionKey => $composableBuilder(
+      column: $table.sectionKey, builder: (column) => ColumnOrderings(column));
 }
 
 class $$SongsTableAnnotationComposer
@@ -4700,6 +4749,9 @@ class $$SongsTableAnnotationComposer
 
   GeneratedColumn<bool> get hasNoCover => $composableBuilder(
       column: $table.hasNoCover, builder: (column) => column);
+
+  GeneratedColumn<String> get sectionKey => $composableBuilder(
+      column: $table.sectionKey, builder: (column) => column);
 
   Expression<T> queueSongsRefs<T extends Object>(
       Expression<T> Function($$QueueSongsTableAnnotationComposer a) f) {
@@ -4813,6 +4865,7 @@ class $$SongsTableTableManager extends RootTableManager<
             Value<bool> isMissing = const Value.absent(),
             Value<int> lyricOffsetMs = const Value.absent(),
             Value<bool> hasNoCover = const Value.absent(),
+            Value<String> sectionKey = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SongsCompanion(
@@ -4838,6 +4891,7 @@ class $$SongsTableTableManager extends RootTableManager<
             isMissing: isMissing,
             lyricOffsetMs: lyricOffsetMs,
             hasNoCover: hasNoCover,
+            sectionKey: sectionKey,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -4863,6 +4917,7 @@ class $$SongsTableTableManager extends RootTableManager<
             Value<bool> isMissing = const Value.absent(),
             Value<int> lyricOffsetMs = const Value.absent(),
             Value<bool> hasNoCover = const Value.absent(),
+            Value<String> sectionKey = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               SongsCompanion.insert(
@@ -4888,6 +4943,7 @@ class $$SongsTableTableManager extends RootTableManager<
             isMissing: isMissing,
             lyricOffsetMs: lyricOffsetMs,
             hasNoCover: hasNoCover,
+            sectionKey: sectionKey,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

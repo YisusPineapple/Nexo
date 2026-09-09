@@ -22,6 +22,26 @@ abstract interface class SongRepository {
     bool isAscending = true,
   });
 
+  // --- NEW: Virtual Pagination & Alphabetical Index ---
+
+  /// Returns a lightweight list of (Letter, OffsetIndex) for the scrollbar.
+  /// Executes a fast GROUP BY query in SQLite instead of loading all songs.
+  Future<Result<List<(String, int)>, Failure>> getAlphabeticalIndex({
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  });
+
+  /// Returns a specific window (page) of songs using LIMIT and OFFSET.
+  /// Keeps RAM usage flat regardless of library size.
+  Future<Result<List<Song>, Failure>> getSongsWindow({
+    required int offset,
+    required int limit,
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  });
+
+  // --------------------------------------------------
+
   Future<Result<List<Album>, Failure>> getAllAlbums({
     AlbumSortOption sortOption = AlbumSortOption.name,
     bool isAscending = true,

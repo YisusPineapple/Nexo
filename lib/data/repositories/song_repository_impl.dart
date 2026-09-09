@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import '../../core/error/failures.dart';
 import '../../core/utils/artist_splitter.dart';
@@ -56,6 +56,28 @@ class _WorkerArgs {
   final bool extractCover;
 }
 
+String _computeSectionKey(String raw) {
+  if (raw.isEmpty) return '#';
+  final firstChar = raw.trim().characters.first.toUpperCase();
+
+  if (RegExp(r'[0-9]').hasMatch(firstChar)) {
+    return '#';
+  }
+
+  const withDia = 'ÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜÑ';
+  const withoutDia = 'AAAAAAEEEEIIIIOOOOOUUUUN';
+  final diaIndex = withDia.indexOf(firstChar);
+  if (diaIndex != -1) {
+    return withoutDia[diaIndex];
+  }
+
+  if (RegExp(r'[A-ZА-Я]').hasMatch(firstChar)) {
+    return firstChar;
+  }
+
+  return '#';
+}
+
 Future<void> _workerIsolateEntry(_WorkerArgs args) async {
   const metadataReader = TagLibMetadataDatasource();
 
@@ -73,12 +95,9 @@ Future<void> _workerIsolateEntry(_WorkerArgs args) async {
       } catch (_) {}
 
       if (args.extractCover) {
-        // Phase 2: Only send back the cover path
         args.sendPort.send({'id': song?.id.value, 'path': song?.coverArtPath});
-        // Throttle slightly to prevent thermal throttling during heavy I/O
         await Future.delayed(const Duration(milliseconds: 10));
       } else {
-        // Phase 1: Send the full song
         args.sendPort.send(_IndexingProgress(0, 0, song));
       }
     }
@@ -163,6 +182,7 @@ Future<Song?> _buildSong(
     replayGainAlbumDb: replayGainAlbumDb,
     dateAddedUtc: DateTime.now().toUtc(),
     hasNoCover: false,
+    sectionKey: _computeSectionKey(title),
   ).valueOrNull;
 }
 
@@ -341,7 +361,6 @@ class SongRepositoryImpl implements SongRepository {
     final excludedPaths =
         excludedResult.valueOrNull?.map((e) => e.path).toSet() ?? {};
 
-    // 1. Fast directory traversal in main isolate
     onProgress?.call(0, 0);
     const scanner = AudioFileScanner();
     final allFiles = <(String, AudioFormat)>[];
@@ -350,7 +369,7 @@ class SongRepositoryImpl implements SongRepository {
       await for (final file
           in scanner.scan(dir, excludedPaths: excludedPaths)) {
         allFiles.add(file);
-        onProgress?.call(allFiles.length, 0); // Show discovery progress
+        onProgress?.call(allFiles.length, 0);
       }
     }
 
@@ -359,7 +378,6 @@ class SongRepositoryImpl implements SongRepository {
       return const Ok(null);
     }
 
-    // 2. Distribute work across Isolate Pool
     final workerCount = math.min(Platform.numberOfProcessors, 4);
     final chunkSize = (allFiles.length / workerCount).ceil();
 
@@ -463,7 +481,6 @@ class SongRepositoryImpl implements SongRepository {
 
     _isExtractingCovers = true;
 
-    // Phase 2 is I/O bound (writing images to disk), so 1 or 2 workers is enough
     final workerCount = math.min(Platform.numberOfProcessors, 2);
     final chunkSize = (songsWithoutCover.length / workerCount).ceil();
 
@@ -534,6 +551,49 @@ class SongRepositoryImpl implements SongRepository {
       return _mapRows(await query.get());
     } catch (e) {
       return Err(UnexpectedFailure('Failed to fetch all songs.', cause: e));
+    }
+  }
+
+  @override
+  Future<Result<List<(String, int)>, Failure>> getAlphabeticalIndex({
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  }) async {
+    try {
+      final counts = await (_db.selectOnly(_db.songs)
+            ..addColumns([_db.songs.sectionKey, _db.songs.sectionKey.count()])
+            ..groupBy([_db.songs.sectionKey])
+            ..orderBy([OrderingTerm.asc(_db.songs.sectionKey)]))
+          .get();
+
+      var running = 0;
+      final result = <(String, int)>[];
+      for (final row in counts) {
+        final letter = row.read(_db.songs.sectionKey)!;
+        result.add((letter, running));
+        running += row.read(_db.songs.sectionKey.count())!;
+      }
+      return Ok(result);
+    } catch (e) {
+      return Err(
+          UnexpectedFailure('Failed to build alphabetical index.', cause: e));
+    }
+  }
+
+  @override
+  Future<Result<List<Song>, Failure>> getSongsWindow({
+    required int offset,
+    required int limit,
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  }) async {
+    try {
+      final query = _db.select(_db.songs)
+        ..orderBy([_buildOrderClause(sortOption, isAscending)])
+        ..limit(limit, offset: offset);
+      return _mapRows(await query.get());
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to fetch songs window.', cause: e));
     }
   }
 

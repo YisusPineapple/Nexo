@@ -179,7 +179,6 @@ class SongContextMenu extends ConsumerWidget {
                           : theme.colorScheme.onSurfaceVariant,
                     ),
                     onPressed: () async {
-                      // FIX: Added unawaited to satisfy the linter
                       unawaited(ref
                           .read(userMetricsControllerProvider)
                           .toggleInteraction(
@@ -201,7 +200,6 @@ class SongContextMenu extends ConsumerWidget {
                           : theme.colorScheme.onSurfaceVariant,
                     ),
                     onPressed: () async {
-                      // FIX: Added unawaited to satisfy the linter
                       unawaited(ref
                           .read(userMetricsControllerProvider)
                           .toggleInteraction(

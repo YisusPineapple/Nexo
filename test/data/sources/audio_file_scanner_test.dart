@@ -25,7 +25,7 @@ void main() {
       await File('${nested.path}/song.flac').create();
 
       const scanner = AudioFileScanner();
-      // FIX: Convert the Stream to a List to test it
+      // FIX: Removed await from the stream call, added await to toList()
       final found = await scanner.scan(tempDir.path).toList();
 
       expect(found.length, 2);
@@ -42,7 +42,7 @@ void main() {
 
     test('returns an empty list for a non-existent directory', () async {
       const scanner = AudioFileScanner();
-      // FIX: Convert the Stream to a List to test it
+      // FIX: Removed await from the stream call, added await to toList()
       final found =
           await scanner.scan('${tempDir.path}/does-not-exist').toList();
       expect(found, isEmpty);

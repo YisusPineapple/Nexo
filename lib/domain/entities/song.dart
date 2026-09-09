@@ -29,6 +29,7 @@ final class Song {
     required this.isMissing,
     required this.lyricOffsetMs,
     required this.hasNoCover,
+    required this.sectionKey,
   });
 
   final SongId id;
@@ -52,6 +53,7 @@ final class Song {
   final bool isMissing;
   final int lyricOffsetMs;
   final bool hasNoCover;
+  final String sectionKey;
 
   static Result<Song, Failure> create({
     required SongId id,
@@ -75,6 +77,7 @@ final class Song {
     bool isMissing = false,
     int lyricOffsetMs = 0,
     bool hasNoCover = false,
+    String? sectionKey,
   }) {
     if (duration.isNegative) {
       return Err(ValidationFailure(
@@ -112,6 +115,7 @@ final class Song {
       isMissing: isMissing,
       lyricOffsetMs: lyricOffsetMs,
       hasNoCover: hasNoCover,
+      sectionKey: sectionKey ?? '#',
     ));
   }
 
@@ -145,6 +149,7 @@ final class Song {
       isMissing: isMissing ?? this.isMissing,
       lyricOffsetMs: lyricOffsetMs ?? this.lyricOffsetMs,
       hasNoCover: hasNoCover ?? this.hasNoCover,
+      sectionKey: sectionKey,
     );
   }
 
