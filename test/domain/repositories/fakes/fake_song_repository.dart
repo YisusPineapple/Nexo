@@ -86,30 +86,6 @@ class FakeSongRepository implements SongRepository {
     return Ok(List.unmodifiable(sorted));
   }
 
-  // FIX: Added missing methods for the Fake repository
-  @override
-  Future<Result<List<(String, int)>, Failure>> getAlphabeticalIndex({
-    SongSortOption sortOption = SongSortOption.title,
-    bool isAscending = true,
-  }) async {
-    final sorted = List<Song>.of(_songs)
-      ..sort((a, b) => _compare(a, b, sortOption, isAscending));
-
-    final result = <(String, int)>[];
-    var running = 0;
-    String? currentLetter;
-
-    for (final song in sorted) {
-      if (song.sectionKey != currentLetter) {
-        currentLetter = song.sectionKey;
-        result.add((currentLetter, running));
-      }
-      running++;
-    }
-
-    return Ok(result);
-  }
-
   @override
   Future<Result<List<Song>, Failure>> getSongsWindow({
     required int offset,
@@ -128,10 +104,99 @@ class FakeSongRepository implements SongRepository {
   }
 
   @override
-  Future<Result<List<Album>, Failure>> getAllAlbums({
-    AlbumSortOption sortOption = AlbumSortOption.name,
+  Future<Result<Song, Failure>> getSongById(SongId id) async {
+    for (final song in _songs) {
+      if (song.id == id) {
+        return Ok(song);
+      }
+    }
+    return Err(NotFoundFailure('No song found with id "${id.value}".'));
+  }
+
+  @override
+  Future<Result<List<Song>, Failure>> searchSongs(
+    String query, {
+    SongSortOption sortOption = SongSortOption.title,
     bool isAscending = true,
   }) async {
+    final normalized = query.toLowerCase();
+    final filtered = _songs
+        .where((s) => s.title.toLowerCase().contains(normalized))
+        .toList();
+    filtered.sort((a, b) => _compare(a, b, sortOption, isAscending));
+    return Ok(filtered);
+  }
+
+  @override
+  Future<Result<List<String>, Failure>> searchArtists(String query) async {
+    final normalized = query.toLowerCase();
+    final matchingSongs = _songs.where((s) =>
+        s.trackArtistId.value.toLowerCase().contains(normalized) ||
+        s.title.toLowerCase().contains(normalized) ||
+        (s.albumId?.value ?? '').toLowerCase().contains(normalized));
+
+    final artists =
+        matchingSongs.map((s) => s.trackArtistId.value).toSet().toList();
+    return Ok(artists);
+  }
+
+  @override
+  Future<Result<List<String>, Failure>> searchAlbums(String query) async {
+    final normalized = query.toLowerCase();
+    final matchingSongs = _songs.where((s) =>
+        (s.albumId?.value ?? '').toLowerCase().contains(normalized) ||
+        s.title.toLowerCase().contains(normalized) ||
+        s.trackArtistId.value.toLowerCase().contains(normalized));
+
+    final albums = matchingSongs
+        .where((s) => s.albumId != null)
+        .map((s) => s.albumId!.value)
+        .toSet()
+        .toList();
+    return Ok(albums);
+  }
+
+  @override
+  Future<Result<void, Failure>> updateLyricOffset(
+      SongId id, int offsetMs) async {
+    final index = _songs.indexWhere((s) => s.id == id);
+    if (index != -1) {
+      _songs[index] = _songs[index].copyWith(lyricOffsetMs: offsetMs);
+      return const Ok(null);
+    }
+    return Err(NotFoundFailure('No song found with id "${id.value}".'));
+  }
+
+  // --- Reactive Streams (Fakes) ---
+
+  @override
+  Stream<Result<List<(String, int)>, Failure>> watchAlphabeticalIndex({
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  }) async* {
+    final sorted = List<Song>.of(_songs)
+      ..sort((a, b) => _compare(a, b, sortOption, isAscending));
+
+    final result = <(String, int)>[];
+    var running = 0;
+    String? currentLetter;
+
+    for (final song in sorted) {
+      if (song.sectionKey != currentLetter) {
+        currentLetter = song.sectionKey;
+        result.add((currentLetter, running));
+      }
+      running++;
+    }
+
+    yield Ok(result);
+  }
+
+  @override
+  Stream<Result<List<Album>, Failure>> watchAllAlbums({
+    AlbumSortOption sortOption = AlbumSortOption.name,
+    bool isAscending = true,
+  }) async* {
     final map = <String, Album>{};
     for (final song in _songs) {
       final albumId = song.albumId?.value;
@@ -171,14 +236,14 @@ class FakeSongRepository implements SongRepository {
       }
       return isAscending ? res : -res;
     });
-    return Ok(list);
+    yield Ok(list);
   }
 
   @override
-  Future<Result<List<Artist>, Failure>> getAllArtists({
+  Stream<Result<List<Artist>, Failure>> watchAllArtists({
     ArtistSortOption sortOption = ArtistSortOption.name,
     bool isAscending = true,
-  }) async {
+  }) async* {
     final map = <String,
         ({
       String displayName,
@@ -238,11 +303,11 @@ class FakeSongRepository implements SongRepository {
       }
       return isAscending ? res : -res;
     });
-    return Ok(list);
+    yield Ok(list);
   }
 
   @override
-  Future<Result<List<Genre>, Failure>> getAllGenres() async {
+  Stream<Result<List<Genre>, Failure>> watchAllGenres() async* {
     final map = <String, int>{};
     for (final song in _songs) {
       for (final genre in song.genreNames) {
@@ -252,11 +317,11 @@ class FakeSongRepository implements SongRepository {
     final list =
         map.entries.map((e) => Genre(name: e.key, songCount: e.value)).toList();
     list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    return Ok(list);
+    yield Ok(list);
   }
 
   @override
-  Future<Result<List<FolderSummary>, Failure>> getAllFolders() async {
+  Stream<Result<List<FolderSummary>, Failure>> watchAllFolders() async* {
     final map = <String, int>{};
     for (final song in _songs) {
       final dir = song.filePath.substring(0, song.filePath.lastIndexOf('/'));
@@ -270,91 +335,24 @@ class FakeSongRepository implements SongRepository {
             ))
         .toList();
     list.sort((a, b) => a.path.toLowerCase().compareTo(b.path.toLowerCase()));
-    return Ok(list);
+    yield Ok(list);
   }
 
   @override
-  Future<Result<Song, Failure>> getSongById(SongId id) async {
-    for (final song in _songs) {
-      if (song.id == id) {
-        return Ok(song);
-      }
-    }
-    return Err(NotFoundFailure('No song found with id "${id.value}".'));
+  Stream<Result<List<Song>, Failure>> watchSongsByArtist(
+      ArtistId artistId) async* {
+    yield Ok(_songs.where((s) => s.trackArtistId == artistId).toList());
   }
 
   @override
-  Future<Result<List<Song>, Failure>> getSongsByArtist(
-    ArtistId artistId,
-  ) async {
-    return Ok(_songs.where((s) => s.trackArtistId == artistId).toList());
+  Stream<Result<List<Song>, Failure>> watchSongsByAlbum(
+      AlbumId albumId) async* {
+    yield Ok(_songs.where((s) => s.albumId == albumId).toList());
   }
 
   @override
-  Future<Result<List<Song>, Failure>> getSongsByAlbum(AlbumId albumId) async {
-    return Ok(_songs.where((s) => s.albumId == albumId).toList());
-  }
-
-  @override
-  Future<Result<List<Song>, Failure>> getSongsByFolder(
-    String folderPath,
-  ) async {
-    return Ok(
-      _songs.where((s) => s.filePath.startsWith(folderPath)).toList(),
-    );
-  }
-
-  @override
-  Future<Result<List<Song>, Failure>> searchSongs(
-    String query, {
-    SongSortOption sortOption = SongSortOption.title,
-    bool isAscending = true,
-  }) async {
-    final normalized = query.toLowerCase();
-    final filtered = _songs
-        .where((s) => s.title.toLowerCase().contains(normalized))
-        .toList();
-    filtered.sort((a, b) => _compare(a, b, sortOption, isAscending));
-    return Ok(filtered);
-  }
-
-  @override
-  Future<Result<List<String>, Failure>> searchArtists(String query) async {
-    final normalized = query.toLowerCase();
-    final matchingSongs = _songs.where((s) =>
-        s.trackArtistId.value.toLowerCase().contains(normalized) ||
-        s.title.toLowerCase().contains(normalized) ||
-        (s.albumId?.value ?? '').toLowerCase().contains(normalized));
-
-    final artists =
-        matchingSongs.map((s) => s.trackArtistId.value).toSet().toList();
-    return Ok(artists);
-  }
-
-  @override
-  Future<Result<List<String>, Failure>> searchAlbums(String query) async {
-    final normalized = query.toLowerCase();
-    final matchingSongs = _songs.where((s) =>
-        (s.albumId?.value ?? '').toLowerCase().contains(normalized) ||
-        s.title.toLowerCase().contains(normalized) ||
-        s.trackArtistId.value.toLowerCase().contains(normalized));
-
-    final albums = matchingSongs
-        .where((s) => s.albumId != null)
-        .map((s) => s.albumId!.value)
-        .toSet()
-        .toList();
-    return Ok(albums);
-  }
-
-  @override
-  Future<Result<void, Failure>> updateLyricOffset(
-      SongId id, int offsetMs) async {
-    final index = _songs.indexWhere((s) => s.id == id);
-    if (index != -1) {
-      _songs[index] = _songs[index].copyWith(lyricOffsetMs: offsetMs);
-      return const Ok(null);
-    }
-    return Err(NotFoundFailure('No song found with id "${id.value}".'));
+  Stream<Result<List<Song>, Failure>> watchSongsByFolder(
+      String folderPath) async* {
+    yield Ok(_songs.where((s) => s.filePath.startsWith(folderPath)).toList());
   }
 }

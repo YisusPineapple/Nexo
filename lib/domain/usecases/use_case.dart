@@ -11,6 +11,12 @@ abstract interface class UseCase<T, P> {
   Future<Result<T, Failure>> call(P params);
 }
 
+/// Common shape for reactive Domain use cases that return a Stream.
+/// Used for UI feeds that automatically update when the database changes.
+abstract interface class StreamUseCase<T, P> {
+  Stream<Result<T, Failure>> call(P params);
+}
+
 /// Marker params type for use cases that take no input (e.g.
 /// RestoreSessionUseCase), so each no-arg use case doesn't invent its
 /// own empty params type.

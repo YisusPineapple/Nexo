@@ -7,6 +7,7 @@ import '../../domain/usecases/use_case.dart';
 import '../../domain/value_objects/album_id.dart';
 import '../../domain/value_objects/artist_id.dart';
 import '../../core/utils/artist_splitter.dart';
+import '../../core/utils/result_extensions.dart';
 import 'library_providers.dart';
 import 'repository_providers.dart';
 
@@ -15,78 +16,53 @@ final albumSortProvider = StateProvider<SortConfig<AlbumSortOption>>(
 final artistSortProvider = StateProvider<SortConfig<ArtistSortOption>>(
     (ref) => const SortConfig(ArtistSortOption.name));
 
-final _getAllAlbumsUseCaseProvider = Provider<GetAllAlbumsUseCase>((ref) {
-  return GetAllAlbumsUseCase(ref.watch(songRepositoryProvider));
+final _watchAllAlbumsUseCaseProvider = Provider<WatchAllAlbumsUseCase>((ref) {
+  return WatchAllAlbumsUseCase(ref.watch(songRepositoryProvider));
 });
 
-final _getAllArtistsUseCaseProvider = Provider<GetAllArtistsUseCase>((ref) {
-  return GetAllArtistsUseCase(ref.watch(songRepositoryProvider));
+final _watchAllArtistsUseCaseProvider = Provider<WatchAllArtistsUseCase>((ref) {
+  return WatchAllArtistsUseCase(ref.watch(songRepositoryProvider));
 });
 
-final _getAllGenresUseCaseProvider = Provider<GetAllGenresUseCase>((ref) {
-  return GetAllGenresUseCase(ref.watch(songRepositoryProvider));
+final _watchAllGenresUseCaseProvider = Provider<WatchAllGenresUseCase>((ref) {
+  return WatchAllGenresUseCase(ref.watch(songRepositoryProvider));
 });
 
-final _getAllFoldersUseCaseProvider = Provider<GetAllFoldersUseCase>((ref) {
-  return GetAllFoldersUseCase(ref.watch(songRepositoryProvider));
+final _watchAllFoldersUseCaseProvider = Provider<WatchAllFoldersUseCase>((ref) {
+  return WatchAllFoldersUseCase(ref.watch(songRepositoryProvider));
 });
 
-final albumsProvider = FutureProvider<List<Album>>((ref) async {
+// FIX: Changed from FutureProvider to StreamProvider for native Drift reactivity
+final albumsProvider = StreamProvider<List<Album>>((ref) {
   final sortConfig = ref.watch(albumSortProvider);
 
-  ref.listen(
-    StreamProvider(
-        (ref) => ref.watch(songRepositoryProvider).coversUpdatedStream),
-    (_, __) => ref.invalidateSelf(),
-  );
-
-  final result = await ref.watch(_getAllAlbumsUseCaseProvider).call((
+  return ref.watch(_watchAllAlbumsUseCaseProvider).call((
     sortOption: sortConfig.option,
     isAscending: sortConfig.isAscending,
-  ));
-
-  return result.when(
-    ok: (albums) => albums,
-    err: (failure) => throw failure,
-  );
+  )).map((result) => result.unwrapOrThrow());
 });
 
-final artistsProvider = FutureProvider<List<Artist>>((ref) async {
+final artistsProvider = StreamProvider<List<Artist>>((ref) {
   final sortConfig = ref.watch(artistSortProvider);
 
-  ref.listen(
-    StreamProvider(
-        (ref) => ref.watch(songRepositoryProvider).coversUpdatedStream),
-    (_, __) => ref.invalidateSelf(),
-  );
-
-  final result = await ref.watch(_getAllArtistsUseCaseProvider).call((
+  return ref.watch(_watchAllArtistsUseCaseProvider).call((
     sortOption: sortConfig.option,
     isAscending: sortConfig.isAscending,
-  ));
-
-  return result.when(
-    ok: (artists) => artists,
-    err: (failure) => throw failure,
-  );
+  )).map((result) => result.unwrapOrThrow());
 });
 
-final genresProvider = FutureProvider<List<Genre>>((ref) async {
-  final result =
-      await ref.watch(_getAllGenresUseCaseProvider).call(const NoParams());
-  return result.when(
-    ok: (genres) => genres,
-    err: (failure) => throw failure,
-  );
+final genresProvider = StreamProvider<List<Genre>>((ref) {
+  return ref
+      .watch(_watchAllGenresUseCaseProvider)
+      .call(const NoParams())
+      .map((result) => result.unwrapOrThrow());
 });
 
-final foldersProvider = FutureProvider<List<FolderSummary>>((ref) async {
-  final result =
-      await ref.watch(_getAllFoldersUseCaseProvider).call(const NoParams());
-  return result.when(
-    ok: (folders) => folders,
-    err: (failure) => throw failure,
-  );
+final foldersProvider = StreamProvider<List<FolderSummary>>((ref) {
+  return ref
+      .watch(_watchAllFoldersUseCaseProvider)
+      .call(const NoParams())
+      .map((result) => result.unwrapOrThrow());
 });
 
 final multiArtistSongsProvider =
@@ -100,24 +76,27 @@ final multiArtistSongsProvider =
 });
 
 final albumSongsProvider =
-    FutureProvider.family<List<Song>, String>((ref, albumId) async {
+    StreamProvider.family<List<Song>, String>((ref, albumId) {
   final repo = ref.watch(songRepositoryProvider);
-  final result = await repo.getSongsByAlbum(AlbumId(albumId));
-  return result.when(ok: (songs) => songs, err: (e) => throw e);
+  return repo
+      .watchSongsByAlbum(AlbumId(albumId))
+      .map((result) => result.unwrapOrThrow());
 });
 
 final artistSongsProvider =
-    FutureProvider.family<List<Song>, String>((ref, artistId) async {
+    StreamProvider.family<List<Song>, String>((ref, artistId) {
   final repo = ref.watch(songRepositoryProvider);
-  final result = await repo.getSongsByArtist(ArtistId(artistId));
-  return result.when(ok: (songs) => songs, err: (e) => throw e);
+  return repo
+      .watchSongsByArtist(ArtistId(artistId))
+      .map((result) => result.unwrapOrThrow());
 });
 
 final folderSongsProvider =
-    FutureProvider.family<List<Song>, String>((ref, folderPath) async {
+    StreamProvider.family<List<Song>, String>((ref, folderPath) {
   final repo = ref.watch(songRepositoryProvider);
-  final result = await repo.getSongsByFolder(folderPath);
-  return result.when(ok: (songs) => songs, err: (e) => throw e);
+  return repo
+      .watchSongsByFolder(folderPath)
+      .map((result) => result.unwrapOrThrow());
 });
 
 final genreSongsProvider =

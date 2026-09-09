@@ -9,14 +9,14 @@ typedef GetAllAlbumsParams = ({
   bool isAscending,
 });
 
-final class GetAllAlbumsUseCase
-    implements UseCase<List<Album>, GetAllAlbumsParams> {
-  GetAllAlbumsUseCase(this._repository);
+final class WatchAllAlbumsUseCase
+    implements StreamUseCase<List<Album>, GetAllAlbumsParams> {
+  WatchAllAlbumsUseCase(this._repository);
   final SongRepository _repository;
 
   @override
-  Future<Result<List<Album>, Failure>> call(GetAllAlbumsParams params) {
-    return _repository.getAllAlbums(
+  Stream<Result<List<Album>, Failure>> call(GetAllAlbumsParams params) {
+    return _repository.watchAllAlbums(
       sortOption: params.sortOption,
       isAscending: params.isAscending,
     );
@@ -28,37 +28,38 @@ typedef GetAllArtistsParams = ({
   bool isAscending,
 });
 
-final class GetAllArtistsUseCase
-    implements UseCase<List<Artist>, GetAllArtistsParams> {
-  GetAllArtistsUseCase(this._repository);
+final class WatchAllArtistsUseCase
+    implements StreamUseCase<List<Artist>, GetAllArtistsParams> {
+  WatchAllArtistsUseCase(this._repository);
   final SongRepository _repository;
 
   @override
-  Future<Result<List<Artist>, Failure>> call(GetAllArtistsParams params) {
-    return _repository.getAllArtists(
+  Stream<Result<List<Artist>, Failure>> call(GetAllArtistsParams params) {
+    return _repository.watchAllArtists(
       sortOption: params.sortOption,
       isAscending: params.isAscending,
     );
   }
 }
 
-final class GetAllGenresUseCase implements UseCase<List<Genre>, NoParams> {
-  GetAllGenresUseCase(this._repository);
+final class WatchAllGenresUseCase
+    implements StreamUseCase<List<Genre>, NoParams> {
+  WatchAllGenresUseCase(this._repository);
   final SongRepository _repository;
 
   @override
-  Future<Result<List<Genre>, Failure>> call(NoParams params) {
-    return _repository.getAllGenres();
+  Stream<Result<List<Genre>, Failure>> call(NoParams params) {
+    return _repository.watchAllGenres();
   }
 }
 
-final class GetAllFoldersUseCase
-    implements UseCase<List<FolderSummary>, NoParams> {
-  GetAllFoldersUseCase(this._repository);
+final class WatchAllFoldersUseCase
+    implements StreamUseCase<List<FolderSummary>, NoParams> {
+  WatchAllFoldersUseCase(this._repository);
   final SongRepository _repository;
 
   @override
-  Future<Result<List<FolderSummary>, Failure>> call(NoParams params) {
-    return _repository.getAllFolders();
+  Stream<Result<List<FolderSummary>, Failure>> call(NoParams params) {
+    return _repository.watchAllFolders();
   }
 }

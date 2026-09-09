@@ -45,30 +45,35 @@ void main() {
       );
     });
 
-    test('getSongsByArtist filters by ArtistId', () async {
+    test('watchSongsByArtist filters by ArtistId', () async {
       final repo = FakeSongRepository(initialSongs: [
         _song('a', artistId: const ArtistId('artist-1')),
         _song('b', artistId: const ArtistId('artist-2')),
       ]);
-      final result = await repo.getSongsByArtist(const ArtistId('artist-1'));
+      // FIX: Use reactive stream method with .first
+      final result =
+          await repo.watchSongsByArtist(const ArtistId('artist-1')).first;
       expect(result.valueOrNull?.map((s) => s.id.value), ['a']);
     });
 
-    test('getSongsByAlbum filters by AlbumId', () async {
+    test('watchSongsByAlbum filters by AlbumId', () async {
       final repo = FakeSongRepository(initialSongs: [
         _song('a', albumId: const AlbumId('album-1')),
         _song('b', albumId: const AlbumId('album-2')),
       ]);
-      final result = await repo.getSongsByAlbum(const AlbumId('album-1'));
+      // FIX: Use reactive stream method with .first
+      final result =
+          await repo.watchSongsByAlbum(const AlbumId('album-1')).first;
       expect(result.valueOrNull?.map((s) => s.id.value), ['a']);
     });
 
-    test('getSongsByFolder filters by path prefix', () async {
+    test('watchSongsByFolder filters by path prefix', () async {
       final repo = FakeSongRepository(initialSongs: [
         _song('a', path: '/music/jazz/a.mp3'),
         _song('b', path: '/music/rock/b.mp3'),
       ]);
-      final result = await repo.getSongsByFolder('/music/jazz');
+      // FIX: Use reactive stream method with .first
+      final result = await repo.watchSongsByFolder('/music/jazz').first;
       expect(result.valueOrNull?.map((s) => s.id.value), ['a']);
     });
 

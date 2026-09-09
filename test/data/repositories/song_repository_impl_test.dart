@@ -79,7 +79,9 @@ void main() {
     test('getSongsByArtist filters correctly', () async {
       await seedSong(id: 's1', artist: 'artist-1');
       await seedSong(id: 's2', artist: 'artist-2');
-      final result = await repo.getSongsByArtist(const ArtistId('artist-1'));
+      // FIX: Use the reactive stream method for the test
+      final result =
+          await repo.watchSongsByArtist(const ArtistId('artist-1')).first;
       expect(result.valueOrNull?.map((s) => s.id.value), ['s1']);
     });
 
@@ -106,7 +108,8 @@ void main() {
     test('getSongsByFolder filters by path prefix using SQL LIKE', () async {
       await seedSong(id: 'a', artist: 'art', path: '/music/jazz/a.mp3');
       await seedSong(id: 'b', artist: 'art', path: '/music/rock/b.mp3');
-      final result = await repo.getSongsByFolder('/music/jazz');
+      // FIX: Use the reactive stream method for the test
+      final result = await repo.watchSongsByFolder('/music/jazz').first;
       expect(result.valueOrNull?.map((s) => s.id.value), ['a']);
     });
 

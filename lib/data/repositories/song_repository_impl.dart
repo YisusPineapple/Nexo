@@ -485,7 +485,6 @@ class SongRepositoryImpl implements SongRepository {
     final chunkSize = (songsWithoutCover.length / workerCount).ceil();
 
     int activeWorkers = workerCount;
-    var updateBatchCount = 0;
 
     for (var i = 0; i < workerCount; i++) {
       final start = i * chunkSize;
@@ -511,18 +510,11 @@ class SongRepositoryImpl implements SongRepository {
                 hasNoCover: Value(path == null),
               ),
             );
-
-            updateBatchCount++;
-            if (updateBatchCount >= 15) {
-              updateBatchCount = 0;
-              _coversUpdatedController.add(null);
-            }
           }
         } else if (message == 'DONE') {
           activeWorkers--;
           if (activeWorkers == 0) {
             _isExtractingCovers = false;
-            _coversUpdatedController.add(null);
           }
           receivePort.close();
         }
@@ -555,32 +547,6 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   @override
-  Future<Result<List<(String, int)>, Failure>> getAlphabeticalIndex({
-    SongSortOption sortOption = SongSortOption.title,
-    bool isAscending = true,
-  }) async {
-    try {
-      final counts = await (_db.selectOnly(_db.songs)
-            ..addColumns([_db.songs.sectionKey, _db.songs.sectionKey.count()])
-            ..groupBy([_db.songs.sectionKey])
-            ..orderBy([OrderingTerm.asc(_db.songs.sectionKey)]))
-          .get();
-
-      var running = 0;
-      final result = <(String, int)>[];
-      for (final row in counts) {
-        final letter = row.read(_db.songs.sectionKey)!;
-        result.add((letter, running));
-        running += row.read(_db.songs.sectionKey.count())!;
-      }
-      return Ok(result);
-    } catch (e) {
-      return Err(
-          UnexpectedFailure('Failed to build alphabetical index.', cause: e));
-    }
-  }
-
-  @override
   Future<Result<List<Song>, Failure>> getSongsWindow({
     required int offset,
     required int limit,
@@ -598,108 +564,6 @@ class SongRepositoryImpl implements SongRepository {
   }
 
   @override
-  Future<Result<List<Album>, Failure>> getAllAlbums({
-    AlbumSortOption sortOption = AlbumSortOption.name,
-    bool isAscending = true,
-  }) async {
-    try {
-      final orderCol = switch (sortOption) {
-        AlbumSortOption.name => 'LOWER(album_id)',
-        AlbumSortOption.artist => 'LOWER(artist)',
-        AlbumSortOption.songCount => 'song_count',
-      };
-      final orderDir = isAscending ? 'ASC' : 'DESC';
-
-      final rows = await _db.customSelect(
-        'SELECT album_id, COALESCE(album_artist_id, track_artist_id) AS artist, '
-        'MAX(cover_art_path) AS cover_art_path, COUNT(*) AS song_count '
-        'FROM songs WHERE album_id IS NOT NULL '
-        'GROUP BY album_id ORDER BY $orderCol $orderDir',
-        readsFrom: {_db.songs},
-      ).get();
-
-      final albums = rows
-          .map((r) => Album(
-                id: r.read<String>('album_id'),
-                name: r.read<String>('album_id'),
-                artist: r.read<String>('artist'),
-                songCount: r.read<int>('song_count'),
-                coverArtPath: r.read<String?>('cover_art_path'),
-              ))
-          .toList();
-
-      return Ok(albums);
-    } catch (e) {
-      return Err(UnexpectedFailure('Failed to fetch albums.', cause: e));
-    }
-  }
-
-  @override
-  Future<Result<List<Artist>, Failure>> getAllArtists({
-    ArtistSortOption sortOption = ArtistSortOption.name,
-    bool isAscending = true,
-  }) async {
-    try {
-      final rows = await _db.customSelect(
-        'SELECT track_artist_id, album_id, cover_art_path FROM songs',
-        readsFrom: {_db.songs},
-      ).get();
-
-      final data = rows
-          .map((r) => (
-                r.read<String>('track_artist_id'),
-                r.read<String?>('album_id'),
-                r.read<String?>('cover_art_path'),
-              ))
-          .toList();
-
-      final artists = await Isolate.run(() => _computeArtists((
-            data: data,
-            sortOption: sortOption,
-            isAscending: isAscending,
-          )));
-
-      return Ok(artists);
-    } catch (e) {
-      return Err(UnexpectedFailure('Failed to fetch artists.', cause: e));
-    }
-  }
-
-  @override
-  Future<Result<List<Genre>, Failure>> getAllGenres() async {
-    try {
-      final rows = await _db.customSelect(
-        'SELECT genre_names FROM songs',
-        readsFrom: {_db.songs},
-      ).get();
-
-      final data = rows.map((r) => r.read<String>('genre_names')).toList();
-      final genres = await Isolate.run(() => _computeGenres(data));
-
-      return Ok(genres);
-    } catch (e) {
-      return Err(UnexpectedFailure('Failed to fetch genres.', cause: e));
-    }
-  }
-
-  @override
-  Future<Result<List<FolderSummary>, Failure>> getAllFolders() async {
-    try {
-      final rows = await _db.customSelect(
-        'SELECT file_path FROM songs',
-        readsFrom: {_db.songs},
-      ).get();
-
-      final data = rows.map((r) => r.read<String>('file_path')).toList();
-      final folders = await Isolate.run(() => _computeFolders(data));
-
-      return Ok(folders);
-    } catch (e) {
-      return Err(UnexpectedFailure('Failed to fetch folders.', cause: e));
-    }
-  }
-
-  @override
   Future<Result<Song, Failure>> getSongById(SongId id) async {
     final row = await (_db.select(_db.songs)
           ..where((t) => t.id.equals(id.value)))
@@ -708,40 +572,6 @@ class SongRepositoryImpl implements SongRepository {
       return Err(NotFoundFailure('No song found with id "${id.value}".'));
     }
     return _mapper.toEntity(row);
-  }
-
-  @override
-  Future<Result<List<Song>, Failure>> getSongsByArtist(
-          ArtistId artistId) async =>
-      _mapRows(
-        await (_db.select(_db.songs)
-              ..where((t) => t.trackArtistId.equals(artistId.value)))
-            .get(),
-      );
-
-  @override
-  Future<Result<List<Song>, Failure>> getSongsByAlbum(AlbumId albumId) async =>
-      _mapRows(
-        await (_db.select(_db.songs)
-              ..where((t) => t.albumId.equals(albumId.value)))
-            .get(),
-      );
-
-  @override
-  Future<Result<List<Song>, Failure>> getSongsByFolder(
-    String folderPath,
-  ) async {
-    final likePattern = '${_escapeLikePattern(folderPath)}%';
-    final rows = await _db
-        .customSelect(
-          "SELECT * FROM songs WHERE file_path LIKE ? ESCAPE '\\' "
-          'ORDER BY file_path',
-          variables: [Variable.withString(likePattern)],
-          readsFrom: {_db.songs},
-        )
-        .map((row) => _db.songs.map(row.data))
-        .get();
-    return _mapRows(rows);
   }
 
   @override
@@ -862,6 +692,177 @@ class SongRepositoryImpl implements SongRepository {
       );
     }
   }
+
+  // --- Reactive Streams (Drift .watch) ---
+
+  @override
+  Stream<Result<List<(String, int)>, Failure>> watchAlphabeticalIndex({
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+  }) {
+    return (_db.selectOnly(_db.songs)
+          ..addColumns([_db.songs.sectionKey, _db.songs.sectionKey.count()])
+          ..groupBy([_db.songs.sectionKey])
+          ..orderBy([OrderingTerm.asc(_db.songs.sectionKey)]))
+        .watch()
+        .map((counts) {
+      try {
+        var running = 0;
+        final result = <(String, int)>[];
+        for (final row in counts) {
+          final letter = row.read(_db.songs.sectionKey)!;
+          result.add((letter, running));
+          running += row.read(_db.songs.sectionKey.count())!;
+        }
+        return Ok(result);
+      } catch (e) {
+        return Err(
+            UnexpectedFailure('Failed to watch alphabetical index.', cause: e));
+      }
+    });
+  }
+
+  @override
+  Stream<Result<List<Album>, Failure>> watchAllAlbums({
+    AlbumSortOption sortOption = AlbumSortOption.name,
+    bool isAscending = true,
+  }) {
+    final orderCol = switch (sortOption) {
+      AlbumSortOption.name => 'LOWER(album_id)',
+      AlbumSortOption.artist => 'LOWER(artist)',
+      AlbumSortOption.songCount => 'song_count',
+    };
+    final orderDir = isAscending ? 'ASC' : 'DESC';
+
+    return _db
+        .customSelect(
+          'SELECT album_id, COALESCE(album_artist_id, track_artist_id) AS artist, '
+          'MAX(cover_art_path) AS cover_art_path, COUNT(*) AS song_count '
+          'FROM songs WHERE album_id IS NOT NULL '
+          'GROUP BY album_id ORDER BY $orderCol $orderDir',
+          readsFrom: {_db.songs},
+        )
+        .watch()
+        .map((rows) {
+          try {
+            final albums = rows
+                .map((r) => Album(
+                      id: r.read<String>('album_id'),
+                      name: r.read<String>('album_id'),
+                      artist: r.read<String>('artist'),
+                      songCount: r.read<int>('song_count'),
+                      coverArtPath: r.read<String?>('cover_art_path'),
+                    ))
+                .toList();
+            return Ok(albums);
+          } catch (e) {
+            return Err(UnexpectedFailure('Failed to watch albums.', cause: e));
+          }
+        });
+  }
+
+  @override
+  Stream<Result<List<Artist>, Failure>> watchAllArtists({
+    ArtistSortOption sortOption = ArtistSortOption.name,
+    bool isAscending = true,
+  }) {
+    return _db
+        .customSelect(
+          'SELECT track_artist_id, album_id, cover_art_path FROM songs',
+          readsFrom: {_db.songs},
+        )
+        .watch()
+        .asyncMap((rows) async {
+          try {
+            final data = rows
+                .map((r) => (
+                      r.read<String>('track_artist_id'),
+                      r.read<String?>('album_id'),
+                      r.read<String?>('cover_art_path'),
+                    ))
+                .toList();
+
+            final artists = await Isolate.run(() => _computeArtists((
+                  data: data,
+                  sortOption: sortOption,
+                  isAscending: isAscending,
+                )));
+
+            return Ok(artists);
+          } catch (e) {
+            return Err(UnexpectedFailure('Failed to watch artists.', cause: e));
+          }
+        });
+  }
+
+  @override
+  Stream<Result<List<Genre>, Failure>> watchAllGenres() {
+    return _db
+        .customSelect(
+          'SELECT genre_names FROM songs',
+          readsFrom: {_db.songs},
+        )
+        .watch()
+        .asyncMap((rows) async {
+          try {
+            final data =
+                rows.map((r) => r.read<String>('genre_names')).toList();
+            final genres = await Isolate.run(() => _computeGenres(data));
+            return Ok(genres);
+          } catch (e) {
+            return Err(UnexpectedFailure('Failed to watch genres.', cause: e));
+          }
+        });
+  }
+
+  @override
+  Stream<Result<List<FolderSummary>, Failure>> watchAllFolders() {
+    return _db
+        .customSelect(
+          'SELECT file_path FROM songs',
+          readsFrom: {_db.songs},
+        )
+        .watch()
+        .asyncMap((rows) async {
+          try {
+            final data = rows.map((r) => r.read<String>('file_path')).toList();
+            final folders = await Isolate.run(() => _computeFolders(data));
+            return Ok(folders);
+          } catch (e) {
+            return Err(UnexpectedFailure('Failed to watch folders.', cause: e));
+          }
+        });
+  }
+
+  @override
+  Stream<Result<List<Song>, Failure>> watchSongsByArtist(ArtistId artistId) {
+    final query = _db.select(_db.songs)
+      ..where((t) => t.trackArtistId.equals(artistId.value));
+    return query.watch().map((rows) => _mapRows(rows));
+  }
+
+  @override
+  Stream<Result<List<Song>, Failure>> watchSongsByAlbum(AlbumId albumId) {
+    final query = _db.select(_db.songs)
+      ..where((t) => t.albumId.equals(albumId.value));
+    return query.watch().map((rows) => _mapRows(rows));
+  }
+
+  @override
+  Stream<Result<List<Song>, Failure>> watchSongsByFolder(String folderPath) {
+    final likePattern = '${_escapeLikePattern(folderPath)}%';
+    return _db
+        .customSelect(
+          "SELECT * FROM songs WHERE file_path LIKE ? ESCAPE '\\' ORDER BY file_path",
+          variables: [Variable.withString(likePattern)],
+          readsFrom: {_db.songs},
+        )
+        .watch()
+        .map((rows) =>
+            _mapRows(rows.map((row) => _db.songs.map(row.data)).toList()));
+  }
+
+  // --- Helpers ---
 
   OrderingTerm Function($SongsTable) _buildOrderClause(
       SongSortOption option, bool isAscending) {

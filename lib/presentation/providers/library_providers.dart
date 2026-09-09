@@ -53,22 +53,17 @@ final _refreshLibraryUseCaseProvider = Provider<RefreshLibraryUseCase>((ref) {
 
 // --- Virtual Pagination Providers ---
 
-final alphabeticalIndexProvider =
-    FutureProvider<List<(String, int)>>((ref) async {
+// FIX: Changed to StreamProvider to react to DB changes automatically
+final alphabeticalIndexProvider = StreamProvider<List<(String, int)>>((ref) {
   final sortConfig = ref.watch(songSortProvider);
 
-  ref.listen(
-    StreamProvider(
-        (ref) => ref.watch(songRepositoryProvider).coversUpdatedStream),
-    (_, __) => ref.invalidateSelf(),
-  );
-
-  final result = await ref.watch(songRepositoryProvider).getAlphabeticalIndex(
+  return ref
+      .watch(songRepositoryProvider)
+      .watchAlphabeticalIndex(
         sortOption: sortConfig.option,
         isAscending: sortConfig.isAscending,
-      );
-
-  return result.unwrapOrThrow();
+      )
+      .map((result) => result.unwrapOrThrow());
 });
 
 class SongsWindowState {
@@ -101,28 +96,22 @@ class SongsWindowNotifier extends Notifier<SongsWindowState> {
   static const int _maxCachedPages = 3;
 
   final List<int> _lruQueue = [];
-  // FIX: Added a flag to prevent concurrent count fetches
   bool _isFetchingCount = false;
 
   @override
   SongsWindowState build() {
     ref.watch(songSortProvider);
 
-    ref.listen(
-      StreamProvider(
-          (ref) => ref.watch(songRepositoryProvider).coversUpdatedStream),
-      (_, __) => _refreshCurrentPages(),
-    );
-
-    final indexAsync = ref.watch(alphabeticalIndexProvider);
-    if (indexAsync is AsyncData && !_isFetchingCount) {
-      final index = indexAsync.value!;
-      if (index.isNotEmpty) {
-        _isFetchingCount = true;
-        // Fire and forget the count fetch
-        Future.microtask(_fetchTotalCount);
+    // FIX: Listen to the reactive index stream to know when to refresh
+    ref.listen(alphabeticalIndexProvider, (_, next) {
+      if (next is AsyncData) {
+        _refreshCurrentPages();
+        if (!_isFetchingCount) {
+          _isFetchingCount = true;
+          Future.microtask(_fetchTotalCount);
+        }
       }
-    }
+    });
 
     return const SongsWindowState(loadedPages: {}, totalCount: 0);
   }
@@ -205,6 +194,7 @@ final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(songSearchQueryProvider);
   final sortConfig = ref.watch(songSortProvider);
 
+  // FIX: Still needed for search results, but library uses virtual pagination now
   ref.listen(
     StreamProvider(
         (ref) => ref.watch(songRepositoryProvider).coversUpdatedStream),
@@ -257,7 +247,6 @@ class IndexDirectoriesController extends AsyncNotifier<IndexingProgress?> {
     final result = await ref.read(_indexDirectoriesUseCaseProvider).call(
       [path],
       onProgress: (current, total) {
-        // FIX: Only update state if the total is known or it's the first discovery event
         if (total > 0 || current % 50 == 0) {
           state = AsyncData((current: current, total: total));
         }
@@ -266,9 +255,7 @@ class IndexDirectoriesController extends AsyncNotifier<IndexingProgress?> {
 
     state = result.when(
       ok: (_) {
-        ref.invalidate(sortedSongsProvider);
-        ref.invalidate(alphabeticalIndexProvider);
-        ref.invalidate(songsWindowProvider);
+        // FIX: Removed manual invalidations. Drift .watch() handles it now!
         return const AsyncData(null);
       },
       err: (failure) => AsyncValue<IndexingProgress?>.error(
@@ -292,9 +279,7 @@ class IndexDirectoriesController extends AsyncNotifier<IndexingProgress?> {
 
     state = result.when(
       ok: (_) {
-        ref.invalidate(sortedSongsProvider);
-        ref.invalidate(alphabeticalIndexProvider);
-        ref.invalidate(songsWindowProvider);
+        // FIX: Removed manual invalidations. Drift .watch() handles it now!
         return const AsyncData(null);
       },
       err: (failure) => AsyncValue<IndexingProgress?>.error(
