@@ -12,7 +12,6 @@ import 'genres_screen.dart';
 import 'playlists_screen.dart';
 import 'songs_screen.dart';
 
-// FIX: StateProvider to preserve the selected tab across rotations
 final libraryTabProvider = StateProvider<int>((ref) => 0);
 
 class LibraryHubScreen extends ConsumerStatefulWidget {
@@ -22,7 +21,8 @@ class LibraryHubScreen extends ConsumerStatefulWidget {
   ConsumerState<LibraryHubScreen> createState() => _LibraryHubScreenState();
 }
 
-class _LibraryHubScreenState extends ConsumerState<LibraryHubScreen> with SingleTickerProviderStateMixin {
+class _LibraryHubScreenState extends ConsumerState<LibraryHubScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -56,21 +56,26 @@ class _LibraryHubScreenState extends ConsumerState<LibraryHubScreen> with Single
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Library', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Library',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: false,
         actions: [
           IconButton(
             icon: const Icon(PhosphorIconsRegular.folderPlus),
             tooltip: 'Manage folders',
-            onPressed: isIndexing ? null : () {
-              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FolderManagementScreen()));
-            },
+            onPressed: isIndexing
+                ? null
+                : () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const FolderManagementScreen()));
+                  },
           ),
           IconButton(
             icon: const Icon(PhosphorIconsRegular.gear),
             tooltip: 'Settings',
             onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+              Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()));
             },
           ),
         ],
@@ -79,7 +84,7 @@ class _LibraryHubScreenState extends ConsumerState<LibraryHubScreen> with Single
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           tabs: const [
-            Tab(text: 'Songs'), // FIX: Songs is now the default tab
+            Tab(text: 'Songs'),
             Tab(text: 'Playlists'),
             Tab(text: 'Albums'),
             Tab(text: 'Artists'),
@@ -90,6 +95,7 @@ class _LibraryHubScreenState extends ConsumerState<LibraryHubScreen> with Single
       ),
       body: Column(
         children: [
+          // FIX: Clean, non-overlapping banner that displays intelligent progress
           if (isIndexing && progress != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -97,14 +103,21 @@ class _LibraryHubScreenState extends ConsumerState<LibraryHubScreen> with Single
               child: Row(
                 children: [
                   SizedBox(
-                    width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.onPrimaryContainer),
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.onPrimaryContainer),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Text(
-                      'Scanning library... ${progress.current} / ${progress.total}',
-                      style: TextStyle(color: theme.colorScheme.onPrimaryContainer, fontWeight: FontWeight.w500),
+                      progress.total == 0
+                          ? 'Discovering audio files... ${progress.current} found'
+                          : 'Analyzing tags... ${progress.current} / ${progress.total}',
+                      style: TextStyle(
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],

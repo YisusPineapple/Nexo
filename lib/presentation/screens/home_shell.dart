@@ -108,8 +108,6 @@ class _HomeShellState extends ConsumerState<HomeShell>
   @override
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(selectedNavIndexProvider);
-    final indexState = ref.watch(indexDirectoriesControllerProvider);
-
     final queueAsync = ref.watch(playbackControllerProvider);
     final hasQueue = queueAsync.valueOrNull != null;
 
@@ -121,11 +119,6 @@ class _HomeShellState extends ConsumerState<HomeShell>
         );
       }
     });
-
-    IndexingProgress? progress;
-    if (indexState case AsyncData(value: final value?)) {
-      progress = value;
-    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -143,50 +136,24 @@ class _HomeShellState extends ConsumerState<HomeShell>
         void onSelect(int i) =>
             ref.read(selectedNavIndexProvider.notifier).state = i;
 
-        final miniPlayerWithProgress = RepaintBoundary(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (progress != null) ...[
-                // FIX: Indeterminate progress bar since we don't know the total upfront with Streams
-                LinearProgressIndicator(
-                  backgroundColor:
-                      Theme.of(context).colorScheme.surfaceContainerHighest,
+        // FIX: Removed the duplicate bottom progress banner completely.
+        final miniPlayer = RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: _playerAnim,
+            builder: (context, child) {
+              return Opacity(
+                opacity: (1.0 - (_playerAnim.value * 2)).clamp(0.0, 1.0),
+                child: IgnorePointer(
+                  ignoring: _playerAnim.value > 0.5,
+                  child: child,
                 ),
-                Container(
-                  width: double.infinity,
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-                  child: Text(
-                    'Discovering files... ${progress.current} found',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color:
-                              Theme.of(context).colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.bold,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-              AnimatedBuilder(
-                animation: _playerAnim,
-                builder: (context, child) {
-                  return Opacity(
-                    opacity: (1.0 - (_playerAnim.value * 2)).clamp(0.0, 1.0),
-                    child: IgnorePointer(
-                      ignoring: _playerAnim.value > 0.5,
-                      child: child,
-                    ),
-                  );
-                },
-                child: MiniPlayer(
-                  onTap: _togglePlayer,
-                  onVerticalDragUpdate: _handleDragUpdate,
-                  onVerticalDragEnd: _handleDragEnd,
-                ),
-              ),
-            ],
+              );
+            },
+            child: MiniPlayer(
+              onTap: _togglePlayer,
+              onVerticalDragUpdate: _handleDragUpdate,
+              onVerticalDragEnd: _handleDragEnd,
+            ),
           ),
         );
 
@@ -220,7 +187,7 @@ class _HomeShellState extends ConsumerState<HomeShell>
                         child: Center(
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 800),
-                            child: miniPlayerWithProgress,
+                            child: miniPlayer,
                           ),
                         ),
                       ),
@@ -239,7 +206,7 @@ class _HomeShellState extends ConsumerState<HomeShell>
                   bottom: 0,
                   left: 0,
                   right: 0,
-                  child: miniPlayerWithProgress,
+                  child: miniPlayer,
                 ),
               ],
             ),
