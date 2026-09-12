@@ -7,7 +7,9 @@ import '../providers/playlist_providers.dart';
 class AddToPlaylistDialog extends ConsumerWidget {
   const AddToPlaylistDialog({super.key, required this.songId});
 
-  final String songId;
+  /// The stable SQLite-assigned SongId integer (schema 15+). See
+  /// SongId's docstring.
+  final int songId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

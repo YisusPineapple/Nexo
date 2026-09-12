@@ -47,7 +47,6 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
             ..where((t) => t.id.equals(id.value)))
           .getSingleOrNull();
       if (row == null) {
-        // FIX: Added const to satisfy prefer_const_constructors
         return const Err(NotFoundFailure('Playlist not found.'));
       }
       return _playlistMapper.toEntity(row);
@@ -151,7 +150,6 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
                   t.position.equals(position)))
             .go();
 
-        // Re-normalize positions
         final remaining = await (_db.select(_db.playlistSongs)
               ..where((t) => t.playlistId.equals(playlistId.value))
               ..orderBy([(t) => OrderingTerm.asc(t.position)]))

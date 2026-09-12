@@ -9,7 +9,7 @@ import 'package:nexo/domain/entities/song.dart';
 import 'package:nexo/domain/value_objects/artist_id.dart';
 import 'package:nexo/domain/value_objects/song_id.dart';
 
-Song _song(String id) {
+Song _song(int id) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -26,7 +26,6 @@ void main() {
   const mapper = PlaybackQueueMapper();
 
   test('toEntity rebuilds an unshuffled queue from row + current songs', () {
-    // FIX: Added const to constructor call
     const row = PlaybackQueueRow(
       id: 'q1',
       currentIndex: 1,
@@ -36,7 +35,7 @@ void main() {
       preShuffleCurrentIndex: null,
       positionMs: 15000,
     );
-    final songs = [_song('a'), _song('b'), _song('c')];
+    final songs = [_song(1), _song(2), _song(3)];
 
     final result = mapper.toEntity(row: row, currentSongs: songs);
 
@@ -51,7 +50,6 @@ void main() {
   test(
       'toEntity rebuilds a shuffled queue with its exact pre-shuffle '
       'snapshot', () {
-    // FIX: Added const to constructor call
     const row = PlaybackQueueRow(
       id: 'q1',
       currentIndex: 2,
@@ -61,9 +59,9 @@ void main() {
       preShuffleCurrentIndex: 0,
       positionMs: 45000,
     );
-    final a = _song('a');
-    final b = _song('b');
-    final c = _song('c');
+    final a = _song(1);
+    final b = _song(2);
+    final c = _song(3);
 
     final result = mapper.toEntity(
       row: row,
@@ -73,22 +71,21 @@ void main() {
 
     expect(result.isOk, isTrue);
     final queue = result.valueOrNull!;
-    expect(queue.songs.map((s) => s.id.value), ['c', 'a', 'b']);
+    expect(queue.songs.map((s) => s.id.value), [3, 1, 2]);
     expect(queue.currentIndex, 2);
     expect(queue.shuffleEnabled, isTrue);
     expect(queue.position, const Duration(milliseconds: 45000));
 
     final restored = queue.withShuffleDisabled();
-    expect(restored.songs.map((s) => s.id.value), ['a', 'b', 'c']);
+    expect(restored.songs.map((s) => s.id.value), [1, 2, 3]);
     expect(restored.currentIndex, 0);
   });
 
   test('toQueueSongCompanions flattens current and preShuffle lists', () {
-    final a = _song('a');
-    final b = _song('b');
+    final a = _song(1);
+    final b = _song(2);
     final queue = mapper
         .toEntity(
-          // FIX: Added const to constructor call
           row: const PlaybackQueueRow(
             id: 'q1',
             currentIndex: 0,

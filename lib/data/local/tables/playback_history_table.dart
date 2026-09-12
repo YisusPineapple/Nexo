@@ -7,9 +7,12 @@ import 'songs_table.dart';
 @DataClassName('PlaybackHistoryRow')
 class PlaybackHistory extends Table {
   IntColumn get id => integer().autoIncrement()();
-  
-  TextColumn get songId => text().references(Songs, #id)();
-  
+
+  /// References the stable integer id of [Songs]. See the column comment
+  /// in `songs_table.dart` on why this id is a plain INTEGER PRIMARY KEY
+  /// and never recycled.
+  IntColumn get songId => integer().references(Songs, #id)();
+
   /// When the song was played (Epoch milliseconds, UTC).
   IntColumn get timestampUtcMs => integer()();
 }

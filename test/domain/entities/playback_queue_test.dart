@@ -8,7 +8,7 @@ import 'package:nexo/domain/value_objects/artist_id.dart';
 import 'package:nexo/domain/value_objects/queue_id.dart';
 import 'package:nexo/domain/value_objects/song_id.dart';
 
-Song _song(String id) {
+Song _song(int id) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -36,7 +36,7 @@ void main() {
     test('rejects an out-of-bounds currentIndex', () {
       final result = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a')],
+        songs: [_song(1)],
         currentIndex: 5,
         source: const ManualQueueSource(),
       );
@@ -44,8 +44,8 @@ void main() {
     });
 
     test('currentSong returns the song at currentIndex', () {
-      final a = _song('a');
-      final b = _song('b');
+      final a = _song(1);
+      final b = _song(2);
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [a, b],
@@ -61,69 +61,64 @@ void main() {
     test('moves a song forward and shifts a tracked index correctly', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b'), _song('c')],
-        currentIndex: 1, // b
+        songs: [_song(1), _song(2), _song(3)],
+        currentIndex: 1,
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
-      // Move `a` (index 0) to the end (index 2).
       final moved = queue.withSongMoved(oldIndex: 0, newIndex: 2).valueOrNull!;
 
-      expect(moved.songs.map((s) => s.id.value), ['b', 'c', 'a']);
-      expect(moved.currentIndex, 0); // b shifted left from 1 to 0
+      expect(moved.songs.map((s) => s.id.value), [2, 3, 1]);
+      expect(moved.currentIndex, 0);
     });
 
     test('moves a song backward and shifts a tracked index correctly', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b'), _song('c')],
-        currentIndex: 1, // b
+        songs: [_song(1), _song(2), _song(3)],
+        currentIndex: 1,
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
-      // Move `c` (index 2) to the front (index 0).
       final moved = queue.withSongMoved(oldIndex: 2, newIndex: 0).valueOrNull!;
 
-      expect(moved.songs.map((s) => s.id.value), ['c', 'a', 'b']);
-      expect(moved.currentIndex, 2); // b shifted right from 1 to 2
+      expect(moved.songs.map((s) => s.id.value), [3, 1, 2]);
+      expect(moved.currentIndex, 2);
     });
 
     test('moving the currently-playing song follows it to newIndex', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b'), _song('c')],
-        currentIndex: 0, // a
+        songs: [_song(1), _song(2), _song(3)],
+        currentIndex: 0,
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
       final moved = queue.withSongMoved(oldIndex: 0, newIndex: 2).valueOrNull!;
 
       expect(moved.currentIndex, 2);
-      expect(moved.currentSong?.id.value, 'a');
+      expect(moved.currentSong?.id.value, 1);
     });
 
     test('tracks the correct occurrence even with a duplicated song', () {
-      final a = _song('dup');
-      final b = _song('other');
-      // `a` appears twice — a legitimate real-world queue state.
+      final a = _song(1);
+      final b = _song(2);
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [a, b, a],
-        currentIndex: 2, // the SECOND occurrence of `a`
+        currentIndex: 2,
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
       final moved = queue.withSongMoved(oldIndex: 1, newIndex: 0).valueOrNull!;
 
-      // A content-matching (indexOf) implementation could snap to
-      // the FIRST `a` here; positional tracking must not.
       expect(moved.currentIndex, 2);
     });
 
     test('rejects an out-of-bounds oldIndex or newIndex', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a')],
+        songs: [_song(1)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
@@ -134,13 +129,13 @@ void main() {
 
   group('PlaybackQueue shuffle', () {
     test('withShuffleEnabled snapshots pre-shuffle order and index', () {
-      final a = _song('a');
-      final b = _song('b');
-      final c = _song('c');
+      final a = _song(1);
+      final b = _song(2);
+      final c = _song(3);
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [a, b, c],
-        currentIndex: 1, // b
+        currentIndex: 1,
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
@@ -153,9 +148,9 @@ void main() {
     });
 
     test('withShuffleDisabled restores the exact pre-shuffle state', () {
-      final a = _song('a');
-      final b = _song('b');
-      final c = _song('c');
+      final a = _song(1);
+      final b = _song(2);
+      final c = _song(3);
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [a, b, c],
@@ -175,12 +170,12 @@ void main() {
     test('withShuffleEnabled rejects a shuffled list of the wrong length', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
       final result = queue.withShuffleEnabled(
-        shuffled: [_song('a')],
+        shuffled: [_song(1)],
         newCurrentIndex: 0,
       );
       expect(result.isErr, isTrue);
@@ -191,7 +186,7 @@ void main() {
     test('withRepeatMode changes only repeatMode', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a')],
+        songs: [_song(1)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
@@ -216,23 +211,24 @@ void main() {
     test('two queues with the same id are equal regardless of songs', () {
       final q1 = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a')],
+        songs: [_song(1)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
       final q2 = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('b'), _song('c')],
+        songs: [_song(2), _song(3)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
       expect(q1, equals(q2));
     });
   });
+
   group('PlaybackQueue.withAdvancedToNext', () {
     test('advances to the next index in the common case', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b'), _song('c')],
+        songs: [_song(1), _song(2), _song(3)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
@@ -242,7 +238,7 @@ void main() {
     test('RepeatMode.one stays on the same song', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         repeatMode: RepeatMode.one,
         source: const ManualQueueSource(),
       ).valueOrNull!;
@@ -253,7 +249,7 @@ void main() {
     test('RepeatMode.all wraps to the first song at the end', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         currentIndex: 1,
         repeatMode: RepeatMode.all,
         source: const ManualQueueSource(),
@@ -265,20 +261,20 @@ void main() {
     test('RepeatMode.off reaching the end sets currentIndex to -1', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         currentIndex: 1,
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
       final advanced = queue.withAdvancedToNext().valueOrNull!;
       expect(advanced.currentIndex, -1);
-      expect(advanced.isEmpty, isFalse); // still has songs, just finished
+      expect(advanced.isEmpty, isFalse);
     });
 
     test('advancing again from a finished queue wraps back to the start', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         currentIndex: 1,
         source: const ManualQueueSource(),
       ).valueOrNull!;
@@ -303,7 +299,7 @@ void main() {
     test('decrements to the previous index in the common case', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         currentIndex: 1,
         source: const ManualQueueSource(),
       ).valueOrNull!;
@@ -316,7 +312,7 @@ void main() {
         'stopping', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
@@ -326,7 +322,7 @@ void main() {
     test('RepeatMode.all wraps to the last song from the first', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         repeatMode: RepeatMode.all,
         source: const ManualQueueSource(),
       ).valueOrNull!;
@@ -337,7 +333,7 @@ void main() {
     test('from a finished queue, previous resumes at the last song', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         currentIndex: 1,
         source: const ManualQueueSource(),
       ).valueOrNull!;
@@ -352,12 +348,12 @@ void main() {
     test('still rejects a genuinely out-of-bounds newCurrentIndex', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
       final result = queue.withShuffleEnabled(
-        shuffled: [_song('b'), _song('a')],
+        shuffled: [_song(2), _song(1)],
         newCurrentIndex: 5,
       );
       expect(result.isErr, isTrue);
@@ -368,14 +364,14 @@ void main() {
         'queue', () {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         currentIndex: 1,
         source: const ManualQueueSource(),
       ).valueOrNull!;
       final finished = queue.withAdvancedToNext().valueOrNull!;
 
       final result = finished.withShuffleEnabled(
-        shuffled: [_song('b'), _song('a')],
+        shuffled: [_song(2), _song(1)],
         newCurrentIndex: -1,
       );
       expect(result.isOk, isTrue);

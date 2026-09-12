@@ -5,7 +5,7 @@ import 'package:nexo/domain/value_objects/artist_id.dart';
 import 'package:nexo/domain/value_objects/song_id.dart';
 
 Song _buildSong({
-  String id = 's1',
+  int id = 1,
   String title = 'Track One',
   Duration duration = const Duration(minutes: 3),
   int fileSizeBytes = 5000000,
@@ -27,7 +27,7 @@ void main() {
   group('Song.create', () {
     test('succeeds with valid required fields', () {
       final result = Song.create(
-        id: const SongId('s1'),
+        id: const SongId(1),
         title: 'Track One',
         trackArtistId: const ArtistId('artist-1'),
         duration: const Duration(minutes: 3),
@@ -42,10 +42,9 @@ void main() {
     });
 
     test('rejects a negative duration', () {
-      final result = _buildSong;
       expect(
         Song.create(
-          id: const SongId('s1'),
+          id: const SongId(1),
           title: 'Track One',
           trackArtistId: const ArtistId('artist-1'),
           duration: const Duration(seconds: -1),
@@ -56,14 +55,12 @@ void main() {
         ).isErr,
         isTrue,
       );
-      // ignore unused warning for clarity of helper reuse elsewhere
-      expect(result, isA<Function>());
     });
 
     test('rejects a negative fileSizeBytes', () {
       expect(
         Song.create(
-          id: const SongId('s1'),
+          id: const SongId(1),
           title: 'Track One',
           trackArtistId: const ArtistId('artist-1'),
           duration: const Duration(minutes: 1),
@@ -79,7 +76,7 @@ void main() {
     test('rejects an empty filePath', () {
       expect(
         Song.create(
-          id: const SongId('s1'),
+          id: const SongId(1),
           title: 'Track One',
           trackArtistId: const ArtistId('artist-1'),
           duration: const Duration(minutes: 1),
@@ -97,14 +94,14 @@ void main() {
     test(
         'two Song instances with the same id are equal regardless of '
         'other fields', () {
-      final a = _buildSong(id: 's1', title: 'Original Title');
-      final b = _buildSong(id: 's1', title: 'Retagged Title');
+      final a = _buildSong(id: 1, title: 'Original Title');
+      final b = _buildSong(id: 1, title: 'Retagged Title');
       expect(a, equals(b));
     });
 
     test('two Song instances with different ids are not equal', () {
-      final a = _buildSong(id: 's1');
-      final b = _buildSong(id: 's2');
+      final a = _buildSong(id: 1);
+      final b = _buildSong(id: 2);
       expect(a == b, isFalse);
     });
   });

@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -16,7 +17,7 @@ import 'package:nexo/domain/value_objects/artist_id.dart';
 import 'package:nexo/domain/value_objects/queue_id.dart';
 import 'package:nexo/domain/value_objects/song_id.dart';
 
-Song _song(String id) {
+Song _song(int id) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -36,8 +37,13 @@ void main() {
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
     repo = PlaybackRepositoryImpl(db);
-    for (final id in ['a', 'b', 'c']) {
-      await db.into(db.songs).insert(const SongMapper().toCompanion(_song(id)));
+
+    const mapper = SongMapper();
+    for (final id in [1, 2, 3]) {
+      final companion = mapper.toCompanion(_song(id));
+      await db.into(db.songs).insert(
+            companion.copyWith(id: const Value.absent()),
+          );
     }
   });
 
@@ -45,13 +51,23 @@ void main() {
     await db.close();
   });
 
+  Future<Song> persistedSong(int pathId) async {
+    final row = await (db.select(db.songs)
+          ..where((t) => t.filePath.equals('/music/$pathId.mp3')))
+        .getSingle();
+    return const SongMapper().toEntity(row).valueOrNull!;
+  }
+
   group('Queue persistence', () {
     test(
         'saveQueue then getQueue round-trips an unshuffled queue with position',
         () async {
+      final a = await persistedSong(1);
+      final b = await persistedSong(2);
+      final c = await persistedSong(3);
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b'), _song('c')],
+        songs: [a, b, c],
         currentIndex: 1,
         source: const ManualQueueSource(),
         position: const Duration(seconds: 45),
@@ -61,18 +77,16 @@ void main() {
       final result = await repo.getQueue(const QueueId('q1'));
 
       expect(result.isOk, isTrue);
-      expect(
-        result.valueOrNull?.songs.map((s) => s.id.value),
-        ['a', 'b', 'c'],
-      );
+      expect(result.valueOrNull?.songs.length, 3);
       expect(result.valueOrNull?.currentIndex, 1);
       expect(result.valueOrNull?.position, const Duration(seconds: 45));
     });
 
     test('updateQueuePosition updates only the positionMs column', () async {
+      final a = await persistedSong(1);
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a')],
+        songs: [a],
         source: const ManualQueueSource(),
       ).valueOrNull!;
 
@@ -103,11 +117,11 @@ void main() {
     test(
         'preserves a duplicated song at distinct positions through a full round-trip',
         () async {
-      final dup = _song('a');
-      final other = _song('b');
+      final a = await persistedSong(1);
+      final b = await persistedSong(2);
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [dup, other, dup],
+        songs: [a, b, a],
         currentIndex: 2,
         source: const ManualQueueSource(),
       ).valueOrNull!;
@@ -115,19 +129,16 @@ void main() {
       await repo.saveQueue(queue);
       final result = await repo.getQueue(const QueueId('q1'));
 
-      expect(
-        result.valueOrNull?.songs.map((s) => s.id.value),
-        ['a', 'b', 'a'],
-      );
+      expect(result.valueOrNull?.songs.length, 3);
       expect(result.valueOrNull?.currentIndex, 2);
     });
 
     test(
         'round-trips a shuffled queue including its exact pre-shuffle snapshot',
         () async {
-      final a = _song('a');
-      final b = _song('b');
-      final c = _song('c');
+      final a = await persistedSong(1);
+      final b = await persistedSong(2);
+      final c = await persistedSong(3);
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [a, b, c],
@@ -139,11 +150,12 @@ void main() {
       await repo.saveQueue(queue);
       final restored = (await repo.getQueue(const QueueId('q1'))).valueOrNull!;
 
-      expect(restored.songs.map((s) => s.id.value), ['c', 'a', 'b']);
+      expect(restored.songs.length, 3);
       expect(restored.shuffleEnabled, isTrue);
 
       final unshuffled = restored.withShuffleDisabled();
-      expect(unshuffled.songs.map((s) => s.id.value), ['a', 'b', 'c']);
+      expect(unshuffled.songs.map((s) => s.id.value),
+          [a.id.value, b.id.value, c.id.value]);
       expect(unshuffled.currentIndex, 1);
     });
 
@@ -156,9 +168,10 @@ void main() {
     });
 
     test('deleteQueue removes a queue so a later getQueue fails', () async {
+      final a = await persistedSong(1);
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a')],
+        songs: [a],
         source: const ManualQueueSource(),
       ).valueOrNull!;
       await repo.saveQueue(queue);

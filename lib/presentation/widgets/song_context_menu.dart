@@ -82,8 +82,8 @@ class SongContextMenu extends ConsumerWidget {
     final cacheHeaderSize =
         (150 * MediaQuery.devicePixelRatioOf(context)).round();
 
-    final interactionAsync = ref.watch(
-        itemInteractionProvider((id: song.id.value, type: ItemType.song)));
+    final interactionAsync = ref.watch(itemInteractionProvider(
+        (id: song.id.value.toString(), type: ItemType.song)));
     final interaction = interactionAsync.valueOrNull;
 
     return SafeArea(
@@ -186,7 +186,7 @@ class SongContextMenu extends ConsumerWidget {
                       unawaited(ref
                           .read(userMetricsControllerProvider)
                           .toggleInteraction(
-                            song.id.value,
+                            song.id.value.toString(),
                             ItemType.song,
                             InteractionType.dislike,
                           ));
@@ -207,7 +207,7 @@ class SongContextMenu extends ConsumerWidget {
                       unawaited(ref
                           .read(userMetricsControllerProvider)
                           .toggleInteraction(
-                            song.id.value,
+                            song.id.value.toString(),
                             ItemType.song,
                             InteractionType.like,
                           ));

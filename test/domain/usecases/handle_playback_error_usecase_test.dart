@@ -12,7 +12,7 @@ import 'package:nexo/domain/value_objects/song_id.dart';
 import '../repositories/fakes/fake_audio_player_repository.dart';
 import '../repositories/fakes/fake_playback_repository.dart';
 
-Song _song(String id) {
+Song _song(int id) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -30,7 +30,7 @@ void main() {
     test('decodeError auto-skips to the next song and resumes', () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
       final playbackRepo = FakePlaybackRepository(initialQueues: [queue]);
@@ -46,7 +46,7 @@ void main() {
       ));
 
       expect(result.valueOrNull?.currentIndex, 1);
-      expect(audioRepo.loadedSong?.id.value, 'b');
+      expect(audioRepo.loadedSong?.id.value, 2);
       expect(audioRepo.isResumed, isTrue);
     });
 
@@ -54,7 +54,7 @@ void main() {
         () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a')],
+        songs: [_song(1)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
       final playbackRepo = FakePlaybackRepository(initialQueues: [queue]);
@@ -76,7 +76,7 @@ void main() {
     test('engineError is returned as-is, without touching the queue', () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
       final playbackRepo = FakePlaybackRepository(initialQueues: [queue]);

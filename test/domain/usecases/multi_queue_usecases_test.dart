@@ -12,7 +12,7 @@ import 'package:nexo/domain/value_objects/song_id.dart';
 import '../repositories/fakes/fake_audio_player_repository.dart';
 import '../repositories/fakes/fake_playback_repository.dart';
 
-Song _song(String id) {
+Song _song(int id) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -28,7 +28,7 @@ Song _song(String id) {
 PlaybackQueue _queue(String id) {
   return PlaybackQueue.create(
     id: QueueId(id),
-    songs: [_song('a')],
+    songs: [_song(1)],
     source: const ManualQueueSource(),
     position: const Duration(seconds: 10),
   ).valueOrNull!;
@@ -112,7 +112,7 @@ void main() {
 
       expect(result.isOk, isTrue);
 
-      expect(audioRepo.syncedQueue?.first.id.value, 'a');
+      expect(audioRepo.syncedQueue?.first.id.value, 1);
       expect(audioRepo.seekedTo, const Duration(seconds: 10));
       expect(audioRepo.isPaused, isTrue);
 

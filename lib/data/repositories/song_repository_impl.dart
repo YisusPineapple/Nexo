@@ -95,7 +95,11 @@ Future<void> _workerIsolateEntry(_WorkerArgs args) async {
       } catch (_) {}
 
       if (args.extractCover) {
-        args.sendPort.send({'id': song?.id.value, 'path': song?.coverArtPath});
+        // Send filePath, not id: with the schema 15 migration the id is
+        // SQLite-assigned and the worker cannot know it. The main isolate
+        // updates by filePath instead.
+        args.sendPort
+            .send({'filePath': song?.filePath, 'path': song?.coverArtPath});
         await Future.delayed(const Duration(milliseconds: 10));
       } else {
         args.sendPort.send(_IndexingProgress(0, 0, song));
@@ -120,7 +124,13 @@ Future<Song?> _buildSong(
 }) async {
   final file = File(path);
   final stat = await file.stat();
-  final id = SongId(path);
+
+  // Placeholder SongId. Since schema 15, the real id is SQLite-assigned
+  // on insert (INTEGER PRIMARY KEY / rowid alias) and the scanner cannot
+  // know it in advance. The placeholder is discarded by
+  // SongMapper.toCompanionForUpsert, which omits the id field entirely
+  // and lets the upsert resolve on file_path (UNIQUE).
+  const placeholderId = SongId(0);
 
   String title = p.basenameWithoutExtension(path);
   String artist = 'Unknown Artist';
@@ -165,7 +175,7 @@ Future<Song?> _buildSong(
   }
 
   return Song.create(
-    id: id,
+    id: placeholderId,
     title: title,
     trackArtistId: ArtistId(artist),
     albumId: album == null ? null : AlbumId(album),
@@ -392,10 +402,15 @@ class SongRepositoryImpl implements SongRepository {
       final toInsert = List<Song>.of(batchSongs);
       batchSongs.clear();
       await _db.batch((batch) {
-        batch.insertAllOnConflictUpdate(
-          _db.songs,
-          toInsert.map((s) => _mapper.toCompanion(s)),
-        );
+        for (final song in toInsert) {
+          final companion = _mapper.toCompanionForUpsert(song);
+          batch.insert(
+            _db.songs,
+            companion,
+            onConflict:
+                DoUpdate((_) => companion, target: [_db.songs.filePath]),
+          );
+        }
       });
     }
 
@@ -500,11 +515,15 @@ class SongRepositoryImpl implements SongRepository {
 
       receivePort.listen((message) async {
         if (message is Map<String, dynamic>) {
-          final id = message['id'] as String?;
+          final filePath = message['filePath'] as String?;
           final path = message['path'] as String?;
 
-          if (id != null) {
-            await (_db.update(_db.songs)..where((t) => t.id.equals(id))).write(
+          if (filePath != null) {
+            // Update by filePath, not by id: the worker does not know the
+            // SQLite-assigned id and must not be made to learn it.
+            await (_db.update(_db.songs)
+                  ..where((t) => t.filePath.equals(filePath)))
+                .write(
               SongsCompanion(
                 coverArtPath: Value(path),
                 hasNoCover: Value(path == null),

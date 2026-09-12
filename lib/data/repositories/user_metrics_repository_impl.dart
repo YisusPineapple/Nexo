@@ -132,7 +132,9 @@ class UserMetricsRepositoryImpl implements UserMetricsRepository {
     int maxTotal = 50,
   }) async {
     try {
-      // 1. Fetch Liked Songs (CORRECTED: use item_id, not song_id)
+      // 1. Fetch Liked Songs. item_id is TEXT in the schema (it is shared
+      //    with album/artist/playlist identifiers) but holds the string
+      //    form of a SongId integer. Parse defensively.
       final likedQuery = _db.customSelect(
         '''
         SELECT item_id
@@ -143,8 +145,10 @@ class UserMetricsRepositoryImpl implements UserMetricsRepository {
         variables: [Variable(likedLimit)],
       );
       final likedRows = await likedQuery.get();
-      final likedIds =
-          likedRows.map((r) => r.data['item_id'] as String).toSet();
+      final likedIds = likedRows
+          .map((r) => int.tryParse(r.data['item_id'] as String))
+          .whereType<int>()
+          .toSet();
 
       // 2. Fetch Top Tracks
       final topIdsResult = await _getSongIdsFromCustomQuery(
@@ -181,7 +185,7 @@ class UserMetricsRepositoryImpl implements UserMetricsRepository {
           ''',
           variables: [Variable(maxTotal)],
         ).get();
-        combined = randomRows.map((r) => r.data['id'] as String).toList();
+        combined = randomRows.map((r) => r.data['id'] as int).toList();
       }
 
       return await _fetchSongsByIds(combined);
@@ -193,8 +197,9 @@ class UserMetricsRepositoryImpl implements UserMetricsRepository {
   // --- Helpers ---
 
   /// Executes a custom SELECT that returns a single 'song_id' column and
-  /// extracts the list of IDs.
-  Future<List<String>> _getSongIdsFromCustomQuery(
+  /// extracts the list of IDs as ints. Since schema 15, song_id columns
+  /// are INTEGER (the stable rowid-alias id).
+  Future<List<int>> _getSongIdsFromCustomQuery(
     String sql,
     List<Object?> args,
   ) async {
@@ -204,13 +209,14 @@ class UserMetricsRepositoryImpl implements UserMetricsRepository {
           variables: args.map((a) => Variable(a)).toList(),
         )
         .get();
-    return results.map((r) => r.data['song_id'] as String).toList();
+    return results.map((r) => r.data['song_id'] as int).toList();
   }
 
   /// Fetches full [SongRow]s by a list of IDs and maps them to Domain [Song]s.
   /// Skips any row that fails to map (e.g., corrupted data) instead of failing
   /// the entire list.
-  Future<Result<List<Song>, Failure>> _fetchSongsByIds(List<String> ids) async {
+  Future<Result<List<Song>, Failure>> _fetchSongsByIds(
+      Iterable<int> ids) async {
     if (ids.isEmpty) return const Ok([]);
 
     final rows =

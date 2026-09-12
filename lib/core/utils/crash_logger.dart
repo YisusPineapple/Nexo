@@ -37,6 +37,34 @@ class CrashLogger {
     }
   }
 
+  /// Writes an informational line to the crash log. Unlike [_logError],
+  /// this never throws: a failure to log must never abort the caller, and
+  /// one caller is the schema 15 migration — throwing there would abort
+  /// the transaction and brick the app on every subsequent launch.
+  ///
+  /// Note: [_logFile] is `static late final` and is only initialized by
+  /// [init]. In the current bootstrap order `init` always runs before any
+  /// migration, but that ordering is implicit and not guaranteed by
+  /// anything in the type system. The try below wraps the [_logFile] access
+  /// itself, not only the write, so a `LateInitializationError` is
+  /// swallowed like any other failure.
+  ///
+  /// No rotation is performed here — this method is for one-off
+  /// informational events (like a migration counting dropped rows), not
+  /// for high-frequency error logging. Rotation remains the responsibility
+  /// of [_logError].
+  static void logEvent(String category, String message) {
+    try {
+      final timestamp = DateTime.now().toUtc().toIso8601String();
+      _logFile.writeAsStringSync(
+        '[$timestamp] [$category] $message\n',
+        mode: FileMode.append,
+      );
+    } catch (_) {
+      // Intentionally swallowed. See docstring.
+    }
+  }
+
   static Future<String> readLog() async {
     try {
       if (await _logFile.exists()) {

@@ -8,7 +8,7 @@ import 'package:nexo/domain/value_objects/song_id.dart';
 
 import 'fakes/fake_song_repository.dart';
 
-Song _song(String id, {ArtistId? artistId, AlbumId? albumId, String? path}) {
+Song _song(int id, {ArtistId? artistId, AlbumId? albumId, String? path}) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -25,20 +25,20 @@ Song _song(String id, {ArtistId? artistId, AlbumId? albumId, String? path}) {
 void main() {
   group('SongRepository contract (via FakeSongRepository)', () {
     test('getAllSongs returns every seeded song', () async {
-      final repo = FakeSongRepository(initialSongs: [_song('a'), _song('b')]);
+      final repo = FakeSongRepository(initialSongs: [_song(1), _song(2)]);
       final result = await repo.getAllSongs();
       expect(result.valueOrNull?.length, 2);
     });
 
     test('getSongById returns Ok for an existing id', () async {
-      final repo = FakeSongRepository(initialSongs: [_song('a')]);
-      final result = await repo.getSongById(const SongId('a'));
-      expect(result.valueOrNull?.id, const SongId('a'));
+      final repo = FakeSongRepository(initialSongs: [_song(1)]);
+      final result = await repo.getSongById(const SongId(1));
+      expect(result.valueOrNull?.id.value, 1);
     });
 
     test('getSongById returns NotFoundFailure for a missing id', () async {
-      final repo = FakeSongRepository(initialSongs: [_song('a')]);
-      final result = await repo.getSongById(const SongId('missing'));
+      final repo = FakeSongRepository(initialSongs: [_song(1)]);
+      final result = await repo.getSongById(const SongId(999));
       expect(
         result.when(ok: (_) => null, err: (e) => e),
         isA<NotFoundFailure>(),
@@ -47,39 +47,36 @@ void main() {
 
     test('watchSongsByArtist filters by ArtistId', () async {
       final repo = FakeSongRepository(initialSongs: [
-        _song('a', artistId: const ArtistId('artist-1')),
-        _song('b', artistId: const ArtistId('artist-2')),
+        _song(1, artistId: const ArtistId('artist-1')),
+        _song(2, artistId: const ArtistId('artist-2')),
       ]);
-      // FIX: Use reactive stream method with .first
       final result =
           await repo.watchSongsByArtist(const ArtistId('artist-1')).first;
-      expect(result.valueOrNull?.map((s) => s.id.value), ['a']);
+      expect(result.valueOrNull?.map((s) => s.id.value), [1]);
     });
 
     test('watchSongsByAlbum filters by AlbumId', () async {
       final repo = FakeSongRepository(initialSongs: [
-        _song('a', albumId: const AlbumId('album-1')),
-        _song('b', albumId: const AlbumId('album-2')),
+        _song(1, albumId: const AlbumId('album-1')),
+        _song(2, albumId: const AlbumId('album-2')),
       ]);
-      // FIX: Use reactive stream method with .first
       final result =
           await repo.watchSongsByAlbum(const AlbumId('album-1')).first;
-      expect(result.valueOrNull?.map((s) => s.id.value), ['a']);
+      expect(result.valueOrNull?.map((s) => s.id.value), [1]);
     });
 
     test('watchSongsByFolder filters by path prefix', () async {
       final repo = FakeSongRepository(initialSongs: [
-        _song('a', path: '/music/jazz/a.mp3'),
-        _song('b', path: '/music/rock/b.mp3'),
+        _song(1, path: '/music/jazz/a.mp3'),
+        _song(2, path: '/music/rock/b.mp3'),
       ]);
-      // FIX: Use reactive stream method with .first
       final result = await repo.watchSongsByFolder('/music/jazz').first;
-      expect(result.valueOrNull?.map((s) => s.id.value), ['a']);
+      expect(result.valueOrNull?.map((s) => s.id.value), [1]);
     });
 
     test('searchSongs matches title case-insensitively', () async {
-      final repo = FakeSongRepository(initialSongs: [_song('a')]);
-      final result = await repo.searchSongs('title a');
+      final repo = FakeSongRepository(initialSongs: [_song(1)]);
+      final result = await repo.searchSongs('title 1');
       expect(result.valueOrNull?.length, 1);
     });
 

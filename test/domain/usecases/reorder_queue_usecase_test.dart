@@ -11,7 +11,7 @@ import 'package:nexo/domain/value_objects/song_id.dart';
 
 import '../repositories/fakes/fake_playback_repository.dart';
 
-Song _song(String id) {
+Song _song(int id) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -29,7 +29,7 @@ void main() {
     test('moves a song and persists the updated queue', () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b'), _song('c')],
+        songs: [_song(1), _song(2), _song(3)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
       final repo = FakePlaybackRepository(initialQueues: [queue]);
@@ -39,19 +39,19 @@ void main() {
         (queueId: const QueueId('q1'), oldIndex: 0, newIndex: 2),
       );
 
-      expect(result.valueOrNull?.songs.map((s) => s.id.value), ['b', 'c', 'a']);
+      expect(result.valueOrNull?.songs.map((s) => s.id.value), [2, 3, 1]);
 
       final persisted = await repo.getQueue(const QueueId('q1'));
       expect(
         persisted.valueOrNull?.songs.map((s) => s.id.value),
-        ['b', 'c', 'a'],
+        [2, 3, 1],
       );
     });
 
     test('propagates a ValidationFailure for an out-of-bounds index', () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a')],
+        songs: [_song(1)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
       final repo = FakePlaybackRepository(initialQueues: [queue]);

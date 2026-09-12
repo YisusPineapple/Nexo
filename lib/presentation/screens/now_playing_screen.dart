@@ -115,7 +115,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
     final theme = Theme.of(context);
     final interactionAsync = ref.watch(itemInteractionProvider(
-        (id: currentSong.id.value, type: ItemType.song)));
+        (id: currentSong.id.value.toString(), type: ItemType.song)));
     final interaction = interactionAsync.valueOrNull;
 
     final appBar = GestureDetector(
@@ -290,8 +290,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                     showBurst: false,
                     onPressed: () => ref
                         .read(userMetricsControllerProvider)
-                        .toggleInteraction(currentSong.id.value, ItemType.song,
-                            InteractionType.dislike),
+                        .toggleInteraction(currentSong.id.value.toString(),
+                            ItemType.song, InteractionType.dislike),
                   ),
                   AnimatedInteractionButton(
                     key: ValueKey('like_${currentSong.id.value}'),
@@ -305,8 +305,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                     showBurst: true,
                     onPressed: () => ref
                         .read(userMetricsControllerProvider)
-                        .toggleInteraction(currentSong.id.value, ItemType.song,
-                            InteractionType.like),
+                        .toggleInteraction(currentSong.id.value.toString(),
+                            ItemType.song, InteractionType.like),
                   ),
                 ],
               ),

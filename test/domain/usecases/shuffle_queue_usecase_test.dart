@@ -12,7 +12,7 @@ import 'package:nexo/domain/value_objects/song_id.dart';
 
 import '../repositories/fakes/fake_playback_repository.dart';
 
-Song _song(String id) {
+Song _song(int id) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -30,8 +30,8 @@ void main() {
     test(
         'shuffles every song and anchors the current song at index 0 '
         'even when it appears twice', () async {
-      final dup = _song('dup');
-      final other = _song('other');
+      final dup = _song(1);
+      final other = _song(2);
       // `dup` appears at index 0 AND index 2; currentIndex points at
       // the SECOND occurrence, so the shuffle must track that exact
       // position, not just "some dup".
@@ -50,7 +50,7 @@ void main() {
       final shuffled = result.valueOrNull!;
       expect(shuffled.shuffleEnabled, isTrue);
       expect(shuffled.songs.length, 3);
-      
+
       // Spotify-style: The current song should now be anchored at index 0
       expect(shuffled.currentIndex, 0);
       expect(identical(shuffled.songs[0], dup), isTrue);
@@ -59,7 +59,7 @@ void main() {
     test('is a no-op when shuffle is already enabled', () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b')],
+        songs: [_song(1), _song(2)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
       final repo = FakePlaybackRepository(initialQueues: [queue]);
@@ -76,7 +76,7 @@ void main() {
     test('persists the shuffled queue via the repository', () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a'), _song('b'), _song('c')],
+        songs: [_song(1), _song(2), _song(3)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
       final repo = FakePlaybackRepository(initialQueues: [queue]);
@@ -91,8 +91,8 @@ void main() {
 
   group('ShuffleQueueUseCase disable', () {
     test('restores the exact pre-shuffle order and index', () async {
-      final a = _song('a');
-      final b = _song('b');
+      final a = _song(1);
+      final b = _song(2);
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
         songs: [a, b],

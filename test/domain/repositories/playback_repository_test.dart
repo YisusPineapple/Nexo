@@ -12,7 +12,7 @@ import 'package:nexo/domain/value_objects/song_id.dart';
 
 import 'fakes/fake_playback_repository.dart';
 
-Song _song(String id) {
+Song _song(int id) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -28,7 +28,7 @@ Song _song(String id) {
 PlaybackQueue _queue(String id) {
   return PlaybackQueue.create(
     id: QueueId(id),
-    songs: [_song('a')],
+    songs: [_song(1)],
     source: const ManualQueueSource(),
   ).valueOrNull!;
 }

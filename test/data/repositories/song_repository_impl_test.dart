@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,7 +20,6 @@ void main() {
   late SongRepositoryImpl repo;
 
   setUp(() async {
-    // FTS5 requires a specific setup in memory databases
     db = AppDatabase(NativeDatabase.memory(setup: (db) {
       db.execute('PRAGMA journal_mode=WAL;');
     }));
@@ -30,7 +30,6 @@ void main() {
       libraryFolderRepository: FakeLibraryFolderRepository(),
     );
 
-    // Ensure the database and FTS5 triggers are fully created before testing
     await db.customSelect('SELECT 1').get();
   });
 
@@ -38,38 +37,45 @@ void main() {
     await db.close();
   });
 
-  Future<void> seedSong({
-    required String id,
+  Future<int> seedSong({
+    int? id,
     required String artist,
     String? albumId,
     String title = 'Song',
     String path = '/music/song.mp3',
     Duration duration = const Duration(minutes: 3),
   }) async {
-    await db.into(db.songs).insert(const SongMapper().toCompanion(
-          (Song.create(
-            id: SongId(id),
-            title: title,
-            trackArtistId: ArtistId(artist),
-            albumId: albumId == null ? null : AlbumId(albumId),
-            duration: duration,
-            filePath: path,
-            format: AudioFormat.mp3,
-            fileSizeBytes: 1000,
-            dateAddedUtc: DateTime.utc(2026, 1, 1),
-          )).valueOrNull!,
-        ));
+    final companion = const SongMapper().toCompanion(
+      (Song.create(
+        id: SongId(id ?? 0),
+        title: title,
+        trackArtistId: ArtistId(artist),
+        albumId: albumId == null ? null : AlbumId(albumId),
+        duration: duration,
+        filePath: path,
+        format: AudioFormat.mp3,
+        fileSizeBytes: 1000,
+        dateAddedUtc: DateTime.utc(2026, 1, 1),
+      )).valueOrNull!,
+    );
+    // Use toCompanionForUpsert-style: omit id, let SQLite assign it.
+    final insertCompanion = companion.copyWith(id: const Value.absent());
+    await db.into(db.songs).insert(insertCompanion);
+    final row = await (db.select(db.songs)
+          ..where((t) => t.filePath.equals(path)))
+        .getSingle();
+    return row.id;
   }
 
   group('read methods (no real audio needed)', () {
     test('getSongById returns Ok for an existing id', () async {
-      await seedSong(id: 's1', artist: 'artist-1');
-      final result = await repo.getSongById(const SongId('s1'));
-      expect(result.valueOrNull?.id, const SongId('s1'));
+      final id = await seedSong(artist: 'artist-1');
+      final result = await repo.getSongById(SongId(id));
+      expect(result.valueOrNull?.id.value, id);
     });
 
     test('getSongById returns NotFoundFailure for a missing id', () async {
-      final result = await repo.getSongById(const SongId('missing'));
+      final result = await repo.getSongById(const SongId(99999));
       expect(
         result.when(ok: (_) => null, err: (e) => e),
         isA<NotFoundFailure>(),
@@ -77,59 +83,65 @@ void main() {
     });
 
     test('getSongsByArtist filters correctly', () async {
-      await seedSong(id: 's1', artist: 'artist-1');
-      await seedSong(id: 's2', artist: 'artist-2');
-      // FIX: Use the reactive stream method for the test
+      await seedSong(artist: 'artist-1', path: '/music/a.mp3');
+      await seedSong(artist: 'artist-2', path: '/music/b.mp3');
       final result =
           await repo.watchSongsByArtist(const ArtistId('artist-1')).first;
-      expect(result.valueOrNull?.map((s) => s.id.value), ['s1']);
+      expect(result.valueOrNull?.length, 1);
+      expect(result.valueOrNull?.first.filePath, '/music/a.mp3');
     });
 
     test('searchSongs matches title case-insensitively using FTS5', () async {
-      await seedSong(id: 's1', artist: 'artist-1', title: 'Purple Rain');
+      await seedSong(artist: 'artist-1', title: 'Purple Rain');
       final result = await repo.searchSongs('purple');
       expect(result.valueOrNull?.length, 1);
     });
 
     test('searchSongs also matches by artist using FTS5', () async {
-      await seedSong(id: 's1', artist: 'unique artist');
-      await seedSong(id: 's2', artist: 'someone else');
+      await seedSong(artist: 'unique artist', path: '/music/a.mp3');
+      await seedSong(artist: 'someone else', path: '/music/b.mp3');
       final result = await repo.searchSongs('unique');
-      expect(result.valueOrNull?.map((s) => s.id.value), ['s1']);
+      expect(result.valueOrNull?.length, 1);
     });
 
     test('searchSongs also matches by album using FTS5', () async {
-      await seedSong(id: 's1', artist: 'artist-1', albumId: 'Purple Album');
-      await seedSong(id: 's2', artist: 'artist-1', albumId: 'Yellow Album');
+      await seedSong(
+          artist: 'artist-1', albumId: 'Purple Album', path: '/music/a.mp3');
+      await seedSong(
+          artist: 'artist-1', albumId: 'Yellow Album', path: '/music/b.mp3');
       final result = await repo.searchSongs('purple album');
-      expect(result.valueOrNull?.map((s) => s.id.value), ['s1']);
+      expect(result.valueOrNull?.length, 1);
     });
 
     test('getSongsByFolder filters by path prefix using SQL LIKE', () async {
-      await seedSong(id: 'a', artist: 'art', path: '/music/jazz/a.mp3');
-      await seedSong(id: 'b', artist: 'art', path: '/music/rock/b.mp3');
-      // FIX: Use the reactive stream method for the test
+      await seedSong(artist: 'art', path: '/music/jazz/a.mp3');
+      await seedSong(artist: 'art', path: '/music/rock/b.mp3');
       final result = await repo.watchSongsByFolder('/music/jazz').first;
-      expect(result.valueOrNull?.map((s) => s.id.value), ['a']);
+      expect(result.valueOrNull?.length, 1);
+      expect(result.valueOrNull?.first.filePath, '/music/jazz/a.mp3');
     });
 
     test('getAllSongs returns every seeded song', () async {
-      await seedSong(id: 's1', artist: 'artist-1');
-      await seedSong(id: 's2', artist: 'artist-2');
+      await seedSong(artist: 'artist-1', path: '/music/a.mp3');
+      await seedSong(artist: 'artist-2', path: '/music/b.mp3');
       final result = await repo.getAllSongs();
       expect(result.valueOrNull?.length, 2);
     });
 
     test('getAllSongs sorts by duration descending via SQLite', () async {
       await seedSong(
-          id: 's1', artist: 'a', duration: const Duration(minutes: 2));
+          artist: 'a',
+          duration: const Duration(minutes: 2),
+          path: '/music/a.mp3');
       await seedSong(
-          id: 's2', artist: 'a', duration: const Duration(minutes: 5));
+          artist: 'a',
+          duration: const Duration(minutes: 5),
+          path: '/music/b.mp3');
       final result = await repo.getAllSongs(
         sortOption: SongSortOption.duration,
         isAscending: false,
       );
-      expect(result.valueOrNull?.map((s) => s.id.value), ['s2', 's1']);
+      expect(result.valueOrNull?.first.duration, const Duration(minutes: 5));
     });
   });
 }

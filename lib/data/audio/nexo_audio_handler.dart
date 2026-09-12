@@ -21,7 +21,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   List<Song> _queue = [];
   int _currentIndex = 0;
   RepeatMode _repeatMode = RepeatMode.off;
-  String? _currentLoadedSongId;
+  int? _currentLoadedSongId;
 
   double _currentSpeed = 1.0;
   double _currentPitch = 1.0;
@@ -263,7 +263,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     final items = _queue
         .map((song) => MediaItem(
-              id: song.id.value,
+              id: song.id.value.toString(),
               title: song.title,
               artist: song.trackArtistId.value,
               album: song.albumId?.value ?? 'Nexo Audio',
@@ -302,7 +302,7 @@ class NexoAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _currentIndex = 0;
 
     final item = MediaItem(
-      id: song.id.value,
+      id: song.id.value.toString(),
       title: song.title,
       artist: song.trackArtistId.value,
       album: song.albumId?.value ?? 'Nexo Audio',

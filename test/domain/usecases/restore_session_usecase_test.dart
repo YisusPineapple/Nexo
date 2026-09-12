@@ -12,7 +12,7 @@ import 'package:nexo/domain/value_objects/song_id.dart';
 import '../repositories/fakes/fake_audio_player_repository.dart';
 import '../repositories/fakes/fake_playback_repository.dart';
 
-Song _song(String id) {
+Song _song(int id) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -40,7 +40,7 @@ void main() {
     test('loads the engine at the saved position without resuming', () async {
       final queue = PlaybackQueue.create(
         id: const QueueId('q1'),
-        songs: [_song('a')],
+        songs: [_song(1)],
         source: const ManualQueueSource(),
       ).valueOrNull!;
       final playbackRepo = FakePlaybackRepository(initialQueues: [queue]);
@@ -56,7 +56,7 @@ void main() {
       final result = await useCase.call(const NoParams());
 
       expect(result.valueOrNull?.id, const QueueId('q1'));
-      expect(audioRepo.loadedSong?.id.value, 'a');
+      expect(audioRepo.loadedSong?.id.value, 1);
       expect(audioRepo.loadedAt, const Duration(seconds: 90));
       expect(audioRepo.isResumed, isFalse);
     });

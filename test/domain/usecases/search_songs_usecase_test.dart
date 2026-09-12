@@ -8,7 +8,7 @@ import 'package:nexo/domain/value_objects/song_id.dart';
 
 import '../repositories/fakes/fake_song_repository.dart';
 
-Song _song(String id, String title) {
+Song _song(int id, String title) {
   return Song.create(
     id: SongId(id),
     title: title,
@@ -25,7 +25,7 @@ void main() {
   group('SearchSongsUseCase', () {
     test('delegates to the repository search', () async {
       final repo = FakeSongRepository(
-        initialSongs: [_song('a', 'Purple Rain'), _song('b', 'Yellow Sun')],
+        initialSongs: [_song(1, 'Purple Rain'), _song(2, 'Yellow Sun')],
       );
       final useCase = SearchSongsUseCase(repo);
 
@@ -35,7 +35,7 @@ void main() {
         isAscending: true,
       ));
 
-      expect(result.valueOrNull?.map((s) => s.id.value), ['a']);
+      expect(result.valueOrNull?.map((s) => s.id.value), [1]);
     });
   });
 }

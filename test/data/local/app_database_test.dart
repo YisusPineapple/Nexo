@@ -24,7 +24,7 @@ void main() {
     test('round-trips a row, including the format and genre converters',
         () async {
       await db.into(db.songs).insert(SongsCompanion.insert(
-            id: 's1',
+            id: const Value(1),
             title: 'Test Song',
             trackArtistId: 'artist-1',
             durationMs: 180000,
@@ -38,9 +38,39 @@ void main() {
       final rows = await db.select(db.songs).get();
 
       expect(rows, hasLength(1));
+      expect(rows.first.id, 1);
       expect(rows.first.format, AudioFormat.flac);
       expect(rows.first.genreNames, ['Ambient', 'Electronic']);
-      expect(rows.first.isMissing, isFalse); // withDefault(false)
+      expect(rows.first.isMissing, isFalse);
+    });
+
+    test('filePath is UNIQUE across rows', () async {
+      await db.into(db.songs).insert(SongsCompanion.insert(
+            id: const Value(1),
+            title: 'A',
+            trackArtistId: 'artist-1',
+            durationMs: 1000,
+            filePath: '/music/dup.mp3',
+            format: AudioFormat.mp3,
+            fileSizeBytes: 100,
+            genreNames: const [],
+            dateAddedUtcMs: 0,
+          ));
+
+      expect(
+        () => db.into(db.songs).insert(SongsCompanion.insert(
+              id: const Value(2),
+              title: 'B',
+              trackArtistId: 'artist-1',
+              durationMs: 1000,
+              filePath: '/music/dup.mp3',
+              format: AudioFormat.mp3,
+              fileSizeBytes: 100,
+              genreNames: const [],
+              dateAddedUtcMs: 0,
+            )),
+        throwsA(anything),
+      );
     });
   });
 
@@ -71,6 +101,29 @@ void main() {
     });
 
     test('preserves duplicate songIds at distinct positions', () async {
+      await db.into(db.songs).insert(SongsCompanion.insert(
+            id: const Value(1),
+            title: 'A',
+            trackArtistId: 'artist-1',
+            durationMs: 1000,
+            filePath: '/music/1.mp3',
+            format: AudioFormat.mp3,
+            fileSizeBytes: 100,
+            genreNames: const [],
+            dateAddedUtcMs: 0,
+          ));
+      await db.into(db.songs).insert(SongsCompanion.insert(
+            id: const Value(2),
+            title: 'B',
+            trackArtistId: 'artist-1',
+            durationMs: 1000,
+            filePath: '/music/2.mp3',
+            format: AudioFormat.mp3,
+            fileSizeBytes: 100,
+            genreNames: const [],
+            dateAddedUtcMs: 0,
+          ));
+
       await db.into(db.playbackQueues).insert(PlaybackQueuesCompanion.insert(
             id: 'q1',
             currentIndex: 2,
@@ -78,41 +131,36 @@ void main() {
             source: const ManualQueueSource(),
           ));
 
-      // 'dup' appears at position 0 AND position 2 — the exact
-      // scenario Domain's positional tracking is designed for.
       await db.batch((batch) {
         batch.insertAll(db.queueSongs, [
           QueueSongsCompanion.insert(
             queueId: 'q1',
             listKind: 'current',
             position: 0,
-            songId: 'dup',
+            songId: 1,
           ),
           QueueSongsCompanion.insert(
             queueId: 'q1',
             listKind: 'current',
             position: 1,
-            songId: 'other',
+            songId: 2,
           ),
           QueueSongsCompanion.insert(
             queueId: 'q1',
             listKind: 'current',
             position: 2,
-            songId: 'dup',
+            songId: 1,
           ),
         ]);
       });
 
-      // Two chained .where() calls instead of `&` — always ANDs
-      // together in drift, and sidesteps relying on an operator I
-      // can't verify is available in this exact version.
       final ordered = await (db.select(db.queueSongs)
             ..where((t) => t.queueId.equals('q1'))
             ..where((t) => t.listKind.equals('current'))
             ..orderBy([(t) => OrderingTerm.asc(t.position)]))
           .get();
 
-      expect(ordered.map((r) => r.songId), ['dup', 'other', 'dup']);
+      expect(ordered.map((r) => r.songId), [1, 2, 1]);
     });
   });
 

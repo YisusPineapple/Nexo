@@ -11,7 +11,7 @@ import 'package:nexo/domain/value_objects/song_id.dart';
 
 Song _fullSong() {
   return Song.create(
-    id: const SongId('s1'),
+    id: const SongId(1),
     title: 'Test Song',
     trackArtistId: const ArtistId('artist-1'),
     albumArtistId: const ArtistId('album-artist-1'),
@@ -35,7 +35,7 @@ Song _fullSong() {
     isMissing: true,
     lyricOffsetMs: 500,
     hasNoCover: true,
-    sectionKey: 'T', // FIX: Added sectionKey to the test mock
+    sectionKey: 'T',
   ).valueOrNull!;
 }
 
@@ -63,7 +63,7 @@ SongRow _rowFrom(SongsCompanion companion) {
     isMissing: companion.isMissing.value,
     lyricOffsetMs: companion.lyricOffsetMs.value,
     hasNoCover: companion.hasNoCover.value,
-    sectionKey: companion.sectionKey.value, // FIX: Mapped the new field
+    sectionKey: companion.sectionKey.value,
   );
 }
 
@@ -93,13 +93,12 @@ void main() {
     expect(roundTripped.isMissing, original.isMissing);
     expect(roundTripped.lyricOffsetMs, original.lyricOffsetMs);
     expect(roundTripped.hasNoCover, original.hasNoCover);
-    expect(roundTripped.sectionKey,
-        original.sectionKey); // FIX: Assert the new field
+    expect(roundTripped.sectionKey, original.sectionKey);
   });
 
   test('handles a song with no optional fields set', () {
     final minimal = Song.create(
-      id: const SongId('s2'),
+      id: const SongId(2),
       title: 'Minimal',
       trackArtistId: const ArtistId('artist-2'),
       duration: const Duration(minutes: 2),
@@ -118,6 +117,6 @@ void main() {
     expect(roundTripped.genreNames, isEmpty);
     expect(roundTripped.lyricOffsetMs, 0);
     expect(roundTripped.hasNoCover, isFalse);
-    expect(roundTripped.sectionKey, '#'); // Defaults to '#'
+    expect(roundTripped.sectionKey, '#');
   });
 }

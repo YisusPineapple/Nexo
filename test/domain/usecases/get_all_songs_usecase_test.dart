@@ -8,7 +8,7 @@ import 'package:nexo/domain/value_objects/song_id.dart';
 
 import '../repositories/fakes/fake_song_repository.dart';
 
-Song _song(String id) {
+Song _song(int id) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -24,7 +24,7 @@ Song _song(String id) {
 void main() {
   group('GetAllSongsUseCase', () {
     test('delegates to the repository and returns every song', () async {
-      final repo = FakeSongRepository(initialSongs: [_song('a'), _song('b')]);
+      final repo = FakeSongRepository(initialSongs: [_song(1), _song(2)]);
       final useCase = GetAllSongsUseCase(repo);
 
       final result = await useCase.call((

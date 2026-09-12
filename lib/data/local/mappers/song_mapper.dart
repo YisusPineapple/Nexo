@@ -46,9 +46,19 @@ class SongMapper {
     );
   }
 
+  /// Full companion, including `id`. Used by callers that genuinely own
+  /// the id (tests seeding specific rows, restore-from-backup flows).
+  /// Do NOT use this from the scanner: the scanner cannot know the
+  /// SQLite-assigned id ahead of time, and providing one would clobber
+  /// the existing stable id on conflict. See [toCompanionForUpsert].
+  ///
+  /// `id` is wrapped in `Value<int>` because Drift makes a single-column
+  /// IntColumn PK optional in the generated insert companion (it is
+  /// treated as a rowid alias), so the parameter type is `Value<int>`,
+  /// not `int`.
   SongsCompanion toCompanion(Song song) {
     return SongsCompanion.insert(
-      id: song.id.value,
+      id: Value(song.id.value),
       title: song.title,
       trackArtistId: song.trackArtistId.value,
       albumArtistId: Value(song.albumArtistId?.value),
@@ -67,6 +77,44 @@ class SongMapper {
       replayGainTrackDb: Value(song.replayGainTrackDb),
       replayGainAlbumDb: Value(song.replayGainAlbumDb),
       dateAddedUtcMs: song.dateAddedUtc.toUtc().millisecondsSinceEpoch,
+      isMissing: Value(song.isMissing),
+      lyricOffsetMs: Value(song.lyricOffsetMs),
+      hasNoCover: Value(song.hasNoCover),
+      sectionKey: Value(song.sectionKey),
+    );
+  }
+
+  /// Companion variant that OMITS `id`, for the scanner's upsert path.
+  ///
+  /// The scanner resolves conflicts on `songs.file_path` (which carries a
+  /// UNIQUE constraint — see `songs_table.dart`). On conflict, the existing
+  /// row is updated in place and its stable integer id is preserved (the
+  /// absent id field is simply not written). On first insert, SQLite
+  /// assigns a new id via the rowid alias.
+  ///
+  /// Providing an id here would be wrong in both directions: on conflict
+  /// it would overwrite the existing stable id with a placeholder, and on
+  /// first insert it would consume a specific integer that may collide.
+  SongsCompanion toCompanionForUpsert(Song song) {
+    return SongsCompanion(
+      title: Value(song.title),
+      trackArtistId: Value(song.trackArtistId.value),
+      albumArtistId: Value(song.albumArtistId?.value),
+      albumId: Value(song.albumId?.value),
+      trackNumber: Value(song.trackNumber),
+      discNumber: Value(song.discNumber),
+      durationMs: Value(song.duration.inMilliseconds),
+      filePath: Value(song.filePath),
+      format: Value(song.format),
+      fileSizeBytes: Value(song.fileSizeBytes),
+      genreNames: Value(song.genreNames),
+      year: Value(song.year),
+      coverArtPath: Value(song.coverArtPath),
+      leadingSilenceMs: Value(song.silenceTrim.leadingSilenceMs),
+      trailingSilenceMs: Value(song.silenceTrim.trailingSilenceMs),
+      replayGainTrackDb: Value(song.replayGainTrackDb),
+      replayGainAlbumDb: Value(song.replayGainAlbumDb),
+      dateAddedUtcMs: Value(song.dateAddedUtc.toUtc().millisecondsSinceEpoch),
       isMissing: Value(song.isMissing),
       lyricOffsetMs: Value(song.lyricOffsetMs),
       hasNoCover: Value(song.hasNoCover),

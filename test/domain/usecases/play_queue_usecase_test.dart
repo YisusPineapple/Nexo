@@ -12,7 +12,7 @@ import 'package:nexo/domain/value_objects/song_id.dart';
 import '../repositories/fakes/fake_audio_player_repository.dart';
 import '../repositories/fakes/fake_playback_repository.dart';
 
-Song _song(String id) {
+Song _song(int id) {
   return Song.create(
     id: SongId(id),
     title: 'Title $id',
@@ -28,7 +28,7 @@ Song _song(String id) {
 PlaybackQueue _queue(String id, {int currentIndex = 0}) {
   return PlaybackQueue.create(
     id: QueueId(id),
-    songs: [_song('a'), _song('b')],
+    songs: [_song(1), _song(2)],
     currentIndex: currentIndex,
     source: const ManualQueueSource(),
   ).valueOrNull!;
@@ -45,7 +45,7 @@ void main() {
       final result = await useCase.play(const QueueId('q1'));
 
       expect(result.isOk, isTrue);
-      expect(audioRepo.loadedSong?.id.value, 'a');
+      expect(audioRepo.loadedSong?.id.value, 1);
       expect(audioRepo.isResumed, isTrue);
     });
 
@@ -91,13 +91,13 @@ void main() {
       final result = await useCase.skipNext(const QueueId('q1'));
 
       expect(result.valueOrNull?.currentIndex, 1);
-      expect(audioRepo.loadedSong?.id.value, 'b');
+      expect(audioRepo.loadedSong?.id.value, 2);
       expect(audioRepo.isResumed, isTrue);
     });
 
     test('reaching the natural end stops without loading a song', () async {
       final playbackRepo = FakePlaybackRepository(
-        initialQueues: [_queue('q1', currentIndex: 1)], // last of 2 songs
+        initialQueues: [_queue('q1', currentIndex: 1)],
       );
       final audioRepo = FakeAudioPlayerRepository();
       final useCase = PlayQueueUseCase(playbackRepo, audioRepo);
