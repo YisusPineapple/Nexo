@@ -1,0 +1,15 @@
+# Nexo — Dart/Flutter test configuration.
+#
+# The `benchmark` tag is defined here (so --tags=benchmark resolves) and
+# skipped by default. Benchmark tests deliberately seed thousands of rows
+# and fire thousands of queries; running them on every `flutter test`
+# would slow down the normal suite for everyone.
+#
+# Run benchmarks explicitly:
+#
+#   flutter test --tags=benchmark --run-skipped \
+#     test/data/repositories/song_repository_pagination_benchmark_test.dart
+#
+tags:
+  benchmark:
+    skip: "Benchmark tests are opt-in. See file header for the command."
