@@ -95,9 +95,6 @@ Future<void> _workerIsolateEntry(_WorkerArgs args) async {
       } catch (_) {}
 
       if (args.extractCover) {
-        // Send filePath, not id: with the schema 15 migration the id is
-        // SQLite-assigned and the worker cannot know it. The main isolate
-        // updates by filePath instead.
         args.sendPort
             .send({'filePath': song?.filePath, 'path': song?.coverArtPath});
         await Future.delayed(const Duration(milliseconds: 10));
@@ -125,11 +122,6 @@ Future<Song?> _buildSong(
   final file = File(path);
   final stat = await file.stat();
 
-  // Placeholder SongId. Since schema 15, the real id is SQLite-assigned
-  // on insert (INTEGER PRIMARY KEY / rowid alias) and the scanner cannot
-  // know it in advance. The placeholder is discarded by
-  // SongMapper.toCompanionForUpsert, which omits the id field entirely
-  // and lets the upsert resolve on file_path (UNIQUE).
   const placeholderId = SongId(0);
 
   String title = p.basenameWithoutExtension(path);
@@ -195,8 +187,6 @@ Future<Song?> _buildSong(
     sectionKey: _computeSectionKey(title),
   ).valueOrNull;
 }
-
-// --- Isolate Grouping Functions ---
 
 typedef _ArtistIsolateArgs = ({
   List<(String trackArtistId, String? albumId, String? coverArtPath)> data,
@@ -328,12 +318,6 @@ class SongRepositoryImpl implements SongRepository {
   bool _isExtractingCovers = false;
 
   static const int _maxSearchResults = 500;
-
-  final StreamController<void> _coversUpdatedController =
-      StreamController<void>.broadcast();
-
-  @override
-  Stream<void> get coversUpdatedStream => _coversUpdatedController.stream;
 
   @override
   Future<Result<void, Failure>> indexDirectories(
@@ -519,8 +503,6 @@ class SongRepositoryImpl implements SongRepository {
           final path = message['path'] as String?;
 
           if (filePath != null) {
-            // Update by filePath, not by id: the worker does not know the
-            // SQLite-assigned id and must not be made to learn it.
             await (_db.update(_db.songs)
                   ..where((t) => t.filePath.equals(filePath)))
                 .write(
@@ -562,23 +544,6 @@ class SongRepositoryImpl implements SongRepository {
       return _mapRows(await query.get());
     } catch (e) {
       return Err(UnexpectedFailure('Failed to fetch all songs.', cause: e));
-    }
-  }
-
-  @override
-  Future<Result<List<Song>, Failure>> getSongsWindow({
-    required int offset,
-    required int limit,
-    SongSortOption sortOption = SongSortOption.title,
-    bool isAscending = true,
-  }) async {
-    try {
-      final query = _db.select(_db.songs)
-        ..orderBy([_buildOrderClause(sortOption, isAscending)])
-        ..limit(limit, offset: offset);
-      return _mapRows(await query.get());
-    } catch (e) {
-      return Err(UnexpectedFailure('Failed to fetch songs window.', cause: e));
     }
   }
 
@@ -715,30 +680,193 @@ class SongRepositoryImpl implements SongRepository {
   // --- Reactive Streams (Drift .watch) ---
 
   @override
+  Stream<Result<List<Song>, Failure>> watchSongsWindow({
+    required int offset,
+    required int limit,
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+    String query = '',
+  }) {
+    // No `.distinct()` here on purpose. See Sprint9_P0_T2.md §2.3:
+    // deduplication via `Song.==` (which compares only by id) would silence
+    // content changes (coverArtPath, title, isMissing, ...) on songs already
+    // present in the window — exactly the ghost-cover bug T1+T2 close.
+    final trimmed = query.trim();
+
+    if (trimmed.isEmpty) {
+      final q = _db.select(_db.songs)
+        ..orderBy([_buildOrderClause(sortOption, isAscending)])
+        ..limit(limit, offset: offset);
+
+      return q.watch().map((rows) {
+        try {
+          return _mapRows(rows);
+        } catch (e) {
+          return Err(
+              UnexpectedFailure('Failed to watch songs window.', cause: e));
+        }
+      });
+    }
+
+    final terms = trimmed
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    if (terms.isEmpty) {
+      return Stream.value(const Ok(<Song>[]));
+    }
+
+    final ftsQuery = terms.map((t) => '"${_escapeFts5Term(t)}"*').join(' ');
+
+    final orderColumn = switch (sortOption) {
+      SongSortOption.title => 'LOWER(s.title)',
+      SongSortOption.artist => 'LOWER(s.track_artist_id)',
+      SongSortOption.album => 'LOWER(s.album_id)',
+      SongSortOption.year => 's.year',
+      SongSortOption.duration => 's.duration_ms',
+      SongSortOption.dateAdded => 's.date_added_utc_ms',
+    };
+    final orderDir = isAscending ? 'ASC' : 'DESC';
+
+    return _db
+        .customSelect(
+          'SELECT s.* FROM songs s '
+          'JOIN songs_fts ON songs_fts.rowid = s.rowid '
+          'WHERE songs_fts MATCH ? '
+          'ORDER BY $orderColumn $orderDir '
+          'LIMIT ? OFFSET ?',
+          variables: [
+            Variable.withString(ftsQuery),
+            Variable.withInt(limit),
+            Variable.withInt(offset),
+          ],
+          readsFrom: {_db.songs},
+        )
+        .watch()
+        .map((rows) {
+          try {
+            return _mapRows(
+                rows.map((row) => _db.songs.map(row.data)).toList());
+          } catch (e) {
+            return Err(
+                UnexpectedFailure('Failed to watch songs window.', cause: e));
+          }
+        });
+  }
+
+  @override
+  Stream<Result<int, Failure>> watchSongsCount({String query = ''}) {
+    final trimmed = query.trim();
+
+    if (trimmed.isEmpty) {
+      return _db
+          .customSelect(
+            'SELECT COUNT(*) AS n FROM songs',
+            readsFrom: {_db.songs},
+          )
+          .watch()
+          .map((rows) => Ok(rows.first.data['n'] as int));
+    }
+
+    final terms = trimmed
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    if (terms.isEmpty) {
+      return Stream.value(const Ok(0));
+    }
+
+    final ftsQuery = terms.map((t) => '"${_escapeFts5Term(t)}"*').join(' ');
+
+    // readsFrom: {_db.songs} is REQUIRED — see Sprint9_P0_T2.md §2.6.
+    // The SQL only names `songs_fts`, a virtual FTS5 external-content table
+    // whose content is maintained by triggers on `songs`. Declaring `songs`
+    // explicitly anchors reactivity to the physical table that the scanner
+    // and cover extraction actually write to.
+    return _db
+        .customSelect(
+          'SELECT COUNT(*) AS n FROM songs_fts WHERE songs_fts MATCH ?',
+          variables: [Variable.withString(ftsQuery)],
+          readsFrom: {_db.songs},
+        )
+        .watch()
+        .map((rows) => Ok(rows.first.data['n'] as int));
+  }
+
+  @override
   Stream<Result<List<(String, int)>, Failure>> watchAlphabeticalIndex({
     SongSortOption sortOption = SongSortOption.title,
     bool isAscending = true,
+    String query = '',
   }) {
-    return (_db.selectOnly(_db.songs)
-          ..addColumns([_db.songs.sectionKey, _db.songs.sectionKey.count()])
-          ..groupBy([_db.songs.sectionKey])
-          ..orderBy([OrderingTerm.asc(_db.songs.sectionKey)]))
-        .watch()
-        .map((counts) {
-      try {
-        var running = 0;
-        final result = <(String, int)>[];
-        for (final row in counts) {
-          final letter = row.read(_db.songs.sectionKey)!;
-          result.add((letter, running));
-          running += row.read(_db.songs.sectionKey.count())!;
+    final trimmed = query.trim();
+
+    if (trimmed.isEmpty) {
+      return (_db.selectOnly(_db.songs)
+            ..addColumns([_db.songs.sectionKey, _db.songs.sectionKey.count()])
+            ..groupBy([_db.songs.sectionKey])
+            ..orderBy([OrderingTerm.asc(_db.songs.sectionKey)]))
+          .watch()
+          .map((counts) {
+        try {
+          var running = 0;
+          final result = <(String, int)>[];
+          for (final row in counts) {
+            final letter = row.read(_db.songs.sectionKey)!;
+            result.add((letter, running));
+            running += row.read(_db.songs.sectionKey.count())!;
+          }
+          return Ok(result);
+        } catch (e) {
+          return Err(UnexpectedFailure('Failed to watch alphabetical index.',
+              cause: e));
         }
-        return Ok(result);
-      } catch (e) {
-        return Err(
-            UnexpectedFailure('Failed to watch alphabetical index.', cause: e));
-      }
-    });
+      });
+    }
+
+    final terms = trimmed
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    if (terms.isEmpty) {
+      return Stream.value(const Ok(<(String, int)>[]));
+    }
+
+    final ftsQuery = terms.map((t) => '"${_escapeFts5Term(t)}"*').join(' ');
+
+    return _db
+        .customSelect(
+          'SELECT s.section_key AS section_key, COUNT(*) AS n '
+          'FROM songs s '
+          'JOIN songs_fts ON songs_fts.rowid = s.rowid '
+          'WHERE songs_fts MATCH ? '
+          'GROUP BY s.section_key '
+          'ORDER BY s.section_key',
+          variables: [Variable.withString(ftsQuery)],
+          readsFrom: {_db.songs},
+        )
+        .watch()
+        .map((rows) {
+          try {
+            var running = 0;
+            final result = <(String, int)>[];
+            for (final row in rows) {
+              final letter = row.data['section_key'] as String;
+              result.add((letter, running));
+              running += row.data['n'] as int;
+            }
+            return Ok(result);
+          } catch (e) {
+            return Err(UnexpectedFailure('Failed to watch alphabetical index.',
+                cause: e));
+          }
+        });
   }
 
   @override

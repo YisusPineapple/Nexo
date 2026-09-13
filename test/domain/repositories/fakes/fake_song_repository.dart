@@ -19,12 +19,6 @@ class FakeSongRepository implements SongRepository {
   bool failIndexing = false;
   int indexDirectoriesCallCount = 0;
 
-  final StreamController<void> _coversUpdatedController =
-      StreamController<void>.broadcast();
-
-  @override
-  Stream<void> get coversUpdatedStream => _coversUpdatedController.stream;
-
   @override
   Future<Result<void, Failure>> indexDirectories(
     List<String> directoryPaths, {
@@ -76,31 +70,30 @@ class FakeSongRepository implements SongRepository {
     return isAscending ? res : -res;
   }
 
+  List<Song> _sortedAndFiltered({
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+    String query = '',
+  }) {
+    final filtered = query.isEmpty
+        ? List<Song>.of(_songs)
+        : _songs.where((s) {
+            final q = query.toLowerCase();
+            return s.title.toLowerCase().contains(q) ||
+                s.trackArtistId.value.toLowerCase().contains(q) ||
+                (s.albumId?.value ?? '').toLowerCase().contains(q);
+          }).toList();
+    filtered.sort((a, b) => _compare(a, b, sortOption, isAscending));
+    return filtered;
+  }
+
   @override
   Future<Result<List<Song>, Failure>> getAllSongs({
     SongSortOption sortOption = SongSortOption.title,
     bool isAscending = true,
   }) async {
-    final sorted = List<Song>.of(_songs)
-      ..sort((a, b) => _compare(a, b, sortOption, isAscending));
-    return Ok(List.unmodifiable(sorted));
-  }
-
-  @override
-  Future<Result<List<Song>, Failure>> getSongsWindow({
-    required int offset,
-    required int limit,
-    SongSortOption sortOption = SongSortOption.title,
-    bool isAscending = true,
-  }) async {
-    final sorted = List<Song>.of(_songs)
-      ..sort((a, b) => _compare(a, b, sortOption, isAscending));
-
-    if (offset >= sorted.length) return const Ok([]);
-
-    final end =
-        (offset + limit > sorted.length) ? sorted.length : offset + limit;
-    return Ok(sorted.sublist(offset, end));
+    return Ok(List.unmodifiable(
+        _sortedAndFiltered(sortOption: sortOption, isAscending: isAscending)));
   }
 
   @override
@@ -119,12 +112,11 @@ class FakeSongRepository implements SongRepository {
     SongSortOption sortOption = SongSortOption.title,
     bool isAscending = true,
   }) async {
-    final normalized = query.toLowerCase();
-    final filtered = _songs
-        .where((s) => s.title.toLowerCase().contains(normalized))
-        .toList();
-    filtered.sort((a, b) => _compare(a, b, sortOption, isAscending));
-    return Ok(filtered);
+    return Ok(_sortedAndFiltered(
+      sortOption: sortOption,
+      isAscending: isAscending,
+      query: query,
+    ));
   }
 
   @override
@@ -170,12 +162,43 @@ class FakeSongRepository implements SongRepository {
   // --- Reactive Streams (Fakes) ---
 
   @override
+  Stream<Result<List<Song>, Failure>> watchSongsWindow({
+    required int offset,
+    required int limit,
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+    String query = '',
+  }) async* {
+    final sorted = _sortedAndFiltered(
+      sortOption: sortOption,
+      isAscending: isAscending,
+      query: query,
+    );
+    if (offset >= sorted.length) {
+      yield const Ok(<Song>[]);
+      return;
+    }
+    final end = (offset + limit).clamp(0, sorted.length);
+    yield Ok(List.unmodifiable(sorted.sublist(offset, end)));
+  }
+
+  @override
+  Stream<Result<int, Failure>> watchSongsCount({String query = ''}) async* {
+    final count = _sortedAndFiltered(query: query).length;
+    yield Ok(count);
+  }
+
+  @override
   Stream<Result<List<(String, int)>, Failure>> watchAlphabeticalIndex({
     SongSortOption sortOption = SongSortOption.title,
     bool isAscending = true,
+    String query = '',
   }) async* {
-    final sorted = List<Song>.of(_songs)
-      ..sort((a, b) => _compare(a, b, sortOption, isAscending));
+    final sorted = _sortedAndFiltered(
+      sortOption: sortOption,
+      isAscending: isAscending,
+      query: query,
+    );
 
     final result = <(String, int)>[];
     var running = 0;

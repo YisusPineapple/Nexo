@@ -67,13 +67,14 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await m.createAll();
           await _createSearchSchema();
+          await _createSortIndexes();
           await into(appPreferencesTable).insert(
             AppPreferencesTableCompanion.insert(
               id: const Value(0),
@@ -159,6 +160,9 @@ class AppDatabase extends _$AppDatabase {
           if (from < 15) {
             await _migrateToStableSongId(m);
           }
+          if (from < 16) {
+            await _createSortIndexes();
+          }
         },
       );
 
@@ -179,25 +183,14 @@ class AppDatabase extends _$AppDatabase {
   /// ([_reportOrphansIfAny]) is fail-safe, because a diagnostic must never
   /// be able to abort the operation it is observing.
   Future<void> _migrateToStableSongId(Migrator m) async {
-    // SQLite enforces foreign keys only if `PRAGMA foreign_keys = ON` is
-    // set per-connection, which this app does NOT do today (see
-    // `openConnection` above: only journal_mode and synchronous are
-    // configured). The pragma below is therefore a no-op in the current
-    // runtime, but is correct if enforcement is ever turned on (separate
-    // ticket) and costs nothing to keep. Verified empirically in test
-    // §7.2b: `PRAGMA foreign_keys` returns 0 in this app's runtime.
     await customStatement('PRAGMA defer_foreign_keys = ON;');
 
-    // 1. Build old TEXT id -> new INTEGER id map, before any table is
-    //    touched. ROW_NUMBER() assigns deterministic ids so the remap of
-    //    dependent tables is consistent.
     await customStatement('''
       CREATE TEMP TABLE song_id_map AS
       SELECT id AS old_id, ROW_NUMBER() OVER (ORDER BY rowid) AS new_id
       FROM songs;
     ''');
 
-    // 2. Back up data from tables that will be dropped and recreated.
     await customStatement(
       'CREATE TEMP TABLE songs_backup AS SELECT * FROM songs;',
     );
@@ -211,7 +204,6 @@ class AppDatabase extends _$AppDatabase {
       'CREATE TEMP TABLE playback_history_backup AS SELECT * FROM playback_history;',
     );
 
-    // 3. Drop dependent FK tables first, then FTS artifacts, then songs.
     await customStatement('DROP TABLE playlist_songs;');
     await customStatement('DROP TABLE queue_songs;');
     await customStatement('DROP TABLE playback_history;');
@@ -221,14 +213,11 @@ class AppDatabase extends _$AppDatabase {
     await customStatement('DROP TABLE IF EXISTS songs_fts;');
     await customStatement('DROP TABLE songs;');
 
-    // 4. Recreate with the new schema via Drift, so the DDL matches exactly
-    //    what Drift generates from songs_table.dart and the FK table defs.
     await m.createTable(songs);
     await m.createTable(playlistSongs);
     await m.createTable(queueSongs);
     await m.createTable(playbackHistory);
 
-    // 5. Reinsert songs with the new integer ids.
     await customStatement('''
       INSERT INTO songs (
         id, title, track_artist_id, album_artist_id, album_id,
@@ -249,12 +238,6 @@ class AppDatabase extends _$AppDatabase {
       JOIN song_id_map m ON m.old_id = s.id;
     ''');
 
-    // 6. Reinsert FK data with remapped song_id. The INNER JOIN drops rows
-    //    whose old song id no longer maps to a song in the new table. Such
-    //    rows were already orphaned before the migration (their old TEXT
-    //    song id was a path that no longer matched any row) — this is not
-    //    a regression introduced by T1, but it is silent, so
-    //    [_reportOrphansIfAny] logs the count for post-mortem diagnosis.
     await customStatement('''
       INSERT INTO playlist_songs (playlist_id, position, song_id)
       SELECT pb.playlist_id, pb.position, m.new_id
@@ -279,11 +262,6 @@ class AppDatabase extends _$AppDatabase {
     ''');
     await _reportOrphansIfAny('playback_history');
 
-    // 7. Remap item_interactions ONLY for song-type rows. album/artist/
-    //    playlist rows share this table but are text-keyed by design and
-    //    must NOT be touched. Rows whose old song id is not in the map
-    //    (already-orphaned references) are left as-is and become stale,
-    //    same as any other dangling interaction.
     await customStatement('''
       UPDATE item_interactions
       SET item_id = (
@@ -297,15 +275,12 @@ class AppDatabase extends _$AppDatabase {
         );
     ''');
 
-    // 8. Rebuild FTS (every rowid changed, so the existing index is stale)
-    //    and the section_key index (dropped with the old songs table).
     await _createSearchSchema();
     await _backfillFtsFromExistingSongs();
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_songs_section_key ON songs (section_key);',
     );
 
-    // 9. Cleanup temp tables.
     await customStatement('DROP TABLE song_id_map;');
     await customStatement('DROP TABLE songs_backup;');
     await customStatement('DROP TABLE playlist_songs_backup;');
@@ -392,5 +367,55 @@ END;
 INSERT INTO songs_fts(rowid, title, track_artist_id, album_id)
 SELECT rowid, title, track_artist_id, album_id FROM songs;
 ''');
+  }
+
+  /// Schema 16 migration: adds functional and plain indexes for every column
+  /// used by [SongRepository.watchSongsWindow]'s ORDER BY.
+  ///
+  /// `LOWER(title)`, `LOWER(track_artist_id)`, `LOWER(album_id)` are
+  /// functional indexes (SQLite ≥ 3.9.0) — the LOWER transform means the
+  /// existing plain-column indexes on `album_id` and `track_artist_id` do
+  /// NOT cover `ORDER BY LOWER(col)` queries. Without these, LIMIT/OFFSET
+  /// pagination over 15k rows costs 24–38 ms per page on the dev box; with
+  /// them, 1.1 ms. Measured in Sprint9_P0_T2.md §5.1 and §5.3.
+  ///
+  /// `year`, `duration_ms`, `date_added_utc_ms` are plain int columns with
+  /// no LOWER() transform — the indexes are standard B-trees. They are
+  /// included because the same OFFSET-over-sort cost applies to those sorts.
+  ///
+  /// `ANALYZE` updates the query planner's statistics so SQLite actually
+  /// picks these indexes on the next query. Without it, a fresh migration on
+  /// a DB that has never been analyzed can leave the planner with no stats
+  /// for these columns and it may fall back to a full scan.
+  ///
+  /// Idempotent: all `CREATE INDEX` statements use `IF NOT EXISTS`, so
+  /// calling this from both `onCreate` (fresh install at v16) and
+  /// `onUpgrade(from < 16)` is safe — a fresh install reaches the same end
+  /// state as an upgraded install.
+  Future<void> _createSortIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_title_lower '
+      'ON songs (LOWER(title));',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_artist_lower '
+      'ON songs (LOWER(track_artist_id));',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_album_lower '
+      'ON songs (LOWER(album_id));',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_year ON songs (year);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_duration ON songs (duration_ms);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_songs_date_added '
+      'ON songs (date_added_utc_ms);',
+    );
+
+    await customStatement('ANALYZE;');
   }
 }

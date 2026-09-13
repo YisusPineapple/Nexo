@@ -51,19 +51,21 @@ final _refreshLibraryUseCaseProvider = Provider<RefreshLibraryUseCase>((ref) {
   return RefreshLibraryUseCase(ref.watch(songRepositoryProvider));
 });
 
-// Top-level provider to avoid anonymous inline provider leaks
-final coversUpdatedProvider = StreamProvider<void>((ref) {
-  return ref.watch(songRepositoryProvider).coversUpdatedStream;
-});
+// NOTE: the previous `coversUpdatedProvider` was removed in Sprint 9 / T2.
+// It wrapped `SongRepository.coversUpdatedStream`, a broadcast StreamController
+// whose only emit site (`_coversUpdatedController.add(null)`) was never
+// actually invoked — a dead reactive pipe. Cover reactivity is now provided
+// natively by Drift via `watchSongsWindow` over `_db.songs` (see
+// Sprint9_P0_T2.md §2.7). This provider existed only as the vestigial
+// invalidation signal inside `sortedSongsProvider` and is not replaced.
 
-// FIX: Fast, clean FutureProvider connected to UseCases respecting Clean Architecture.
-// Rebuilds declaratively when covers update or sorting changes.
+// FIX: Fast, clean FutureProvider connected to UseCases respecting Clean
+// Architecture. Rebuilds declaratively when sorting or search query changes.
+// (Pre-T2 name kept for the grouped-library screens that still consume it —
+// see Sprint9_P0_T2.md §9. SongsScreen migrates off this in commit 4 of T2.)
 final sortedSongsProvider = FutureProvider<List<Song>>((ref) async {
   final query = ref.watch(songSearchQueryProvider);
   final sortConfig = ref.watch(songSortProvider);
-
-  // Automatically refresh when background cover art extraction makes progress
-  ref.watch(coversUpdatedProvider);
 
   final result = query.isEmpty
       ? await ref.watch(_getAllSongsUseCaseProvider).call((

@@ -216,10 +216,19 @@ void main() {
         // Lazy-open: the migration runs on the first query.
         await db.customSelect('SELECT 1').get();
 
-        // --- PRAGMA user_version bumped to 15 ---
+        // --- PRAGMA user_version bumped to current ---
+        //
+        // This test verifies the T1 migration (SongId TEXT -> INTEGER,
+        // FK remap, FTS rebuild). That migration is the `if (from < 15)`
+        // block in app_database.dart, and it still runs unchanged. Sprint 9
+        // / T2 added `if (from < 16)` (sort indexes), so a v14 database
+        // opened today lands at user_version = 16, not 15. The assertion
+        // below reflects the current schemaVersion; if a future schema
+        // bumps to 17, update this number — do NOT touch the v14 -> v15
+        // migration block itself (CONVENTIONS.md).
         final version =
             await db.customSelect('PRAGMA user_version').getSingle();
-        expect(version.data['user_version'], 15);
+        expect(version.data['user_version'], 16);
 
         // --- Songs: 3 rows, stable integer ids assigned ---
         final songs = await db.select(db.songs).get();

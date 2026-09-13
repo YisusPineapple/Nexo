@@ -80,6 +80,41 @@ void main() {
       expect(result.valueOrNull?.length, 1);
     });
 
+    test('watchSongsWindow returns a page slice', () async {
+      final repo = FakeSongRepository(
+        initialSongs: List.generate(75, (i) => _song(i + 1)),
+      );
+      final result = await repo.watchSongsWindow(offset: 0, limit: 50).first;
+      expect(result.valueOrNull?.length, 50);
+    });
+
+    test('watchSongsWindow past the end returns empty', () async {
+      final repo = FakeSongRepository(
+        initialSongs: List.generate(5, (i) => _song(i + 1)),
+      );
+      final result = await repo.watchSongsWindow(offset: 200, limit: 50).first;
+      expect(result.valueOrNull, isEmpty);
+    });
+
+    test('watchSongsCount returns total', () async {
+      final repo = FakeSongRepository(
+        initialSongs: List.generate(5, (i) => _song(i + 1)),
+      );
+      final result = await repo.watchSongsCount().first;
+      expect(result.valueOrNull, 5);
+    });
+
+    test('watchAlphabeticalIndex returns cumulative offsets', () async {
+      final repo = FakeSongRepository(initialSongs: [
+        _song(1, path: '/music/A1.mp3'),
+        _song(2, path: '/music/A2.mp3'),
+        _song(3, path: '/music/B1.mp3'),
+      ]);
+      final result = await repo.watchAlphabeticalIndex().first;
+      expect(result.isOk, isTrue);
+      expect(result.valueOrNull, isNotEmpty);
+    });
+
     test('indexDirectories surfaces failure when the fake is set to fail',
         () async {
       final repo = FakeSongRepository()..failIndexing = true;

@@ -18,15 +18,8 @@ abstract interface class SongRepository {
     void Function(int current, int total)? onProgress,
   });
 
-  // --- One-Shot Reads (For Pagination, Search, and Exports) ---
+  // --- One-Shot Reads (For Grouped Library, Playlist Import, Exports) ---
   Future<Result<List<Song>, Failure>> getAllSongs({
-    SongSortOption sortOption = SongSortOption.title,
-    bool isAscending = true,
-  });
-
-  Future<Result<List<Song>, Failure>> getSongsWindow({
-    required int offset,
-    required int limit,
     SongSortOption sortOption = SongSortOption.title,
     bool isAscending = true,
   });
@@ -47,11 +40,37 @@ abstract interface class SongRepository {
 
   // --- Reactive Streams (For UI Feeds) ---
 
-  Stream<void> get coversUpdatedStream;
+  /// Reactive window over the catalog, sorted by [sortOption] and optionally
+  /// filtered by [query] (FTS5). Emits whenever the underlying [songs] table
+  /// changes AND the resulting window differs — no deduplication beyond what
+  /// SQLite returns. In particular, a content change (e.g. coverArtPath) on a
+  /// song inside the window MUST propagate to consumers; do NOT introduce a
+  /// `.distinct()` that compares via [Song.==], which only compares by id and
+  /// would silence such changes.
+  ///
+  /// [offset] is 0-based; [limit] is the page size. Both are clamped by the
+  /// implementation against the total row count.
+  Stream<Result<List<Song>, Failure>> watchSongsWindow({
+    required int offset,
+    required int limit,
+    SongSortOption sortOption = SongSortOption.title,
+    bool isAscending = true,
+    String query = '',
+  });
 
+  /// Reactive count of the catalog, optionally filtered by [query] (FTS5).
+  /// Used as the `itemCount` for `ListView.builder` in `SongsScreen`.
+  Stream<Result<int, Failure>> watchSongsCount({String query = ''});
+
+  /// Reactive alphabetical index, keyed by the pre-computed `section_key`
+  /// column. Emits a list of `(letter, firstGlobalIndex)` pairs where
+  /// `firstGlobalIndex` is the 0-based offset of the first song in that
+  /// section, in cumulative (not per-section) terms. If [query] is non-empty,
+  /// only sections that contain FTS5 matches are emitted.
   Stream<Result<List<(String, int)>, Failure>> watchAlphabeticalIndex({
     SongSortOption sortOption = SongSortOption.title,
     bool isAscending = true,
+    String query = '',
   });
 
   Stream<Result<List<Album>, Failure>> watchAllAlbums({
