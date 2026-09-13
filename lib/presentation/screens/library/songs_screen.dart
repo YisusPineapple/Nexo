@@ -6,9 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
 import '../../../domain/entities/queue_source.dart';
+import '../../../domain/entities/song.dart';
 import '../../../domain/entities/song_sort_option.dart';
 import '../../providers/library_providers.dart';
 import '../../providers/playback_providers.dart';
+import '../../providers/repository_providers.dart';
+import '../../providers/songs_window_provider.dart';
 import '../../widgets/alphabetical_scroll_view.dart';
 import '../../widgets/song_context_menu.dart';
 
@@ -66,12 +69,67 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
     return '$minutes:$seconds';
   }
 
+  /// Loads the full sorted+filtered list for playback queue construction.
+  /// The playback engine needs the entire queue, not just the visible
+  /// window; this is a one-shot read, independent of the paginated
+  /// [SongsWindowState] used for rendering.
+  ///
+  /// Reads the repository directly, matching how
+  /// `grouped_library_providers.dart` already consumes
+  /// `watchSongsByAlbum/Artist/Folder`. Uses `Result.valueOrNull` rather
+  /// than throwing — a failure degrades gracefully to a one-song queue
+  /// instead of surfacing an exception to the UI.
+  Future<void> _playFromRow(Song song) async {
+    final repo = ref.read(songRepositoryProvider);
+    final sort = ref.read(songSortProvider);
+    final query = ref.read(songSearchQueryProvider);
+
+    final result = query.isEmpty
+        ? await repo.getAllSongs(
+            sortOption: sort.option,
+            isAscending: sort.isAscending,
+          )
+        : await repo.searchSongs(
+            query,
+            sortOption: sort.option,
+            isAscending: sort.isAscending,
+          );
+
+    if (!mounted) return;
+
+    final fullList = result.valueOrNull ?? <Song>[song];
+    final indexInFull = fullList.indexWhere((s) => s.id == song.id);
+
+    final error = await ref.read(playbackControllerProvider.notifier).playSongs(
+          queueIdStr: 'library_songs',
+          songs: fullList,
+          startIndex: indexInFull < 0 ? 0 : indexInFull,
+          source: const ManualQueueSource(),
+        );
+
+    if (error != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error)),
+      );
+    }
+  }
+
+  void _showContextMenu(Song song) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SongContextMenu(song: song),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final songsAsync = ref.watch(sortedSongsProvider);
+    final state = ref.watch(songsWindowProvider);
     final sortConfig = ref.watch(songSortProvider);
+    final sectionsAsync = ref.watch(songsAlphabeticalIndexProvider);
+    final sections = sectionsAsync.valueOrNull ?? const <(String, int)>[];
     final theme = Theme.of(context);
-    final cacheSize = (150 * MediaQuery.devicePixelRatioOf(context)).round();
 
     return Scaffold(
       body: SafeArea(
@@ -127,90 +185,237 @@ class _SongsScreenState extends ConsumerState<SongsScreen> {
                 ],
               ),
             ),
-            Expanded(
-              child: songsAsync.when(
-                data: (songs) {
-                  if (songs.isEmpty) {
-                    return const Center(
-                      child: Text(
-                          'No songs found. Go to Library to add a folder.'),
-                    );
-                  }
+            Expanded(child: _buildBody(state, sections)),
+          ],
+        ),
+      ),
+    );
+  }
 
-                  final list = ListView.builder(
-                    controller: _scrollController,
-                    itemExtent: _songRowExtent,
-                    itemCount: songs.length,
-                    itemBuilder: (context, index) {
-                      final song = songs[index];
-                      return ListTile(
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: song.coverArtPath != null
-                              ? Image.file(
-                                  File(song.coverArtPath!),
-                                  width: 48,
-                                  height: 48,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: cacheSize,
-                                )
-                              : Container(
-                                  width: 48,
-                                  height: 48,
-                                  color:
-                                      theme.colorScheme.surfaceContainerHighest,
-                                  child: const Icon(
-                                      PhosphorIconsRegular.musicNotes),
-                                ),
-                        ),
-                        title: Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          '${song.trackArtistId.value} • '
-                          '${_formatDuration(song.duration)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(
-                              PhosphorIconsRegular.dotsThreeVertical),
-                          onPressed: () {
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (context) => SongContextMenu(song: song),
-                            );
-                          },
-                        ),
-                        onTap: () {
-                          ref
-                              .read(playbackControllerProvider.notifier)
-                              .playSongs(
-                                queueIdStr: 'library_songs',
-                                songs: songs,
-                                startIndex: index,
-                                source: const ManualQueueSource(),
-                              );
-                        },
-                      );
-                    },
-                  );
+  Widget _buildBody(
+    SongsWindowState state,
+    List<(String, int)> sections,
+  ) {
+    if (state.isInitialLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-                  return AlphabeticalScrollView(
-                    controller: _scrollController,
-                    itemExtent: _songRowExtent,
-                    itemCount: songs.length,
-                    labelBuilder: (index) => songs[index].sectionKey,
-                    child: list,
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, st) => Center(child: Text('Error: $e')),
+    if (state.initialError != null) {
+      return _ErrorState(
+        message: state.initialError!.message,
+        onRetry: () =>
+            ref.read(songsWindowProvider.notifier).retryInitialLoad(),
+      );
+    }
+
+    if (state.totalCount == 0) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Text(
+            'No songs found. Go to Library to add a folder.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    final list = ListView.builder(
+      controller: _scrollController,
+      itemExtent: _songRowExtent,
+      itemCount: state.totalCount,
+      itemBuilder: (context, index) {
+        final song = state.songAt(index);
+        if (song == null) {
+          // Placeholder row: its page is not in the LRU yet. Schedule
+          // the load AFTER the current frame — calling `loadPage`
+          // synchronously from `itemBuilder` mutates provider state
+          // mid-build, which Riverpod forbids.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            ref
+                .read(songsWindowProvider.notifier)
+                .loadPage(index ~/ kSongsWindowPageSize);
+          });
+          return const _SongRowPlaceholder();
+        }
+
+        return _SongRow(
+          song: song,
+          durationLabel: _formatDuration(song.duration),
+          onTap: () => _playFromRow(song),
+          onShowMenu: () => _showContextMenu(song),
+        );
+      },
+    );
+
+    // AlphabeticalScrollView in SQL mode: `sectionIndex` is non-null,
+    // so the widget never falls back to computing a per-index section
+    // key from the full list. `sections` may be empty while the
+    // StreamProvider is still loading — the widget simply renders no
+    // rail in that case, and re-renders with the rail when the emission
+    // lands.
+    return AlphabeticalScrollView(
+      controller: _scrollController,
+      itemExtent: _songRowExtent,
+      sectionIndex: sections,
+      child: list,
+    );
+  }
+}
+
+class _SongRow extends StatelessWidget {
+  const _SongRow({
+    required this.song,
+    required this.durationLabel,
+    required this.onTap,
+    required this.onShowMenu,
+  });
+
+  final Song song;
+  final String durationLabel;
+  final VoidCallback onTap;
+  final VoidCallback onShowMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cacheSize = (150 * MediaQuery.devicePixelRatioOf(context)).round();
+
+    return ListTile(
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: song.coverArtPath != null
+            ? Image.file(
+                File(song.coverArtPath!),
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                cacheWidth: cacheSize,
+              )
+            : Container(
+                width: 48,
+                height: 48,
+                color: theme.colorScheme.surfaceContainerHighest,
+                child: const Icon(PhosphorIconsRegular.musicNotes),
               ),
+      ),
+      title: Text(
+        song.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        '${song.trackArtistId.value} • $durationLabel',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: IconButton(
+        icon: const Icon(PhosphorIconsRegular.dotsThreeVertical),
+        onPressed: onShowMenu,
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+/// Static skeleton for rows whose page is not yet in the LRU. No
+/// animation, no `CustomPainter`, no shimmer: the intent is a low-cost
+/// visual placeholder that keeps the list's scroll physics intact and
+/// signals "loading" without burning CPU on the target hardware.
+class _SongRowPlaceholder extends StatelessWidget {
+  const _SongRowPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final baseColor =
+        theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: baseColor,
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  height: 12,
+                  width: 180,
+                  decoration: BoxDecoration(
+                    color: baseColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 10,
+                  width: 120,
+                  decoration: BoxDecoration(
+                    color: baseColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 48),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              PhosphorIconsRegular.warning,
+              size: 48,
+              color: theme.colorScheme.error,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Could not load library.',
+              style: theme.textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(PhosphorIconsRegular.arrowsClockwise),
+              label: const Text('Retry'),
             ),
           ],
         ),
