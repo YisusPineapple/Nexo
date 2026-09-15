@@ -31,6 +31,21 @@
 // deliberately inlines the exact SQL that production will use (route A) and
 // mirrors it via `customSelect(...).watch()` + `SongMapper`, so that the
 // numbers are meaningful regardless of whether production has landed yet.
+//
+// CRITICAL METHODOLOGY NOTE (added after a real run on 2026-09-14 crashed
+// §5.3 with "index idx_songs_title_lower already exists"):
+//
+// `AppDatabase.schemaVersion` is 16, and `onCreate` now calls
+// `_createSortIndexes()` directly (this landed as part of implementing the
+// very feature this benchmark is supposed to justify). That means ANY fresh
+// `AppDatabase(NativeDatabase.memory())` — including the one §5.1 opens for
+// its "NO indexes" baseline — is born with all six sort indexes already in
+// place. §5.1's baseline was therefore NOT measuring a no-index scenario;
+// it was silently measuring the same indexed scenario §5.3 claims to be the
+// first to measure. §5.1's `setUp` now explicitly DROPs the six indexes
+// right after opening the database, before seeding, to restore a genuine
+// no-index baseline. §5.3's index creation now uses `IF NOT EXISTS` so it
+// does not collide with the indexes `onCreate` already added.
 
 @Tags(['benchmark'])
 @Skip('Run explicitly: flutter test --tags=benchmark --run-skipped -r expanded '
@@ -50,6 +65,30 @@ import 'package:nexo/domain/entities/audio_format.dart';
 import 'package:nexo/domain/entities/song.dart';
 
 const _mapper = SongMapper();
+
+/// Every index `_createSortIndexes()` in `app_database.dart` creates. Kept
+/// as a single source of truth here so §5.1's baseline-restoration DROP
+/// statements can never silently drift out of sync with what `onCreate`
+/// actually adds.
+const _allSortIndexNames = [
+  'idx_songs_title_lower',
+  'idx_songs_artist_lower',
+  'idx_songs_album_lower',
+  'idx_songs_year',
+  'idx_songs_duration',
+  'idx_songs_date_added',
+];
+
+/// Drops every sort index `onCreate` bakes into a fresh `AppDatabase`, so a
+/// benchmark group that wants a genuine "no index" baseline actually gets
+/// one. Without this, `AppDatabase(NativeDatabase.memory())` is born
+/// pre-indexed (schema v16), and a baseline test silently measures the
+/// indexed scenario instead.
+Future<void> _dropAllSortIndexes(AppDatabase db) async {
+  for (final name in _allSortIndexNames) {
+    await db.customStatement('DROP INDEX IF EXISTS $name;');
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Realistic title generator
@@ -202,8 +241,13 @@ void main() {
 
     setUp(() async {
       db = AppDatabase(NativeDatabase.memory());
-      // Migration runs lazily on first query.
+      // Migration runs lazily on first query. Since schemaVersion 16's
+      // onCreate bakes in all six sort indexes, this DB is NOT actually
+      // index-free at this point — see the CRITICAL METHODOLOGY NOTE at
+      // the top of this file. Drop them explicitly to restore a genuine
+      // "no index" baseline before seeding.
       await db.customSelect('SELECT 1').get();
+      await _dropAllSortIndexes(db);
       await _seedSongs(db, 15000);
     });
 
@@ -219,6 +263,8 @@ void main() {
       print('\n══════════════════════════════════════════════════════════════');
       print('§5.1 — LIMIT/OFFSET pagination over $n songs (NO indexes)');
       print('Machine: dev box (NOT the Helio G85 / Pentium E5800 target).');
+      print('Sort indexes explicitly DROPPED after onCreate to restore a');
+      print('genuine no-index baseline (onCreate bakes them in as of v16).');
       print('Per §2.1.3, extrapolate ×3–5 for the target hardware.');
       print('══════════════════════════════════════════════════════════════');
 
@@ -276,6 +322,9 @@ void main() {
       print('§5.2 — No-distinct re-emission cost (adverse scenario)');
       print('  3,500 songs, 4 subscriptions, 3,500 sequential UPDATEs');
       print('  Simulates fresh scan + background cover extraction + UI open.');
+      print('  NOTE: this group runs against the schema as shipped (sort');
+      print('  indexes present via onCreate) — that matches production and');
+      print('  is NOT affected by the §5.1/§5.3 baseline methodology issue.');
       print('══════════════════════════════════════════════════════════════');
 
       // The 4 LRU pages of Sprint9_P0_T2.md §2.4, worst case.
@@ -387,16 +436,16 @@ void main() {
       await db.customSelect('SELECT 1').get();
       await _seedSongs(db, 15000);
 
-      // The exact DDL that migration v15 → v16 would emit under route A+A.1.
-      // Under route B, the same indexes are also required for the keyset
-      // WHERE clause to hit a B-tree rather than a full scan — so these
-      // indexes are needed regardless of which route wins. This benchmark
-      // only answers "does OFFSET-over-index meet the §2.1.3 threshold".
+      // NOTE: as of schema v16, onCreate already calls _createSortIndexes(),
+      // so these indexes exist on this DB before this statement even runs.
+      // IF NOT EXISTS makes this idempotent regardless — it mirrors the
+      // exact migration DDL either way, and stays correct if onCreate's
+      // behavior ever changes.
       await db.customStatement(
-        'CREATE INDEX idx_songs_title_lower ON songs (LOWER(title));',
+        'CREATE INDEX IF NOT EXISTS idx_songs_title_lower ON songs (LOWER(title));',
       );
       await db.customStatement(
-        'CREATE INDEX idx_songs_artist_lower ON songs (LOWER(track_artist_id));',
+        'CREATE INDEX IF NOT EXISTS idx_songs_artist_lower ON songs (LOWER(track_artist_id));',
       );
 
       // ANALYZE primes SQLite's planner statistics so it picks the index
@@ -439,9 +488,9 @@ void main() {
       }
 
       print('\n──────────────────────────────────────────────────────────────');
-      print('Compare against §5.1 baseline (same query, NO indexes):');
-      print('  LOWER(title) OFFSET 10000:  §5.1 = 38.12 ms → §5.3 = ?');
-      print('  LOWER(artist) OFFSET 10000: §5.1 = 37.77 ms → §5.3 = ?');
+      print('Compare against the §5.1 baseline from THIS run (real numbers,');
+      print('sort indexes genuinely dropped for that group) — not the');
+      print('previously-documented (fabricated) §5.1 figures.');
       print('');
       print('Decision rule extended (per user-approved §5.3 criterion):');
       print('  §5.3 median OFFSET 10000 <  5ms  → route A + A.1');

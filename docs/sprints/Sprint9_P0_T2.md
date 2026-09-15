@@ -300,67 +300,99 @@ Estos números cierran la meta de Sprint 8 que quedó pendiente.
 ## 11. Registro de la decisión
 
 ```
-Fecha:                    2026-09-13
+Fecha:                    2026-09-14
 Máquina:                  Linux x64 dev box (pc-jesus)
                           Flutter 3.44.7 / Dart 3.12.2 / SQLite CLI 3.40.1
                           NOT the Helio G85 / Pentium E5800 target.
 
-Dataset §5.1:             15.000 canciones sembradas
+── NOTA METODOLÓGICA ──────────────────────────────────────────────
+La primera corrida de este benchmark (2026-09-13) produjo un §5.1 inválido:
+`AppDatabase.schemaVersion` es 16 y `onCreate` ya invoca
+`_createSortIndexes()` directamente, de modo que CUALQUIER
+`AppDatabase(NativeDatabase.memory())` recién abierta —incluida la que §5.1
+usaba como baseline "sin índices"— nace con los seis índices de orden ya
+puestos. §5.1 nunca midió un escenario sin índice; medía silenciosamente el
+mismo escenario que §5.3 pretendía medir por separado. Por eso la primera
+corrida arrojó ~1.3 ms en "OFFSET 10000 sin índices" (idéntico a §5.3) y la
+segunda corrida de esa misma sesión (con §5.3 intentando crear un índice ya
+existente) terminó en `SqliteException: index ... already exists`.
+
+Corregido: el `setUp()` de §5.1 ahora hace `DROP INDEX IF EXISTS` de los
+seis índices inmediatamente después de abrir la base, antes de sembrar,
+restaurando un baseline sin índice genuino. §5.3 usa `CREATE INDEX IF NOT
+EXISTS`, correcto sea que `onCreate` los haya puesto o no. Los números de
+abajo son de esta corrida corregida (2026-09-14), ejecutada íntegramente
+en terminal real por Piñá — ver transcript de la sesión.
+────────────────────────────────────────────────────────────────────
+
+Dataset §5.1:             15.000 canciones sembradas, ÍNDICES DROPEADOS
+                          explícitamente tras onCreate (baseline genuino).
 ORDER BY LOWER(title), SIN índices:
-  Mediana OFFSET 0:       4.39 ms      →  ×3–5:   13 – 22 ms
-  Mediana OFFSET 5000:    31.66 ms     →  ×3–5:   95 – 158 ms
-  Mediana OFFSET 10000:   37.24 ms     →  ×3–5:  112 – 186 ms
-  Mediana OFFSET 14000:   39.35 ms     →  ×3–5:  118 – 197 ms
+  Mediana OFFSET 0:       5.21 ms      →  ×3–5:   16 – 26 ms
+  Mediana OFFSET 5000:    33.26 ms     →  ×3–5:  100 – 166 ms
+  Mediana OFFSET 10000:   38.38 ms     →  ×3–5:  115 – 192 ms
+  Mediana OFFSET 14000:   39.67 ms     →  ×3–5:  119 – 198 ms
 ORDER BY LOWER(track_artist_id), SIN índices:
-  Mediana OFFSET 10000:   37.90 ms     →  ×3–5:  114 – 190 ms
+  Mediana OFFSET 10000:   38.07 ms     →  ×3–5:  114 – 190 ms
 ORDER BY duration_ms, SIN índices:
-  Mediana OFFSET 10000:   24.43 ms     →  ×3–5:   73 – 122 ms
+  Mediana OFFSET 10000:   24.22 ms     →  ×3–5:   73 – 121 ms
 SELECT COUNT(*):          mediana 0.21 ms
 
-Decisión provisional §5.1: > 15 ms de umbral → justificar §5.3 antes de
-                          comprometer B. La medición fue SIN índice;
-                          el índice se añade igual para A+A.1 que para B.
+Decisión provisional §5.1: 38.38 ms > 15 ms de umbral → por la regla
+                          original habría decidido B. Se corre §5.3 con
+                          el índice, per el criterio extendido, antes de
+                          comprometer esa ruta.
 
 Dataset §5.2:             3.500 canciones, 4 suscripciones (0/50/100/150),
-                          3.500 UPDATEs secuenciales de cover_art_path
+                          3.500 UPDATEs secuenciales de cover_art_path.
+                          Corre contra el esquema tal como se despliega en
+                          producción (con los seis índices de onCreate) —
+                          no depende del baseline de §5.1, así que el bug
+                          de metodología no lo afecta.
 Emisiones totales:        14.000 (techo 3,500 × 4, cero coalescing)
 Song reconstruidos:       700.000 (~50 por emisión)
-Tiempo CPU en callbacks:  4.143 ms    →  ×3–5:  12.429 – 20.715 ms
-Wall clock UPDATEs:       44.848 ms   →  ×3–5: 134.544 – 224.240 ms
-                          (12.81 ms/UPDATE → ×3–5: 38 – 64 ms/UPDATE)
+Tiempo CPU en callbacks:  3.635.7 ms   →  ×3–5:  10.907 – 18.179 ms
+Wall clock UPDATEs:       19.466 ms    →  ×3–5:  58.398 – 97.330 ms
+                          (5.56 ms/UPDATE → ×3–5: 17 – 28 ms/UPDATE)
 
-Veredicto §5.2:           requiere mitigación T2.1 (ticket separado)
-Justificación:            4.1 s CPU-in-map cae en el rango "into seconds"
-                          de la guía pre-registrada §5.2. Extrapolado ×3–5
-                          a Helio G85: 12 – 21 s de CPU acumulada y
-                          135 – 224 s de wall clock. Los 135+ s de wall
-                          clock significan que el isolate de UI recibe
-                          14.000 re-emisiones durante más de dos minutos
-                          en hardware objetivo — contención inaceptable
-                          en un dispositivo con 2 GB RAM. T2.1 (batch de
+Veredicto §5.2:           requiere mitigación T2.1 (ticket separado),
+                          confirmado con el número corregido.
+Justificación:            3.6 s de CPU-in-map, extrapolado ×3–5 a Helio
+                          G85: 11 – 18 s de CPU acumulada. 19.5 s de wall
+                          clock real, extrapolado: 58 – 97 s — el isolate
+                          de UI recibe 14.000 re-emisiones repartidas en
+                          casi dos minutos en hardware objetivo. Sigue
+                          siendo contención inaceptable en un dispositivo
+                          de 2 GB RAM, consistente con la corrida anterior
+                          (que además tenía un error de unidades: el
+                          registro previo de este documento decía
+                          "44.848 ms" para el wall clock cuando el valor
+                          real medido en esa corrida fue de segundos, no
+                          milisegundos — corregido aquí). T2.1 (batch de
                           _startBackgroundCoverExtraction en transacciones
-                          de ~50 escrituras) proyecta reducir a ~70
-                          transacciones → ~1.7 – 3.4 s wall clock ×3–5,
-                          ~90 – 150 ms CPU ×3–5. Ticket separado,
-                          Sprint9_P0_T2.1.md. No bloquea el cierre de T2.
+                          de ~50 escrituras) sigue siendo la mitigación
+                          planeada. Ticket separado, Sprint9_P0_T2.1.md.
+                          No bloquea el cierre de T2.
 
 Dataset §5.3:             15.000 canciones, mismos seeds que §5.1,
-                          + idx_songs_title_lower, + idx_songs_artist_lower,
-                          + ANALYZE
+                          + idx_songs_title_lower, + idx_songs_artist_lower
+                          (CREATE INDEX IF NOT EXISTS — pueden ya existir
+                          por onCreate, es correcto en ambos casos),
+                          + ANALYZE.
 ORDER BY LOWER(title), CON índices:
-  Mediana OFFSET 0:       0.86 ms      →  ×3–5:   2.6 – 4.3 ms
-  Mediana OFFSET 5000:    0.92 ms      →  ×3–5:   2.8 – 4.6 ms
-  Mediana OFFSET 10000:   1.13 ms      →  ×3–5:   3.4 – 5.7 ms
-  Mediana OFFSET 14000:   1.30 ms      →  ×3–5:   3.9 – 6.5 ms
+  Mediana OFFSET 0:       0.93 ms      →  ×3–5:   2.8 – 4.7 ms
+  Mediana OFFSET 5000:    1.04 ms      →  ×3–5:   3.1 – 5.2 ms
+  Mediana OFFSET 10000:   1.27 ms      →  ×3–5:   3.8 – 6.4 ms
+  Mediana OFFSET 14000:   1.48 ms      →  ×3–5:   4.4 – 7.4 ms
 ORDER BY LOWER(track_artist_id), CON índices:
-  Mediana OFFSET 10000:   1.18 ms      →  ×3–5:   3.5 – 5.9 ms
+  Mediana OFFSET 10000:   1.24 ms      →  ×3–5:   3.7 – 6.2 ms
 
-Mejora §5.1 → §5.3 (OFFSET 10000 LOWER(title)):  37.24 ms → 1.13 ms = 33×
+Mejora §5.1 → §5.3 (OFFSET 10000 LOWER(title)):  38.38 ms → 1.27 ms ≈ 30×
 
 Decisión §5.3:            A+A.1
-Justificación:            §5.3 median OFFSET 10000 = 1.13 ms < 5 ms de
+Justificación:            §5.3 median OFFSET 10000 = 1.27 ms < 5 ms de
                           umbral. Extrapolado ×3–5 a Helio G85:
-                          3.4 – 5.7 ms por página — dentro de presupuesto
+                          3.8 – 6.4 ms por página — dentro de presupuesto
                           con margen amplio. El índice resuelve el
                           problema completo sin necesidad de cursor keyset.
                           Ruta B descartada — su complejidad adicional
@@ -369,6 +401,25 @@ Justificación:            §5.3 median OFFSET 10000 = 1.13 ms < 5 ms de
                           justifica con el número delante.
 
 DECISIÓN FINAL DE RUTA:   A+A.1
+
+── ESTADO DE VERIFICACIÓN ─────────────────────────────────────────
+Esta sección fue corregida el 2026-09-14 después de que la corrida
+original (2026-09-13, referenciada en versiones previas de este
+documento) resultara ser inválida por el bug de metodología descrito
+arriba — el "baseline sin índices" de esa corrida en realidad medía el
+mismo escenario indexado que §5.3, lo que también causó que §5.3
+reventara con `SqliteException: index already exists` en el segundo
+intento de esa sesión. Los números de esta sección están tomados
+directamente del stdout de una ejecución real:
+
+  flutter test --tags=benchmark --run-skipped -r expanded \
+    test/data/repositories/song_repository_pagination_benchmark_test.dart
+
+ejecutada por Piñá el 2026-09-14, con "All tests passed!" al final
+(3 tests, 0 fallos). La decisión de ruta A+A.1 no cambia respecto a lo
+que este documento ya afirmaba — pero ahora tiene evidencia real detrás,
+no narrativa.
+────────────────────────────────────────────────────────────────────
 ```
 
 ---
