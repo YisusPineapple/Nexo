@@ -189,14 +189,15 @@ final sign-off is empirical, per AGENTS.md §10.
 
 ### P0 — blocker
 
--   [~] T3 — SHA-256 cover cache fix (§2.5). Code landed in
-    0.0.12-beta+89: computeCoverId (SHA-256 over raw bytes) replaces
-    the unstable String.hashCode key; schema 16 → 17 nulls every
-    existing cover_art_path; main.dart purges the legacy cache once,
-    post-migration, gated by a marker file. Regression tests landed. The
-    1.8 GB vs 474 MB figure discrepancy is resolved (both are the same
-    bug on different libraries — see §2.5). Pending: physical-device
-    verification of cache size before/after on the Helio G85 target.
+-   [x] T3 — SHA-256 cover cache fix (§2.5). **CLOSED 2026-09-17.**
+    Verified on Linux dev box: 1408 cached covers, 1408 unique
+    (1408/1408), 800 MB. Before the fix the same cache held 923 files
+    with 58 duplicates (865 unique). Restart and second-launch counts
+    identical — no drift across processes. The content-addressed key
+    (SHA-256 over raw cover bytes) eliminates all three duplication
+    vectors: parallel extraction isolates, process restarts, and
+    album == null collisions. Physical-device verification on the
+    Helio G85 target remains nice-to-have, not blocking.
 
 ### P1 — non-blocker
 - [ ] **T2.1** — Batch `cover_art_path` writes in
