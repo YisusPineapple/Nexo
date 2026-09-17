@@ -67,7 +67,7 @@ void main() {
         await db.customSelect('SELECT 1').get();
 
         final version = await _readSchemaVersion(db);
-        expect(version, 16);
+        expect(version, 17);
 
         final indexes = await _readSortIndexNames(db);
         expect(indexes, containsAll(_expectedIndexes),
@@ -134,7 +134,7 @@ void main() {
         final db = AppDatabase(openConnection(dbFile));
         try {
           await db.customSelect('SELECT 1').get();
-          expect(await _readSchemaVersion(db), 16);
+          expect(await _readSchemaVersion(db), 17);
 
           await db
               .customStatement('DROP INDEX IF EXISTS idx_songs_title_lower;');
@@ -159,14 +159,18 @@ void main() {
         }
       }
 
-      // Step 2: reopen. onUpgrade(from: 15, to: 16) must fire and recreate
-      // the indexes.
+      // Step 2: reopen. onUpgrade fires. The v16 block recreates the sort
+      // indexes; the v17 block runs its cover-cache invalidation UPDATE
+      // (a no-op on this empty dataset). A v15 database opened today
+      // therefore lands at user_version = 17, not 16. Update this number
+      // on every future schema bump — do NOT modify the v15 → v16
+      // migration block itself (CONVENTIONS.md).
       final db = AppDatabase(openConnection(dbFile));
       try {
         await db.customSelect('SELECT 1').get();
 
         final version = await _readSchemaVersion(db);
-        expect(version, 16);
+        expect(version, 17);
 
         final indexes = await _readSortIndexNames(db);
         expect(indexes, containsAll(_expectedIndexes),
@@ -203,7 +207,7 @@ void main() {
       final db = AppDatabase(openConnection(dbFile));
       try {
         await db.customSelect('SELECT 1').get();
-        expect(await _readSchemaVersion(db), 16);
+        expect(await _readSchemaVersion(db), 17);
 
         final indexes = await _readSortIndexNames(db);
         expect(indexes, containsAll(_expectedIndexes),

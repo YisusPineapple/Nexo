@@ -221,14 +221,15 @@ void main() {
         // This test verifies the T1 migration (SongId TEXT -> INTEGER,
         // FK remap, FTS rebuild). That migration is the `if (from < 15)`
         // block in app_database.dart, and it still runs unchanged. Sprint 9
-        // / T2 added `if (from < 16)` (sort indexes), so a v14 database
-        // opened today lands at user_version = 16, not 15. The assertion
+        // / T2 added `if (from < 16)` (sort indexes) and T3 added
+        // `if (from < 17)` (cover cache invalidation), so a v14 database
+        // opened today lands at user_version = 17, not 15. The assertion
         // below reflects the current schemaVersion; if a future schema
-        // bumps to 17, update this number — do NOT touch the v14 -> v15
+        // bumps to 18, update this number — do NOT touch the v14 -> v15
         // migration block itself (CONVENTIONS.md).
         final version =
             await db.customSelect('PRAGMA user_version').getSingle();
-        expect(version.data['user_version'], 16);
+        expect(version.data['user_version'], 17);
 
         // --- Songs: 3 rows, stable integer ids assigned ---
         final songs = await db.select(db.songs).get();

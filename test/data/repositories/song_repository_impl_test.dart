@@ -1,4 +1,6 @@
-import 'package:drift/drift.dart';
+import 'dart:io';
+
+import 'package:drift/drift.dart' hide isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -6,6 +8,7 @@ import 'package:nexo/core/error/failures.dart';
 import 'package:nexo/data/local/app_database.dart';
 import 'package:nexo/data/local/mappers/song_mapper.dart';
 import 'package:nexo/data/repositories/song_repository_impl.dart';
+import 'package:nexo/data/sources/taglib_metadata_datasource.dart';
 import 'package:nexo/domain/entities/audio_format.dart';
 import 'package:nexo/domain/entities/song.dart';
 import 'package:nexo/domain/entities/song_sort_option.dart';
@@ -513,6 +516,81 @@ void main() {
           emissions.last.firstWhere((s) => s.filePath == '/music/a.mp3');
       expect(updated.lyricOffsetMs, 500);
       await sub.cancel();
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // T3 regression suite — content-addressed cover cache key.
+  //
+  // The pre-T3 implementation derived the cache filename from
+  // `String.hashCode`, which is unstable across isolates and across
+  // process restarts. The fix is `computeCoverId`, a SHA-256 over the
+  // raw cover bytes. See ARCHITECTURE.md §2.5.
+  //
+  // The first three cases below are pure-function checks on the hash.
+  // The last one drives the hash through the real `cacheCoverArt`
+  // write path and asserts that two identical byte blobs land at the
+  // SAME on-disk path — which is exactly the property the pre-T3 code
+  // failed to provide.
+  // ---------------------------------------------------------------------
+  group('computeCoverId (T3: SHA-256 stable cover cache key)', () {
+    test('identical cover bytes produce an identical coverId', () {
+      final bytes = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4]);
+      expect(computeCoverId(bytes), computeCoverId(bytes));
+    });
+
+    test('different cover bytes produce different coverIds', () {
+      final a = Uint8List.fromList([1, 2, 3]);
+      final b = Uint8List.fromList([4, 5, 6]);
+      expect(computeCoverId(a), isNot(equals(computeCoverId(b))));
+    });
+
+    test('coverId is a 64-char lowercase hex string (SHA-256)', () {
+      final id = computeCoverId(Uint8List.fromList([0x42]));
+      expect(id.length, 64);
+      expect(RegExp(r'^[0-9a-f]{64}$').hasMatch(id), isTrue);
+    });
+
+    test(
+        'two songs with identical coverBytes resolve to the same on-disk '
+        'coverArtPath via cacheCoverArt', () async {
+      final tmpDir = await Directory.systemTemp.createTemp('nexo_t3_test_');
+      try {
+        const datasource = TagLibMetadataDatasource();
+        // Bytes chosen to be visually distinct from empty/null so that a
+        // regression that wrote a zero-length file would not accidentally
+        // pass this test via the `file.exists()` short-circuit.
+        final bytes = Uint8List.fromList(
+          const [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+        );
+
+        final coverIdA = computeCoverId(bytes);
+        final coverIdB = computeCoverId(bytes);
+
+        final pathA = await datasource.cacheCoverArt(
+          coverBytes: bytes,
+          cacheDirectory: tmpDir.path,
+          coverId: coverIdA,
+        );
+        final pathB = await datasource.cacheCoverArt(
+          coverBytes: bytes,
+          cacheDirectory: tmpDir.path,
+          coverId: coverIdB,
+        );
+
+        expect(pathA, isNotNull);
+        expect(
+          pathA,
+          pathB,
+          reason: 'Two songs with byte-identical covers must share one '
+              'cached file. This is the core content-addressing property '
+              'that String.hashCode could not provide.',
+        );
+      } finally {
+        if (await tmpDir.exists()) {
+          await tmpDir.delete(recursive: true);
+        }
+      }
     });
   });
 }
