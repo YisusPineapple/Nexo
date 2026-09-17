@@ -4,7 +4,7 @@ description: >-
   interface, smooth transitions, and extreme optimization for devices
   with limited resources. FOSS & AI-Maintained.
 publish_to: 'none'
-version: 0.0.12-beta+88
+version: 0.0.12-beta+90
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -21,6 +21,7 @@ dev_dependencies:
 dependencies:
   flutter:
     sdk: flutter
+  crypto: ^3.0.7
   audio_metadata_reader: ^1.7.0
   flutter_taglib:
     git:

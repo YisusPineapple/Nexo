@@ -45,9 +45,24 @@ Future<void> main() async {
 
     final database = AppDatabase(openConnection(dbFile));
 
+    // Reading prefs here forces Drift to lazily open the database and run
+    // its migration on first query. Any post-migration filesystem side
+    // effect MUST come after this point — see the T3 Phase B call below.
     final prefsRepo = AppPreferencesRepositoryImpl(database);
     final prefsResult = await prefsRepo.getPreferences();
     final initialPrefs = prefsResult.valueOrNull ?? AppPreferences.defaults;
+
+    // T3 Phase B: purge the legacy cover art cache after the schema 16 → 17
+    // migration has landed. This is filesystem work deliberately kept OUT of
+    // the Drift migration (SQL transactions don't cover the filesystem — see
+    // the `if (from < 17)` block in `app_database.dart`). One-shot via a
+    // marker file: running it on every boot would delete covers that a scan
+    // has legitimately regenerated, leaving the DB pointing at missing
+    // files. Best-effort: never aborts the app.
+    await _purgeLegacyCoverCacheOnce(
+      coverArtDir: coverArtDir,
+      supportDir: supportDir.path,
+    );
 
     if (initialPrefs.performanceProfile == PerformanceProfile.eco) {
       PaintingBinding.instance.imageCache.maximumSizeBytes = 15 * 1024 * 1024;
@@ -105,6 +120,77 @@ Future<void> main() async {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// One-shot wrapper around [_purgeCoverArtCache].
+///
+/// The schema 16 → 17 migration nulls every `cover_art_path` in the DB, so
+/// only the FIRST boot after that migration actually needs the on-disk
+/// cache wiped — subsequent boots must NOT re-purge, because by then a
+/// scan may have legitimately regenerated SHA-256-keyed covers whose
+/// paths the DB is now pointing at.
+///
+/// The marker file lives beside the database, in the app support
+/// directory. It is intentionally a plain file, not a row in the DB: the
+/// purge is a filesystem concern, and adding state to [AppDatabase] would
+/// couple the persistence layer to filesystem paths (see AGENTS.md §2 on
+/// the isolation this project enforces).
+Future<void> _purgeLegacyCoverCacheOnce({
+  required String coverArtDir,
+  required String supportDir,
+}) async {
+  final marker = File(p.join(supportDir, 'cover_cache.v17.purged'));
+
+  try {
+    if (await marker.exists()) {
+      return;
+    }
+  } catch (e) {
+    // If we cannot even stat the marker, fall through and attempt the
+    // purge anyway — worst case we purge a second time on next boot.
+    CrashLogger.logEvent(
+      'cover_cache.purge_marker_stat_failed',
+      'Could not stat purge marker at ${marker.path}: $e',
+    );
+  }
+
+  await _purgeCoverArtCache(coverArtDir);
+
+  try {
+    await marker.writeAsString(
+      'purged_at=${DateTime.now().toUtc().toIso8601String()}\n',
+    );
+  } catch (e) {
+    CrashLogger.logEvent(
+      'cover_cache.purge_marker_write_failed',
+      'Could not write purge marker at ${marker.path}: $e',
+    );
+  }
+}
+
+/// Best-effort delete of the cover art cache directory.
+///
+/// NEVER throws: a failure to purge the cache must never abort the app.
+/// Idempotent on a missing directory (returns without logging an error).
+/// Also mirrors what Settings → "Clear Cover Art Cache" does — same
+/// behavior, same fail-safe posture.
+Future<void> _purgeCoverArtCache(String directoryPath) async {
+  try {
+    final dir = Directory(directoryPath);
+    if (!await dir.exists()) {
+      return;
+    }
+    await dir.delete(recursive: true);
+    CrashLogger.logEvent(
+      'cover_cache.purge',
+      'Legacy cover art cache purged at $directoryPath.',
+    );
+  } catch (e) {
+    CrashLogger.logEvent(
+      'cover_cache.purge_failed',
+      'Failed to purge cover art cache at $directoryPath: $e',
     );
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
@@ -22,6 +23,29 @@ import '../local/converters/string_list_converter.dart';
 import '../local/mappers/song_mapper.dart';
 import '../sources/audio_file_scanner.dart';
 import '../sources/taglib_metadata_datasource.dart';
+
+/// Content-addressed cache key for a cover image.
+///
+/// SHA-256 over the raw image bytes, lowercase hex. This is stable
+/// across isolates AND across process restarts, so two songs whose
+/// audio files embed the exact same image share one cached `.jpg`.
+///
+/// The previous implementation used
+/// `'${album}_${albumArtist}'.hashCode.toRadixString(16)` — Dart's
+/// `String.hashCode` is NOT stable across isolates or across runs
+/// (the seed is per-isolate and per-process), which caused:
+///   * duplicate files written by parallel extraction isolates during
+///     a single scan (each isolate had its own seed),
+///   * new duplicates on every app restart (new seed each process),
+///   * collisions when `album == null` (every album-less song hashed
+///     the literal `'unknown_<artist>'`, potentially many distinct
+///     covers mapped to one file).
+///
+/// See ARCHITECTURE.md §2.5 for the full diagnosis and the measured
+/// impact on the target device.
+String computeCoverId(Uint8List coverBytes) {
+  return sha256.convert(coverBytes).toString();
+}
 
 sealed class _IndexingMessage {
   const _IndexingMessage();
@@ -152,14 +176,14 @@ Future<Song?> _buildSong(
     replayGainAlbumDb = extracted.replayGainAlbumDb;
 
     if (extractCover && extracted.coverArtBytes != null) {
-      final coverHash =
-          '${album ?? 'unknown'}_${extracted.albumArtist ?? artist}'
-              .hashCode
-              .toRadixString(16);
+      // T3: content-addressed cache key. SHA-256 over the raw image
+      // bytes is stable across isolates and across runs — see
+      // [computeCoverId]'s docstring and ARCHITECTURE.md §2.5 for why
+      // the previous `String.hashCode`-based key was wrong.
       coverArtPath = await metadataReader.cacheCoverArt(
         coverBytes: extracted.coverArtBytes!,
         cacheDirectory: coverArtCacheDirectory,
-        coverId: coverHash,
+        coverId: computeCoverId(extracted.coverArtBytes!),
       );
     }
   } catch (e) {

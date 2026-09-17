@@ -67,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -163,8 +163,57 @@ class AppDatabase extends _$AppDatabase {
           if (from < 16) {
             await _createSortIndexes();
           }
+          if (from < 17) {
+            await _invalidateLegacyCoverCache();
+          }
         },
       );
+
+  /// Schema 17 migration: invalidates every cached cover art path.
+  ///
+  /// The pre-17 cover cache used `String.hashCode` as the filename key
+  /// (see `song_repository_impl.dart`'s `_buildSong`). Dart's
+  /// `String.hashCode` is NOT stable across isolates or across process
+  /// restarts — the seed is per-isolate and per-process — so every
+  /// cached path in the DB is untrustworthy: some point at files that
+  /// were never written on this boot, others point at duplicates that
+  /// were written by parallel extraction isolates, and every restart
+  /// produced a fresh round of names. Full diagnosis in
+  /// ARCHITECTURE.md §2.5.
+  ///
+  /// The fix (`computeCoverId` = SHA-256 over the raw cover bytes) makes
+  /// new writes stable, but does nothing for the rows already in the DB.
+  /// This migration resets them so the background extractor re-populates
+  /// the table with SHA-256-keyed paths on the next cycle.
+  ///
+  /// WHERE cover_art_path IS NOT NULL is deliberate:
+  ///   * A row with `has_no_cover = 1` already has `cover_art_path = NULL`
+  ///     by invariant (the extractor writes both together). It will not
+  ///     match the WHERE, so it is not re-queued for extraction — that
+  ///     would waste I/O on songs we already know have no cover.
+  ///   * A row with `cover_art_path = NULL` and `has_no_cover = 0` is
+  ///     already scheduled by the extractor's normal cycle and needs no
+  ///     help from this migration.
+  ///   * A row with both `has_no_cover = 1` AND `cover_art_path IS NOT
+  ///     NULL` is a pre-existing inconsistency (should not happen, but
+  ///     has no invariant enforcing it). Clearing its cover path and
+  ///     resetting `has_no_cover = 0` is the correct behavior: retry
+  ///     extraction, because the mere existence of a path implies the
+  ///     extractor once succeeded.
+  ///
+  /// Filesystem work is deliberately NOT part of this block. `onUpgrade`
+  /// runs inside a SQL transaction and the filesystem is not party to
+  /// it — if a later statement in the same transaction fails, the SQL
+  /// rolls back but any file deletion would already have happened,
+  /// leaving the DB pointing at covers that no longer exist. The cache
+  /// purge is therefore a separate, post-commit, best-effort step in
+  /// `main.dart` (Phase B), gated by a one-shot marker file.
+  Future<void> _invalidateLegacyCoverCache() async {
+    await customStatement(
+      'UPDATE songs SET cover_art_path = NULL, has_no_cover = 0 '
+      'WHERE cover_art_path IS NOT NULL;',
+    );
+  }
 
   /// Schema 15 migration: replaces the previous `SongId = file path` scheme
   /// with a stable `INTEGER PRIMARY KEY` assigned by SQLite.
