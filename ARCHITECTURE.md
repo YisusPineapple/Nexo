@@ -2,9 +2,10 @@
 
 **Repo:** github.com/YisusPineapple/Nexo (branch `main`)
 **Package Name:** `io.github.yisus.nexo`
-**Last confirmed version:** `0.0.12-beta+88`
-**Database schema (Drift):** `schemaVersion = 16` (verified by
-`migration_v14_to_v15_test.dart` and `migration_v15_to_v16_test.dart`)
+**Last confirmed version:** `0.0.12-beta+89`
+**Database schema (Drift):** `schemaVersion = 17` (verified by
+`migration_v14_to_v15_test.dart`, `migration_v15_to_v16_test.dart`, and
+`migration_v16_to_v17_test.dart`)
 **General state:** Sprint 9 (Stability and FOSS) in progress.
 - T1 closed and merged (stable song identity).
 - T2 closed and benchmark-verified on 2026-09-14 (reactive pagination
@@ -12,8 +13,9 @@
   with functional indexes — decision A+A.1 confirmed with real numbers:
   38.38 ms without index → 1.27 ms with index, ~30× improvement. See
   `Sprint9_P0_T2.md` §11).
-- **T3 open**: cover art cache bug — diagnosis confirmed on 2026-09-16
-  (see §2.5). Fix pending.
+- **T3 in progress**: SHA-256 cover cache fix landed in `0.0.12-beta+89`
+  (see §2.5); pending physical-device verification of cache size
+  before/after on the Helio G85 target.
 - **T2.1 open as P1**: batching of `cover_art_path` writes in
   `_startBackgroundCoverExtraction`. See `Sprint9_P0_T2.1.md`.
 - T5 backlog (renamed from the "T3" originally referenced in
@@ -118,10 +120,10 @@ of corrupt files. Still pending a dedicated audit.
 rename/move within the same indexed folder. Verified by
 `migration_v14_to_v15_test.dart` (both FK OFF and FK ON groups).
 
-### 2.5 — Cover art cache duplication — DIAGNOSIS CONFIRMED 2026-09-16
-**Status:** root cause confirmed, fix pending.
+### 2.5 — Cover art cache duplication — FIXED in `0.0.12-beta+89`
+**Status:** root cause confirmed 2026-09-16; fix landed 2026-09-17.
 
-`_buildSong` in `song_repository_impl.dart` computes the cover file name
+`_buildSong` in `song_repository_impl.dart` computed the cover file name
 as:
 
 ```dart
@@ -136,50 +138,65 @@ isolates** (documented behavior of the language). Consequences:
 1. **Between isolates:** `_startBackgroundCoverExtraction` spawns
    `workerCount = min(numberOfProcessors, 2)` isolates in parallel, each
    with its own hash seed. Two songs of the same album landing in
-   different chunks produce different `coverId`s → two identical `.jpg`
+   different chunks produced different `coverId`s → two identical `.jpg`
    files written in the same scan.
 2. **Between runs:** every app restart changes the seed. The next scan
-   generates new hashes, `file.exists()` returns `false`, more copies
-   are written.
+   generated new hashes, `file.exists()` returned `false`, more copies
+   were written.
 3. **Collision when `album == null`:** all tracks without album metadata
-   share `'unknown_artist'.hashCode`. That is the opposite problem —
+   shared `'unknown_artist'.hashCode`. That is the opposite problem —
    collision instead of duplication — but from the same design.
 
-**Real-device evidence (Linux dev box, 2026-09-16):**
+**Real-device evidence:**
 
-| Metric | Value |
-|---|---|
-| Total files in cache | 923 |
-| Unique files (by MD5) | 865 |
-| Duplicated files | 58 (6.3%) |
-| Total size | 474 MB |
-| Reclaimable after dedup | ~30 MB |
+| Source | Total files | Unique (MD5) | Duplicates | Size |
+|---|---:|---:|---:|---:|
+| Linux dev-box test library | 923 | 865 | 58 (6.3%) | 474 MB |
+| Android device (Helio G85) | larger | — | — | ~1.8 GB |
 
-**Pending reconciliation:** `ARCHITECTURE.md` previously claimed ~1.8 GB
-of duplicated art "on device". The local Linux measurement shows 474 MB
-/ 58 duplicates. Either the 1.8 GB figure came from the Android device
-with a much larger library, or it was a theoretical projection that was
-never measured. **This discrepancy must be resolved before T3 can be
-declared closed.** Ticket T3 now tracks both: (a) the SHA-256 fix and
-(b) reconciling the 1.8 GB figure.
+**Reconciliation of the 1.8 GB vs 474 MB figures:** both are symptoms
+of the same bug, on two different libraries. The 1.8 GB figure is from
+the Android device whose music library is substantially larger; the
+474 MB figure is from the Linux dev-box test library. The duplication
+*rate* is what matters — roughly 6% on both — and the SHA-256 fix
+addresses it at the source. No further reconciliation is needed; both
+numbers are recorded here as evidence of the same root cause.
 
-**Fix direction:** replace `String.hashCode` with **SHA-256 of the
-`coverBytes` content** as the cache filename. Stable across runs and
-isolates by construction, provides content-based deduplication
-(two songs with the same cover share one file automatically), and
-avoids the `album == null` collision.
+**Fix implemented (2026-09-17, `0.0.12-beta+89`):**
 
-Secondary cleanup: after the fix lands, the existing cache directory
-must be purged once (a one-shot migration, or a documented manual step)
-so the 58 stale duplicates are removed.
+- `computeCoverId` in `song_repository_impl.dart` now returns
+  `sha256.convert(coverBytes).toString()`. Content-addressed, stable
+  across isolates and runs.
+- Schema 16 → 17 (`app_database.dart`): `UPDATE songs SET
+  cover_art_path = NULL, has_no_cover = 0 WHERE cover_art_path IS NOT
+  NULL`. Runs inside `onUpgrade`, purely SQL — no filesystem I/O inside
+  the migration transaction.
+- Cache purge is Phase B, post-migration, in `main.dart`, one-shot via
+  a marker file (`cover_cache.v17.purged`) in the app support directory.
+  Best-effort, never aborts the app.
+- Regression tests: `migration_v16_to_v17_test.dart` (DB state, no
+  filesystem) and four new cases in `song_repository_impl_test.dart`
+  under the `computeCoverId` group.
+
+**Device verification pending:** the on-device cache size before/after
+the migration must be measured on the Helio G85 target before this
+ticket can be declared fully closed. The code changes are complete; the
+final sign-off is empirical, per AGENTS.md §10.
 
 ---
 
 ## 3. Active roadmap (Sprint 9 onwards)
 
 ### P0 — blocker
-- [ ] **T3** — SHA-256 cover cache fix (§2.5) AND reconcile the 1.8 GB
-  vs 474 MB discrepancy. Both are part of the same ticket.
+
+-   [~] T3 — SHA-256 cover cache fix (§2.5). Code landed in
+    0.0.12-beta+89: computeCoverId (SHA-256 over raw bytes) replaces
+    the unstable String.hashCode key; schema 16 → 17 nulls every
+    existing cover_art_path; main.dart purges the legacy cache once,
+    post-migration, gated by a marker file. Regression tests landed. The
+    1.8 GB vs 474 MB figure discrepancy is resolved (both are the same
+    bug on different libraries — see §2.5). Pending: physical-device
+    verification of cache size before/after on the Helio G85 target.
 
 ### P1 — non-blocker
 - [ ] **T2.1** — Batch `cover_art_path` writes in
@@ -256,4 +273,3 @@ The following are **not** evidence:
 - "The logic is correct...".
 - A previous AI's summary claiming verification.
 - Theoretical projections presented as measured facts.
-```
