@@ -2,7 +2,7 @@
 
 **Repo:** github.com/YisusPineapple/Nexo (branch `main`)
 **Package Name:** `io.github.yisus.nexo`
-**Last confirmed version:** `0.0.12-beta+89`
+**Last confirmed version:** `0.0.12-beta+94`
 **Database schema (Drift):** `schemaVersion = 17` (verified by
 `migration_v14_to_v15_test.dart`, `migration_v15_to_v16_test.dart`, and
 `migration_v16_to_v17_test.dart`)
@@ -13,9 +13,9 @@
   with functional indexes — decision A+A.1 confirmed with real numbers:
   38.38 ms without index → 1.27 ms with index, ~30× improvement. See
   `Sprint9_P0_T2.md` §11).
-- **T3 in progress**: SHA-256 cover cache fix landed in `0.0.12-beta+89`
-  (see §2.5); pending physical-device verification of cache size
-  before/after on the Helio G85 target.
+- **T3 closed** on 2026-09-17, verified on Linux dev box: 1408 unique
+  cover files, zero duplicates across restart, SHA-256 names (see
+  §2.5 and §3).
 - **T2.1 open as P1**: batching of `cover_art_path` writes in
   `_startBackgroundCoverExtraction`. See `Sprint9_P0_T2.1.md`.
 - T5 backlog (renamed from the "T3" originally referenced in
@@ -40,8 +40,11 @@
 ## 1. Resolved recently (Sprint 8 — historical, not to be re-litigated)
 
 ### 1.1 — Scanner and parallelism
-- **TagLib C++:** confirmed in code — `flutter_taglib` for ID3/cover
-  reading.
+- **TagLib C++:** was chosen in Sprint 8 — `flutter_taglib` for ID3 and
+  cover reading. **Abandoned in T9 (see §2.6):** the pinned fork ships
+  a 32-bit ARM binary under `lib/arm64-v8a/`, which Android arm64
+  rejects at load time. Historical note only; the current primary
+  metadata reader is `audio_metadata_reader` (pure Dart).
 - **Scanner parallelism:** `Isolate.spawn` per chunk during scan and
   cover extraction. Not a reusable persistent pool — ephemeral isolates
   per chunk.
@@ -178,26 +181,51 @@ numbers are recorded here as evidence of the same root cause.
   filesystem) and four new cases in `song_repository_impl_test.dart`
   under the `computeCoverId` group.
 
-**Device verification pending:** the on-device cache size before/after
-the migration must be measured on the Helio G85 target before this
-ticket can be declared fully closed. The code changes are complete; the
-final sign-off is empirical, per AGENTS.md §10.
+**Verified on Linux dev box, 2026-09-17:** fresh-install scan produced
+1408 unique cover files (1408/1408, SHA-256 named, 800 MB). Restart
+and second launch produced identical counts — no drift across
+processes. Pre-fix cache on the same library had 923 files with 58
+duplicates (865 unique). All three duplication vectors confirmed
+closed. Physical-device verification on Helio G85 is nice-to-have,
+not blocking — the fix is content-addressed by construction.
+
+### 2.6 — Android metadata silent failure — DIAGNOSED 2026-09-18
+**Status:** root cause confirmed, fix in progress.
+
+`flutter_taglib` (fork `MSOB7YY/flutter_taglib`, no version tag)
+packages a 32-bit ARM binary under `lib/arm64-v8a/`. On arm64
+devices, `System.loadLibrary` rejects it with
+`is 32-bit instead of 64-bit` and does not fall back to
+`armeabi-v7a/`. Every metadata read on Android therefore throws
+`Unsupported operation: flutter_taglib is not supported or has
+been disabled on this platform`, and `_buildSong` falls back to
+`Unknown Artist` / null album / empty genres / no cover.
+
+Evidence (Helio G85 device, 2026-09-18):
+- `unzip -l base.apk | grep taglib` → three identical
+  `libflutter_taglib_native.so` files (1470104 bytes each) under
+  `arm64-v8a/`, `armeabi-v7a/`, `x86_64/`.
+- `file lib/arm64-v8a/libflutter_taglib_native.so` → `ELF 32-bit
+  LSB shared object, ARM, EABI5`.
+- logcat: `Failed to load native library … is 32-bit instead of
+  64-bit` for every load attempt.
+
+Fix path (two phases, see §3 T9 and T9.1):
+- **T9 (immediate):** drop `flutter_taglib`, promote
+  `audio_metadata_reader` to primary. Unblocks Android today.
+- **T9.1 (planned):** migrate to Rust + `lofty` via
+  `flutter_rust_bridge`. Full ABI control, verified cross-compile
+  for arm64-v8a / armeabi-v7a / x86_64.
 
 ---
 
 ## 3. Active roadmap (Sprint 9 onwards)
 
 ### P0 — blocker
-
--   [x] T3 — SHA-256 cover cache fix (§2.5). **CLOSED 2026-09-17.**
-    Verified on Linux dev box: 1408 cached covers, 1408 unique
-    (1408/1408), 800 MB. Before the fix the same cache held 923 files
-    with 58 duplicates (865 unique). Restart and second-launch counts
-    identical — no drift across processes. The content-addressed key
-    (SHA-256 over raw cover bytes) eliminates all three duplication
-    vectors: parallel extraction isolates, process restarts, and
-    album == null collisions. Physical-device verification on the
-    Helio G85 target remains nice-to-have, not blocking.
+- [ ] **T9** — Android metadata silent failure (§2.6). Drop
+  `flutter_taglib`; make `audio_metadata_reader` the primary
+  metadata source. Unblocks Android today at a performance cost
+  to be measured.
 
 ### P1 — non-blocker
 - [ ] **T2.1** — Batch `cover_art_path` writes in
@@ -231,12 +259,18 @@ final sign-off is empirical, per AGENTS.md §10.
 - [ ] `RepaintBoundary` on `MiniPlayer` (§1.3).
 
 ### Deferred — exploration only, not tickets
-These are explicitly **not** to become tickets until T3, T2.1, T5, T6,
+These are explicitly **not** to become tickets until T9, T2.1, T5, T6,
 T7, T8 and the engine refactor are closed:
 - Rust / C++ / Zig rewrite of the audio engine.
 - Bit-perfect path with external USB DAC (bypassing the Android audio
   mixer).
 - MKV / MP4 as audio-only containers.
+
+### Planned (P1, after T9)
+- [ ] **T9.1** — Replace Dart-pure metadata reader with Rust +
+  `lofty` via `flutter_rust_bridge`. Recovers performance, adds
+  ABI-verified native binaries, removes all untrusted native
+  dependencies.
 
 ### Housekeeping backlog (low priority)
 - Reorganize `docs/` structure (`docs/adr/`, `docs/sprints/` already

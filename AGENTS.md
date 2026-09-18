@@ -127,6 +127,18 @@ request it before editing.
   - Does not require network permission at runtime.
   - Does not add more than 2 MB per platform to the release artifact.
 - No analytics, no telemetry, no remote config packages. Ever.
+- Native dependencies (packages with `.so` / `.dll` / `.dylib`
+  binaries) MUST be published on pub.dev with a stable version tag.
+  Git-forks of native plugins are forbidden: they carry
+  unverifiable, unauditable binaries and — as happened with
+  `MSOB7YY/flutter_taglib` in T9 — can ship 32-bit binaries under
+  the `arm64-v8a/` directory, silently failing on all modern
+  Android devices.
+- Before any release, verify that every `.so` in the APK under
+  `lib/arm64-v8a/` is actually 64-bit ARM:
+  `unzip -o app-release.apk 'lib/arm64-v8a/*' -d /tmp/abi-check/ && \
+   file /tmp/abi-check/lib/arm64-v8a/*.so | grep -v '64-bit'`
+  Any output from that grep is a release blocker.
 
 ---
 
