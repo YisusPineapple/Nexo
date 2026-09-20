@@ -22,7 +22,7 @@ import '../local/app_database.dart';
 import '../local/converters/string_list_converter.dart';
 import '../local/mappers/song_mapper.dart';
 import '../sources/audio_file_scanner.dart';
-import '../sources/taglib_metadata_datasource.dart';
+import '../sources/metadata_datasource.dart';
 
 /// Content-addressed cache key for a cover image.
 ///
@@ -103,7 +103,7 @@ String _computeSectionKey(String raw) {
 }
 
 Future<void> _workerIsolateEntry(_WorkerArgs args) async {
-  const metadataReader = TagLibMetadataDatasource();
+  const metadataReader = MetadataDatasource();
 
   try {
     for (final (path, format) in args.files) {
@@ -139,7 +139,7 @@ Future<void> _workerIsolateEntry(_WorkerArgs args) async {
 Future<Song?> _buildSong(
   String path,
   AudioFormat format, {
-  required TagLibMetadataDatasource metadataReader,
+  required MetadataDatasource metadataReader,
   required String coverArtCacheDirectory,
   required bool extractCover,
 }) async {

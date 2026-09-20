@@ -8,7 +8,7 @@ import 'package:nexo/core/error/failures.dart';
 import 'package:nexo/data/local/app_database.dart';
 import 'package:nexo/data/local/mappers/song_mapper.dart';
 import 'package:nexo/data/repositories/song_repository_impl.dart';
-import 'package:nexo/data/sources/taglib_metadata_datasource.dart';
+import 'package:nexo/data/sources/metadata_datasource.dart';
 import 'package:nexo/domain/entities/audio_format.dart';
 import 'package:nexo/domain/entities/song.dart';
 import 'package:nexo/domain/entities/song_sort_option.dart';
@@ -556,7 +556,7 @@ void main() {
         'coverArtPath via cacheCoverArt', () async {
       final tmpDir = await Directory.systemTemp.createTemp('nexo_t3_test_');
       try {
-        const datasource = TagLibMetadataDatasource();
+        const datasource = MetadataDatasource();
         // Bytes chosen to be visually distinct from empty/null so that a
         // regression that wrote a zero-length file would not accidentally
         // pass this test via the `file.exists()` short-circuit.

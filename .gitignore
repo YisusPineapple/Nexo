@@ -118,3 +118,7 @@ app.*.symbols
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 !/dev/ci/**/Gemfile.lock
 .aider*
+
+# T9 spike artifacts — reports are pasted inline into ARCHITECTURE.md
+# §2.6, never committed as standalone files.
+t9_spike_report_*.json
