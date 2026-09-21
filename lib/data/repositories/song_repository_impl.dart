@@ -47,6 +47,17 @@ String computeCoverId(Uint8List coverBytes) {
   return sha256.convert(coverBytes).toString();
 }
 
+/// Fallback artist string used when a metadata read yields no artist.
+///
+/// Kept as a single file-level constant because it participates in TWO
+/// contracts that must not drift:
+///   1. [_buildSong] writes it as the default `trackArtistId`.
+///   2. [SongRepositoryImpl.refreshFallbackMetadata] queries for it to
+///      identify rows that look like a never-successful metadata read.
+/// If these two ever disagreed, the recovery pass would silently stop
+/// seeing affected rows — hence the shared symbol instead of a literal.
+const _fallbackArtistName = 'Unknown Artist';
+
 sealed class _IndexingMessage {
   const _IndexingMessage();
 }
@@ -149,7 +160,7 @@ Future<Song?> _buildSong(
   const placeholderId = SongId(0);
 
   String title = p.basenameWithoutExtension(path);
-  String artist = 'Unknown Artist';
+  String artist = _fallbackArtistName;
   String? album;
   int? trackNumber;
   int? discNumber;
@@ -396,6 +407,36 @@ class SongRepositoryImpl implements SongRepository {
       return const Ok(null);
     }
 
+    final result = await _reparseAndUpsert(allFiles, onProgress: onProgress);
+    if (result.isOk) {
+      // Cover extraction is a scan-time concern, not a recovery-time one:
+      // the recovery pass is targeted, and kicking off a full-library cover
+      // pass from it would undo that targeting. Recovered rows without a
+      // cover will be picked up by the next scan's cover pass.
+      unawaited(_startBackgroundCoverExtraction());
+    }
+    return result;
+  }
+
+  /// Shared tail for any "reparse these files and upsert by filePath"
+  /// operation. Spawns [_workerIsolateEntry] workers in the non-cover
+  /// mode (each worker sends the full `Song` back over
+  /// `_IndexingProgress`), flushes parsed songs in batches via
+  /// upsert-by-filePath, and clears [_isScanning] on completion.
+  ///
+  /// Callers own the [_isScanning] guard entry — this method does NOT
+  /// check it. It DOES clear it via `finish()`. That split exists so
+  /// [refreshFallbackMetadata] and [_scanAndPersist] can share the
+  /// spawn/flush machinery without duplicating the guard contract that
+  /// callers are individually responsible for.
+  ///
+  /// The isolate protocol and upsert semantics are identical whether
+  /// [allFiles] came from walking directories or from a targeted DB
+  /// query — the workers don't know or care.
+  Future<Result<void, Failure>> _reparseAndUpsert(
+    List<(String, AudioFormat)> allFiles, {
+    void Function(int current, int total)? onProgress,
+  }) async {
     final workerCount = math.min(Platform.numberOfProcessors, 4);
     final chunkSize = (allFiles.length / workerCount).ceil();
 
@@ -426,9 +467,6 @@ class SongRepositoryImpl implements SongRepository {
       if (!completer.isCompleted) {
         _isScanning = false;
         completer.complete(result);
-        if (result.isOk) {
-          _startBackgroundCoverExtraction();
-        }
       }
     }
 
@@ -487,6 +525,44 @@ class SongRepositoryImpl implements SongRepository {
     }
 
     return await completer.future;
+  }
+
+  @override
+  Future<Result<void, Failure>> refreshFallbackMetadata({
+    void Function(int current, int total)? onProgress,
+  }) async {
+    if (_isScanning) {
+      return const Err(
+          ValidationFailure('A scan is already in progress. Please wait.'));
+    }
+    _isScanning = true;
+
+    final List<SongRow> candidates;
+    try {
+      candidates = await (_db.select(_db.songs)
+            ..where((t) =>
+                t.isMissing.equals(false) &
+                (t.trackArtistId.equals(_fallbackArtistName) |
+                    (t.albumId.isNull() & t.hasNoCover.equals(false)))))
+          .get();
+    } catch (e) {
+      // Defensive: if the SELECT itself fails, we must not leave
+      // `_isScanning` stuck on — the instance would be permanently
+      // unusable for subsequent scans. Return a typed failure instead,
+      // and let the caller's marker-file logic retry on next launch.
+      _isScanning = false;
+      return Err(UnexpectedFailure(
+          'Failed to query fallback metadata candidates.',
+          cause: e));
+    }
+
+    if (candidates.isEmpty) {
+      _isScanning = false;
+      return const Ok(null);
+    }
+
+    final files = candidates.map((r) => (r.filePath, r.format)).toList();
+    return _reparseAndUpsert(files, onProgress: onProgress);
   }
 
   Future<void> _startBackgroundCoverExtraction() async {

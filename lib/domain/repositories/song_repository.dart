@@ -18,6 +18,17 @@ abstract interface class SongRepository {
     void Function(int current, int total)? onProgress,
   });
 
+  /// Re-reads metadata for songs whose current row looks like a fallback
+  /// value from a metadata read that failed or was never attempted (see
+  /// T9, ARCHITECTURE.md §2.6). Targeted, not a directory rescan: queries
+  /// the DB for candidate `filePath`s directly, so it costs nothing on a
+  /// library with no affected songs. Idempotent and safe to call more
+  /// than once — a song that no longer matches the fallback heuristic
+  /// after being fixed simply won't be selected again.
+  Future<Result<void, Failure>> refreshFallbackMetadata({
+    void Function(int current, int total)? onProgress,
+  });
+
   // --- One-Shot Reads (For Grouped Library, Playlist Import, Exports) ---
   Future<Result<List<Song>, Failure>> getAllSongs({
     SongSortOption sortOption = SongSortOption.title,

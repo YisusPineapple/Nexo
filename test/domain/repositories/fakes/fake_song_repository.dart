@@ -41,6 +41,16 @@ class FakeSongRepository implements SongRepository {
     return const Ok(null);
   }
 
+  @override
+  Future<Result<void, Failure>> refreshFallbackMetadata({
+    void Function(int current, int total)? onProgress,
+  }) async {
+    if (failIndexing) {
+      return const Err(UnexpectedFailure('Fake refresh failure.'));
+    }
+    return const Ok(null);
+  }
+
   int _compare(Song a, Song b, SongSortOption option, bool isAscending) {
     int res;
     switch (option) {

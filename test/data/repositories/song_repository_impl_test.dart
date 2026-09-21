@@ -15,6 +15,7 @@ import 'package:nexo/domain/entities/song_sort_option.dart';
 import 'package:nexo/domain/value_objects/album_id.dart';
 import 'package:nexo/domain/value_objects/artist_id.dart';
 import 'package:nexo/domain/value_objects/song_id.dart';
+import 'package:path/path.dart' as p;
 
 import '../../domain/repositories/fakes/fake_library_folder_repository.dart';
 
@@ -29,6 +30,19 @@ String _sectionKeyFor(String title) {
   if (RegExp(r'[A-Z]').hasMatch(first)) return first;
   return '#';
 }
+
+/// Path to the T9 recovery-test fixture.
+///
+/// This is a small synthetic MP3 (2s of 440 Hz tone with ID3 tags)
+/// generated with ffmpeg, NOT the 5.2 MB commercial track used in the
+/// spike: committing copyrighted audio to the repo is both a licensing
+/// and a repo-size problem. Only the metadata read-back matters for
+/// this test — the file just needs real, non-fallback tags.
+///
+/// The group below skips (does not fail) when the file is absent so
+/// this test file remains runnable on a fresh checkout before
+/// `flutter test` has a chance to fetch fixtures.
+const _t9FixtureMp3 = 'test/fixtures/t9_amr/sample_with_metadata.mp3';
 
 /// Waits until [predicate] returns true, polling every 10 ms. Fails the test
 /// with a clear message if [timeout] elapses — this is preferable to fixed
@@ -516,6 +530,138 @@ void main() {
           emissions.last.firstWhere((s) => s.filePath == '/music/a.mp3');
       expect(updated.lyricOffsetMs, 500);
       await sub.cancel();
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // T9 regression suite — one-shot fallback metadata recovery.
+  //
+  // The recovery pass is targeted: it queries the DB for rows that match
+  // the fallback heuristic (artist == 'Unknown Artist', or null album
+  // with no cover flagged), re-runs the same isolate pipeline a normal
+  // scan uses, and upserts by filePath. It is idempotent, and the
+  // callers own the `_isScanning` guard entry.
+  //
+  // Test 2 requires a real audio file because the whole point is that
+  // the file is re-read through the real metadata pipeline. It reuses
+  // the T9 spike fixture; the group skips if the fixture is missing,
+  // which keeps commit 3 runnable before commit 4 lands the fixture
+  // tree.
+  // ---------------------------------------------------------------------
+  group('refreshFallbackMetadata (T9)', () {
+    test('returns Ok(null) with zero candidates and does not spawn isolates',
+        () async {
+      // Seed a row that does NOT match the fallback heuristic — real
+      // artist, real album.
+      await seedSong(
+        artist: 'Real Artist',
+        albumId: 'Real Album',
+        path: '/music/real.mp3',
+      );
+
+      final result = await repo.refreshFallbackMetadata();
+
+      expect(result.isOk, isTrue,
+          reason: 'No candidates must short-circuit to Ok(null) without '
+              'touching the isolate machinery — that is the whole point '
+              'of a targeted recovery pass on a clean library.');
+    });
+
+    test('re-reads metadata for a fallback row pointing at a real file',
+        () async {
+      final fixture = File(_t9FixtureMp3);
+      if (!await fixture.exists()) {
+        markTestSkipped('T9 fixture $_t9FixtureMp3 not present.');
+        return;
+      }
+
+      final tmpDir = await Directory.systemTemp.createTemp('nexo_t9_test_');
+      try {
+        final target = File(p.join(tmpDir.path, '02_mp3_replaygain.mp3'));
+        await fixture.copy(target.path);
+
+        // Seed the row in fallback state: artist is the literal fallback
+        // string, album is null. This is exactly what a failed metadata
+        // read on a pre-T9 build would have produced.
+        await seedSong(
+          artist: 'Unknown Artist',
+          albumId: null,
+          title: '02_mp3_replaygain',
+          path: target.path,
+        );
+
+        final before = await (db.select(db.songs)
+              ..where((t) => t.filePath.equals(target.path)))
+            .getSingle();
+        expect(before.trackArtistId, 'Unknown Artist',
+            reason: 'Sanity: the seed row must be in fallback state or '
+                'the assertion below proves nothing.');
+
+        final result = await repo.refreshFallbackMetadata();
+        expect(result.isOk, isTrue);
+
+        final after = await (db.select(db.songs)
+              ..where((t) => t.filePath.equals(target.path)))
+            .getSingle();
+        expect(after.trackArtistId, isNot('Unknown Artist'),
+            reason: 'T9: a fallback row must be rewritten with the real '
+                'metadata read back from the file. If this fails with '
+                'the fallback string still present, the recovery pass '
+                'either did not select the row (WHERE drifted from '
+                '_fallbackArtistName) or did not flush the parse.');
+      } finally {
+        if (await tmpDir.exists()) {
+          await tmpDir.delete(recursive: true);
+        }
+      }
+    });
+
+    test(
+        'concurrent call while a recovery pass is in flight returns '
+        'ValidationFailure', () async {
+      final fixture = File(_t9FixtureMp3);
+      if (!await fixture.exists()) {
+        markTestSkipped('T9 fixture $_t9FixtureMp3 not present.');
+        return;
+      }
+
+      final tmpDir = await Directory.systemTemp.createTemp('nexo_t9_conc_');
+      try {
+        final target = File(p.join(tmpDir.path, '02_mp3_replaygain.mp3'));
+        await fixture.copy(target.path);
+
+        await seedSong(
+          artist: 'Unknown Artist',
+          albumId: null,
+          path: target.path,
+        );
+
+        // Fire the first pass WITHOUT awaiting. `refreshFallbackMetadata`
+        // sets `_isScanning = true` synchronously before its first
+        // `await`, so by the time this call returns, the guard is
+        // already held. The subsequent call must therefore observe
+        // `_isScanning == true` on its own synchronous prologue.
+        final first = repo.refreshFallbackMetadata();
+
+        final second = await repo.refreshFallbackMetadata();
+        expect(
+          second.when(ok: (_) => null, err: (e) => e),
+          isA<ValidationFailure>(),
+          reason: 'The guard is the whole concurrency contract for the '
+              'recovery pass — without it a concurrent Settings-triggered '
+              'rescan would spawn duplicate isolates against the same '
+              'songs table.',
+        );
+
+        // Drain the first pass so the test does not end with a live
+        // isolate writing to a closed DB.
+        final firstResult = await first;
+        expect(firstResult.isOk, isTrue);
+      } finally {
+        if (await tmpDir.exists()) {
+          await tmpDir.delete(recursive: true);
+        }
+      }
     });
   });
 

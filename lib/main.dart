@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
@@ -12,7 +13,10 @@ import 'core/utils/crash_logger.dart';
 import 'data/audio/nexo_audio_handler.dart';
 import 'data/local/app_database.dart';
 import 'data/repositories/app_preferences_repository_impl.dart';
+import 'data/repositories/library_folder_repository_impl.dart';
+import 'data/repositories/song_repository_impl.dart';
 import 'domain/entities/app_preferences.dart';
+import 'domain/repositories/song_repository.dart';
 import 'presentation/providers/app_preferences_provider.dart';
 import 'presentation/providers/repository_providers.dart';
 import 'presentation/screens/home_shell.dart';
@@ -63,6 +67,30 @@ Future<void> main() async {
       coverArtDir: coverArtDir,
       supportDir: supportDir.path,
     );
+
+    // T9: one-shot recovery of fallback metadata rows (see
+    // ARCHITECTURE.md §2.6). Deliberately NOT awaited: a full pass
+    // re-spawns the same isolate workers as a normal scan and can take
+    // minutes on a large library. Awaiting here would delay `runApp`
+    // past the platform ANR budget (AGENTS.md §1).
+    //
+    // The instances built here are DISTINCT from the ones Riverpod will
+    // build later via `songRepositoryProvider`. That means `_isScanning`
+    // is not shared between the two — see ARCHITECTURE.md §2.6 for the
+    // documented (benign) consequence: a concurrent Settings → "Force
+    // Library Rescan" during the recovery window can spawn redundant
+    // isolates. SQLite WAL serializes the writes; worst case is wasted
+    // work, not corruption.
+    final libraryFolderRepo = LibraryFolderRepositoryImpl(database);
+    final songRepo = SongRepositoryImpl(
+      database,
+      coverArtCacheDirectory: coverArtDir,
+      libraryFolderRepository: libraryFolderRepo,
+    );
+    unawaited(_recoverT9MetadataOnce(
+      songRepository: songRepo,
+      supportDir: supportDir.path,
+    ));
 
     if (initialPrefs.performanceProfile == PerformanceProfile.eco) {
       PaintingBinding.instance.imageCache.maximumSizeBytes = 15 * 1024 * 1024;
@@ -120,6 +148,59 @@ Future<void> main() async {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// One-shot wrapper around [SongRepository.refreshFallbackMetadata].
+///
+/// T9: a metadata read that failed on a previous version left song rows
+/// with placeholder values (artist `'Unknown Artist'`, null album). The
+/// marker file ensures we run this pass exactly once per install — the
+/// normal scan path will eventually pick up any residual cases, and
+/// re-running on every boot would cost a full isolate round-trip for
+/// zero new data on libraries that are already clean.
+///
+/// The marker is written ONLY when the pass returns `Ok`. If the pass
+/// returns `Err` — in practice the only realistic cause is a concurrent
+/// scan holding `_isScanning` — nothing is written, so the next launch
+/// retries. This is the same contract as [_purgeLegacyCoverCacheOnce],
+/// deliberately: a one-shot filesystem side effect whose correctness
+/// depends on it actually having run.
+Future<void> _recoverT9MetadataOnce({
+  required SongRepository songRepository,
+  required String supportDir,
+}) async {
+  final marker = File(p.join(supportDir, 'metadata_recovery.t9.done'));
+
+  try {
+    if (await marker.exists()) return;
+  } catch (e) {
+    CrashLogger.logEvent(
+      'metadata_recovery.marker_stat_failed',
+      'Could not stat T9 recovery marker at ${marker.path}: $e',
+    );
+  }
+
+  final result = await songRepository.refreshFallbackMetadata();
+
+  if (result.isOk) {
+    CrashLogger.logEvent('metadata_recovery.t9',
+        'T9 fallback metadata recovery pass completed.');
+    try {
+      await marker.writeAsString(
+          'recovered_at=${DateTime.now().toUtc().toIso8601String()}\n');
+    } catch (e) {
+      CrashLogger.logEvent(
+        'metadata_recovery.marker_write_failed',
+        'Could not write T9 recovery marker at ${marker.path}: $e',
+      );
+    }
+  } else {
+    final msg = result.when(ok: (_) => '', err: (e) => e.message);
+    CrashLogger.logEvent(
+      'metadata_recovery.t9_failed',
+      'T9 fallback metadata recovery failed, will retry next launch: $msg',
     );
   }
 }
