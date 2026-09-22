@@ -341,14 +341,42 @@ class SongRepositoryImpl implements SongRepository {
     required String coverArtCacheDirectory,
     required LibraryFolderRepository libraryFolderRepository,
     SongMapper mapper = const SongMapper(),
+    bool enableBackgroundCoverExtraction = true,
   })  : _coverArtCacheDirectory = coverArtCacheDirectory,
         _libraryFolderRepository = libraryFolderRepository,
-        _mapper = mapper;
+        _mapper = mapper,
+        _enableBackgroundCoverExtraction = enableBackgroundCoverExtraction;
 
   final AppDatabase _db;
   final String _coverArtCacheDirectory;
   final LibraryFolderRepository _libraryFolderRepository;
   final SongMapper _mapper;
+
+  /// Test seam, not a product flag. `true` in every production
+  /// construction site; the only callers that pass `false` are unit
+  /// tests.
+  ///
+  /// Reason it exists: [_startBackgroundCoverExtraction] spawns real
+  /// isolates and drives `_db.update` from an async
+  /// `receivePort.listen` handler that does NOT serialize message
+  /// processing. When the final `'DONE'` message arrives,
+  /// `_isExtractingCovers` is flipped to `false` immediately — even
+  /// if an earlier `_db.update()` from the same port is still in
+  /// flight. Under test, the surrounding `tearDown` then closes the
+  /// DB under that in-flight update, producing "Bad state: Can't
+  /// re-open a database after closing it" *after* the test's own
+  /// assertions have already passed. That race is real and
+  /// pre-existing (not introduced by T9). Draining it by polling a
+  /// private field from a test would be fragile against an
+  /// implementation detail that may legitimately change; fixing the
+  /// race itself is a separate ticket.
+  ///
+  /// Mirrors the injectable `Random?` seam on `ShuffleQueueUseCase` —
+  /// a constructor parameter that exists to make behavior
+  /// deterministic under test, with no production caller supplying a
+  /// non-default value.
+  final bool _enableBackgroundCoverExtraction;
+
   bool _isScanning = false;
   bool _isExtractingCovers = false;
 
@@ -407,15 +435,7 @@ class SongRepositoryImpl implements SongRepository {
       return const Ok(null);
     }
 
-    final result = await _reparseAndUpsert(allFiles, onProgress: onProgress);
-    if (result.isOk) {
-      // Cover extraction is a scan-time concern, not a recovery-time one:
-      // the recovery pass is targeted, and kicking off a full-library cover
-      // pass from it would undo that targeting. Recovered rows without a
-      // cover will be picked up by the next scan's cover pass.
-      unawaited(_startBackgroundCoverExtraction());
-    }
-    return result;
+    return _reparseAndUpsert(allFiles, onProgress: onProgress);
   }
 
   /// Shared tail for any "reparse these files and upsert by filePath"
@@ -433,6 +453,16 @@ class SongRepositoryImpl implements SongRepository {
   /// The isolate protocol and upsert semantics are identical whether
   /// [allFiles] came from walking directories or from a targeted DB
   /// query — the workers don't know or care.
+  ///
+  /// On a successful completion, `finish()` also fires
+  /// [_startBackgroundCoverExtraction] (unless
+  /// [_enableBackgroundCoverExtraction] is false, which is test-only).
+  /// The cover pass already operates on the full `songs` table rather
+  /// than on the batch just processed, so it is the correct follow-up
+  /// for *any* successful reparse — including [refreshFallbackMetadata]'s
+  /// recovery pass, whose whole purpose includes repopulating covers
+  /// that the pre-T9 TagLib failure left null.
+  ///
   Future<Result<void, Failure>> _reparseAndUpsert(
     List<(String, AudioFormat)> allFiles, {
     void Function(int current, int total)? onProgress,
@@ -467,6 +497,9 @@ class SongRepositoryImpl implements SongRepository {
       if (!completer.isCompleted) {
         _isScanning = false;
         completer.complete(result);
+        if (result.isOk && _enableBackgroundCoverExtraction) {
+          unawaited(_startBackgroundCoverExtraction());
+        }
       }
     }
 

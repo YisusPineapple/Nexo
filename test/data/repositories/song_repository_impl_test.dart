@@ -76,8 +76,16 @@ void main() {
       db,
       coverArtCacheDirectory: '/tmp/nexo_covers',
       libraryFolderRepository: FakeLibraryFolderRepository(),
+      // Tests here exercise the repository's own behavior, not the
+      // background cover pipeline. The cover pass spawns real isolates
+      // and drives `_db.update` from an async `receivePort.listen`
+      // handler that does not serialize message processing — the final
+      // `'DONE'` can arrive while an earlier update is still in flight,
+      // and `tearDown` closes the DB under it. See the
+      // `_enableBackgroundCoverExtraction` docstring in
+      // `song_repository_impl.dart` for the full diagnosis.
+      enableBackgroundCoverExtraction: false,
     );
-
     await db.customSelect('SELECT 1').get();
   });
 

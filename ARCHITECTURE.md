@@ -189,9 +189,12 @@ duplicates (865 unique). All three duplication vectors confirmed
 closed. Physical-device verification on Helio G85 is nice-to-have,
 not blocking — the fix is content-addressed by construction.
 
-### 2.6 — Android metadata silent failure — CLOSED 2026-09-21
-**Status:** root cause confirmed 2026-09-18; fixed and shipped
-2026-09-21 (see §2.6.1).
+### 2.6 — Android metadata silent failure — FIX SHIPPED, PENDING DEVICE VERIFICATION
+**Status:** root cause confirmed 2026-09-18; fix implemented and
+verified in the Linux dev box 2026-09-21 (`flutter analyze` clean,
+259 tests passing). NOT closed — pending smoke test on a physical
+Helio G85 device, per §5 evidence standards. See §2.6.1 for the
+delivery record.
 
 `flutter_taglib` (fork `MSOB7YY/flutter_taglib`, no version tag)
 packages a 32-bit ARM binary under `lib/arm64-v8a/`. On arm64
@@ -220,14 +223,17 @@ Fix path (two phases, see §3 T9 and T9.1):
 
 ### 2.6.1 — T9 delivery record
 
-Delivered in five commits on 2026-09-21:
+Implemented across six commits on 2026-09-21/22:
 
 - `201bc3e` chore(deps): remove flutter_taglib dependency
 - `b86b7ee` refactor(data): replace TagLibMetadataDatasource with
   MetadataDatasource
 - `c85adf2` feat(data): one-shot T9 fallback metadata recovery
 - `be08591` test(data): cover MetadataDatasource with T9 fixture suite
-- (this commit) docs: close T9
+- `b212c6f` docs: initial T9 write-up (status was corrected to
+  "pending device verification" in the commit below)
+- (this commit) fix(data): restore cover extraction trigger after
+  reparse; correct §2.6 status
 
 **Reader.** `lib/data/sources/metadata_datasource.dart` is the
 single backend, using `audio_metadata_reader` (pure Dart). Its
@@ -249,6 +255,13 @@ fired from `main()` under `unawaited()` so it cannot delay
 `runApp` past the platform ANR budget. The marker is written only
 on `Ok`; a failed pass retries on next launch.
 
+On a successful pass, the shared `_reparseAndUpsert` tail also fires
+`_startBackgroundCoverExtraction()` — the cover pass already operates
+on the full `songs` table rather than on the batch just processed, so
+it is the correct follow-up for any successful reparse. This closes
+the "no cover" symptom of the original TagLib bug: recovered rows with
+a null cover get their art populated without a manual rescan.
+
 **Accepted limitation — the recovery predicate is not free on
 album-less libraries.** The candidate query matches rows where
 `trackArtistId == 'Unknown Artist'` OR (`albumId IS NULL` AND
@@ -265,6 +278,15 @@ worst case is wasted work, not corruption. Tightening the
 predicate to `trackArtistId == 'Unknown Artist'` alone, or making
 `_isScanning` `static` with a reset hook for tests, are candidate
 follow-ups if either is observed in practice. Neither blocks T9.
+
+**Known coverage gap.** No test asserts positively that a successful
+`_reparseAndUpsert` fires `_startBackgroundCoverExtraction` when
+`enableBackgroundCoverExtraction` is left at its default `true`. This
+is a pre-existing gap — it is not introduced by T9, and the flag added
+in this commit does not change which call sites trigger the pass in
+production. Worth closing with a dedicated test in a follow-up; the
+pass spawns real isolates, so a test would need to either inject a
+spawner or observe DB state changes with a timeout.
 
 **Regression contract.**
 `test/data/sources/metadata_datasource_test.dart` (19 tests over
@@ -318,7 +340,8 @@ same Helio G85 device that exposed the original bug:
 ## 3. Active roadmap (Sprint 9 onwards)
 
 ### P0 — blocker
-_None open. T9 closed 2026-09-21 (§2.6.1)._
+- [ ] **T9** — Android metadata silent failure (§2.6). Fix shipped,
+  pending Helio G85 smoke test before closing.
 
 ### P1 — non-blocker
 - [ ] **T2.1** — Batch `cover_art_path` writes in
