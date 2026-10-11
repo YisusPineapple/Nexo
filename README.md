@@ -31,3 +31,19 @@ git clone https://github.com/YisusPineapple/Nexo.git
 cd Nexo
 flutter pub get
 flutter run --release
+```
+
+## 🔐 Release signing
+
+Release builds require a persisted Android signing keystore configured in the ignored file `android/key.properties` relative to the repository root. The file is not committed to the repository and is expected to contain the following values:
+
+```properties
+storePassword=<keystore-password>
+keyPassword=<key-password>
+keyAlias=<key-alias>
+storeFile=app/nexo-release.jks
+```
+
+The `storeFile` value is resolved relative to the Android Gradle project directory (`android/`), so `app/nexo-release.jks` resolves to `android/app/nexo-release.jks`. Real signing credentials must never be committed to Git.
+
+For GitHub Actions, the repository uses the secrets `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD`. The CI workflow validates these inputs by decoding the keystore and verifying its integrity (password and alias) using `keytool` before proceeding with the build. If the keystore is missing, empty, or invalid, the workflow fails immediately. Debug signing is not a release fallback.

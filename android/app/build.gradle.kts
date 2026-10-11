@@ -1,10 +1,49 @@
 import java.io.FileInputStream
 import java.util.Properties
 
-val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+val releaseSigningPropertiesFile = rootProject.file("key.properties")
+val releaseSigningProperties = Properties()
+if (releaseSigningPropertiesFile.exists()) {
+    FileInputStream(releaseSigningPropertiesFile).use {
+        releaseSigningProperties.load(it)
+    }
+}
+
+fun validateReleaseSigningConfiguration(file: java.io.File) {
+    if (!file.exists()) {
+        throw GradleException(
+            "Release signing requires android/key.properties. Create it before running a release build."
+        )
+    }
+    if (!file.isFile) {
+        throw GradleException("Release signing key properties must be a file: ${file.path}")
+    }
+
+    val properties = Properties()
+    FileInputStream(file).use {
+        properties.load(it)
+    }
+
+    val missingProps = listOf("storePassword", "keyPassword", "keyAlias", "storeFile")
+        .filter { properties.getProperty(it)?.trim().isNullOrBlank() }
+
+    if (missingProps.isNotEmpty()) {
+        throw GradleException(
+            "Release signing requires non-empty values for: ${missingProps.joinToString()}."
+        )
+    }
+
+    val storeFilePath = properties.getProperty("storeFile")?.trim()
+    val storeFile = rootProject.file(storeFilePath ?: "")
+    if (storeFilePath.isNullOrBlank()) {
+        throw GradleException("Release signing requires a storeFile path in android/key.properties.")
+    }
+    if (!storeFile.exists()) {
+        throw GradleException("Release signing keystore not found: ${storeFile.path}")
+    }
+    if (!storeFile.isFile) {
+        throw GradleException("Release signing keystore must be a regular file: ${storeFile.path}")
+    }
 }
 
 plugins {
@@ -34,22 +73,39 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String?
-            keyPassword = keystoreProperties["keyPassword"] as String?
-            storeFile = keystoreProperties["storeFile"]?.let { rootProject.file(it) }
-            storePassword = keystoreProperties["storePassword"] as String?
+            keyAlias = releaseSigningProperties.getProperty("keyAlias")
+            keyPassword = releaseSigningProperties.getProperty("keyPassword")
+            storePassword = releaseSigningProperties.getProperty("storePassword")
+
+            val storeFilePath = releaseSigningProperties.getProperty("storeFile")?.trim()
+            storeFile = if (!storeFilePath.isNullOrBlank()) {
+                rootProject.file(storeFilePath)
+            } else {
+                null
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
+}
+
+tasks.register("validateReleaseSigning") {
+    doLast {
+        validateReleaseSigningConfiguration(releaseSigningPropertiesFile)
+    }
+}
+
+tasks.matching {
+    it.name == "packageRelease" ||
+        it.name == "packageReleaseBundle" ||
+        it.name == "packageReleaseUniversalApk" ||
+        it.name == "bundleRelease"
+}.configureEach {
+    dependsOn("validateReleaseSigning")
 }
 
 kotlin {
