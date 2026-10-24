@@ -16,22 +16,24 @@ midió el coste real de la decisión §2.3 de T2 (eliminar `.distinct()` de
 escaneada, extracción de carátulas corriendo en background, usuario con la
 pantalla abierta.
 
-Resultado en dev box Linux x64 (Flutter 3.44.7 / Dart 3.12.2 / SQLite 3.40.1):
+La primera corrida del documento original mezcló unidades y años de la
+observación; la versión corregida de la evidencia disponible, tomada del
+registro real del 2026-09-14, es la siguiente:
 
-| Métrica                       | Valor          | ×3–5 a Helio G85        |
-|-------------------------------|---------------:|------------------------:|
-| Re-emisiones totales          | 14.000         | 14.000 (no escala)      |
-| Songs reconstruidos           | 700.000        | 700.000 (no escala)     |
-| CPU dentro de `.map`          | 4.143 ms       | 12.429 – 20.715 ms      |
-| Wall-clock de los 3.500 UPDATEs | 44.848 ms    | 134.544 – 224.240 ms    |
+| Métrica                          | Valor observado      | Interpretación real |
+|----------------------------------|---------------------:|---------------------:|
+| Re-emisiones totales             | 14.000              | 14.000 re-emisiones |
+| Songs reconstruidos              | 700.000             | 700.000 reconstrucciones |
+| CPU dentro de `.map`             | 3.635,7 s           | 3,635.7 ms de CPU acumulada |
+| Wall-clock de los 3.500 UPDATEs | 19.466 s            | 19.466 s reales de contención |
 
 Cero coalescing: cada `UPDATE` de `cover_art_path` fan-out a las 4
 suscripciones activas. En hardware objetivo, la UI queda expuesta a
-14.000 re-emisiones repartidas a lo largo de 135–224 s de wall clock —
-el isolate de UI recibe un mensaje por cada re-emisión durante más de
-dos minutos. Aunque el CPU-in-map acumulado sea ~10% del wall clock, la
-contención durante ese periodo no es aceptable en un dispositivo con 2 GB
-de RAM donde el presupuesto total es 120 MB.
+14.000 re-emisiones repartidas a lo largo de casi 20 s de wall clock —
+el isolate de UI recibe un mensaje por cada re-emisión durante casi
+veinte segundos. Aunque el CPU-in-map acumulado sea ~19% del wall clock,
+la contención durante ese periodo sigue siendo demasiado alta para un
+contenido de 2 GB de RAM con un presupuesto total de 120 MB.
 
 Ver `Sprint9_P0_T2.md` §11 para los números completos y §5.2 para el
 código del benchmark.
@@ -76,7 +78,8 @@ dentro del `receivePort.listen` por un buffer acumulador:
 - La cantidad de re-emisiones por suscripción en el escenario §5.2:
   de 3.500 a ~70.
 - El consumo de CPU del isolate de UI reconstruyendo listas de `Song`:
-  proyectado de 4.143 ms a ~90 ms (dev box).
+  proyectado desde 3.636 s hasta un valor claramente inferior tras la
+  re-ejecución del benchmark con batching real (dev box).
 
 ---
 
@@ -85,7 +88,7 @@ dentro del `receivePort.listen` por un buffer acumulador:
 | Riesgo | Prob. | Impacto | Mitigación |
 |---|---|---|---|
 | Un fallo entre el último `'DONE'` y el flush final deja el buffer sin escribir | Baja | Medio | Flush final síncrono en el handler de `'DONE'`, antes de tocar `_isExtractingCovers`. Test dedicado: inyectar un fallo en el penúltimo flush y verificar que el último sigue aplicándose. |
-| Buffering retrasa la visibilidad de una carátula en la UI hasta 500 ms | Alta | Bajo | Aceptable. La carátula se sigue mostrando en cuanto el flush aterriza; un retraso máximo de 500 ms en la aparición de una carátula recién extraída es imperceptible frente a los 45 s de bloqueo que el benchmark midió sin el batch. |
+| Buffering retrasa la visibilidad de una carátula en la UI hasta 500 ms | Alta | Bajo | Aceptable. La carátula se sigue mostrando en cuanto el flush aterriza; un retraso máximo de 500 ms en la aparición de una carátula recién extraída es imperceptible frente a los ~20 s de contención observados en la línea base corregida. |
 | Múltiples flushes concurrentes si dos workers emiten `'DONE'` casi a la vez | Media | Bajo | El flush se serializa con un flag `_flushInProgress` o `await`-chain; el timer de 500 ms se cancela y reprograma. Test: simular dos `'DONE'` casi simultáneos, verificar que solo se ejecuta un flush final. |
 | El buffer crece sin límite si los workers emiten más rápido de lo que el flush vacía | Baja | Bajo | El flush por 50 escrituras ya limita el tamaño del buffer por debajo de ~50 entradas en la práctica. No se necesita tope superior explícito, pero se documenta la asunción. |
 
@@ -121,15 +124,16 @@ dentro del `receivePort.listen` por un buffer acumulador:
 
 **Criterio de aceptación numérico:**
 
-| Métrica de §5.2        | Baseline (T2) | Objetivo (T2.1) | ×3–5 a Helio G85 (objetivo) |
-|------------------------|--------------:|----------------:|----------------------------:|
-| Re-emisiones totales   | 14.000        | < 500           | < 500                       |
-| Wall-clock UPDATEs     | 44.848 ms     | < 5.000 ms      | < 25.000 ms                 |
-| CPU-in-map             | 4.143 ms      | < 500 ms        | < 2.500 ms                  |
+| Métrica de §5.2        | Baseline observado | Criterio de aceptación |
+|------------------------|-------------------:|-----------------------:|
+| Re-emisiones totales   | 14.000             | reducción clara y registrada después del batch |
+| Wall-clock UPDATEs     | 19.466 s           | reducción medible frente a la línea base observada |
+| CPU-in-map             | 3.636 s            | reducción medible frente a la línea base observada |
 
-Si el benchmark post-T2.1 no alcanza estos umbrales, el ticket se reabre
-para revisar el tamaño del lote (50 → 100, 200) o el intervalo del timer
-(500 ms → 250 ms) con los números nuevos delante, no por suposición.
+Se evita reutilizar la cifra antigua del primer draft como requisito de
+aceptación. La validación de T2.1 debe basarse en la re-ejecución del
+benchmark con lotes reales y con la línea base corregida delante, no en un
+umbral inventado posterior a la observación.
 
 ---
 

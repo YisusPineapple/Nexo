@@ -2,11 +2,13 @@
 
 **Repo:** github.com/YisusPineapple/Nexo (branch `main`)
 **Package Name:** `io.github.yisus.nexo`
-**Last confirmed version:** `0.0.12-beta+94`
+**Last confirmed version:** `0.0.12-beta+101`
 **Database schema (Drift):** `schemaVersion = 17` (verified by
 `migration_v14_to_v15_test.dart`, `migration_v15_to_v16_test.dart`, and
 `migration_v16_to_v17_test.dart`)
-**General state:** Sprint 9 (Stability and FOSS) in progress.
+**General state:** Sprint 9 (Stability and FOSS) remains the engineering
+track, while Phase 0 / Task N covers operational safety and release
+readiness work.
 - T1 closed and merged (stable song identity).
 - T2 closed and benchmark-verified on 2026-09-14 (reactive pagination
   over Drift `.watch()`, `SongsWindowNotifier` with LRU, migration v16
@@ -17,7 +19,13 @@
   cover files, zero duplicates across restart, SHA-256 names (see
   §2.5 and §3).
 - **T2.1 open as P1**: batching of `cover_art_path` writes in
-  `_startBackgroundCoverExtraction`. See `Sprint9_P0_T2.1.md`.
+  `_startBackgroundCoverExtraction`. The corrected benchmark shows
+  19.466 s wall-clock and 3.636 s CPU-in-map over 3,500 updates, so the
+  issue remains real and trackable with a measured baseline. See
+  `Sprint9_P0_T2.1.md`.
+- T4 has no recovered ticket record or implementation evidence in the repo
+  history; as a result, this is intentionally documented as an evidence
+  gap rather than a fictional scope item.
 - T5 backlog (renamed from the "T3" originally referenced in
   `Sprint9_P0_T2.md` §9 — that ticket is now T5).
 - T6, T7, T8 added 2026-09-16 after roadmap filtering (see §3).
@@ -27,6 +35,12 @@
 ## 0. Glossary
 
 - **T1..Tn**: Sprint 9 tickets, in merge order.
+- **Phase 0 / Task N**: operational continuity tasks (safety, backups,
+  restore validation, release-readiness checks) that are not Sprint 9
+  engineering tickets.
+- **Sprint 9 / Ticket**: product engineering work within the sprint; this
+  is a separate tracking system from Phase 0 / Task N and should not be
+  renumbered or merged into one sequence.
 - **P0**: sprint blocker. **P1**: non-blocker but tracked.
 - **A+A.1**: pagination route = LIMIT/OFFSET with functional indexes
   (`LOWER(...)`). Chosen over keyset (route B) with benchmark evidence.
@@ -87,7 +101,9 @@ in RAM per keystroke; now 50 per page with LRU).
   writes to.
 - **M3 Expressive / `NexoTokens` / `SoftCard`:** confirmed.
 - **Rendering:** `now_playing_screen.dart` uses `RepaintBoundary` +
-  `.select()` correctly. `MiniPlayer` does not — pending, P1.
+  `.select()` correctly. `MiniPlayer` is already wrapped in a
+  `RepaintBoundary` in `home_shell.dart`; this specific item is not an open
+  P1.
 - **LRU cache:** 4 pages × 50 rows. Eviction cancels the evicted page's
   subscription; a shrinking count (user excludes a folder with the tab
   open) purges pages outside the new range. Covered by test.
@@ -106,13 +122,22 @@ problem. T1 gave stable identity to `SongId`. T2 closed the loop:
 that a change to `coverArtPath` / `title` / `lyricOffsetMs` on a song
 inside the visible window re-emits with the new value.
 
-### 2.2 — Audio engine refactor (technical debt) — OPEN, P1
+### 2.2 — Audio engine refactor and queue-end transition — OPEN, no stable ticket ID assigned
 `NexoAudioHandler`: 695 lines confirmed. Crossfade logic depends on
 `_isPlayerAActive` / `_isTransitioning` / `_isSkipping` plus
-pseudo-state `_frozenProgress > 0.0`. Gapless bug confirmed: last song
-without repeat does not transition explicitly to "stopped". State
-machine design (`EngineState` / `reduceEngine`) already sketched, not
-implemented.
+pseudo-state `_frozenProgress > 0.0`.
+
+The queue-end gapless transition remains a visible bug to verify: when the
+final track ends with repeat disabled, the player may not transition
+explicitly to the stopped state. This is not the same work item as the
+broader engine refactor and should remain separately trackable until the
+behavior is reproduced and verified.
+
+No new ticket ID is assigned in this revision because the current roadmap
+keeps historical identifiers fixed and does not define a safe successor
+sequence for newly discovered work. The audio engine refactor, the
+queue-end issue, and the circuit breaker remain intentionally unnumbered
+backlog notes until that decision is formally made.
 
 ### 2.3 — Circuit breaker for errors — OPEN, unverified
 Not confirmed in code whether any limit exists on consecutive retries
@@ -345,9 +370,14 @@ same Helio G85 device that exposed the original bug:
 
 ### P1 — non-blocker
 - [ ] **T2.1** — Batch `cover_art_path` writes in
-  `_startBackgroundCoverExtraction`. Designed and justified by §5.2 of
-  the T2 benchmark (verified 2026-09-14: 19.47 s wall-clock / 3.64 s
-  CPU-in-map over 3,500 UPDATEs). See `Sprint9_P0_T2.1.md`.
+  `_startBackgroundCoverExtraction`. The corrected benchmark (2026-09-14)
+  measured 19.466 s wall-clock and 3.636 s CPU-in-map over 3,500
+  updates; the issue remains open because the observed contention is still
+  too high for the Helio G85 ceiling. See `Sprint9_P0_T2.1.md`.
+- [ ] **T4** — No reliable source or Git evidence for this ticket was
+  recovered in the current repo state. The absence of evidence is itself
+  the documented finding: do not invent historic scope or implementation
+  intent.
 - [ ] **T5** (renamed from the "T3" in `Sprint9_P0_T2.md` §9) —
   Pagination of `multiArtistSongsProvider` / `genreSongsProvider` in
   `grouped_library_providers.dart`, and migration of detail screens
@@ -370,9 +400,15 @@ same Helio G85 device that exposed the original bug:
   tier. Does the engine resample? At what rate? Does forcing 32-bit /
   high sample rate blow the 120 MB ceiling on Helio G85? Answer those
   questions before promising "audiophile" features.
-- [ ] Audio engine refactor (`NexoAudioHandler`, §2.2).
-- [ ] Circuit breaker for errors (§2.3).
-- [ ] `RepaintBoundary` on `MiniPlayer` (§1.3).
+- [ ] No stable ticket ID assigned yet: audio engine refactor (`NexoAudioHandler`, §2.2).
+  Historical IDs remain fixed; no new merge order is invented in this review.
+- [ ] No stable ticket ID assigned yet: circuit breaker for errors (§2.3).
+  This item is intentionally left unnumbered until the roadmap defines a formal successor sequence.
+- [ ] No stable ticket ID assigned yet: queue-end transition bug at the end of an unlooped queue.
+  The behavior remains pending verification and is not a renumbered historical ticket.
+- [ ] `MiniPlayer` repaint fix — resolved in the current code by the
+  `RepaintBoundary` wrapper already present in `home_shell.dart`; no open
+  backlog item remains for this fix.
 
 ### Deferred — exploration only, not tickets
 These are explicitly **not** to become tickets until T2.1, T5, T6,
@@ -383,10 +419,13 @@ T7, T8 and the engine refactor are closed:
 - MKV / MP4 as audio-only containers.
 
 ### Planned (P1)
-- [ ] **T9.1** — Replace Dart-pure metadata reader with Rust +
-  `lofty` via `flutter_rust_bridge`. Recovers performance, adds
-  ABI-verified native binaries, removes all untrusted native
-  dependencies. No longer gated on T9; schedule whenever.
+- [ ] **T9.1** — Proposed evaluation: replace the Dart-pure metadata
+  reader with Rust + `lofty` via `flutter_rust_bridge` only if the
+  measured benefit justifies the ABI, maintenance, and distribution costs.
+  The current evidence supports a research task, not an irreversible
+  architectural decision: `audio_metadata_reader` does not expose
+  `ALBUMARTIST`, and ReplayGain is available only for some formats and
+  tag layouts (notably Vorbis metadata for FLAC/Opus).
 
 ### Housekeeping backlog (low priority)
 - Reorganize `docs/` structure (`docs/adr/`, `docs/sprints/` already
@@ -395,6 +434,56 @@ T7, T8 and the engine refactor are closed:
   ~200 lines.
 
 ---
+
+## Sprint 9 Exit Criteria
+
+Sprint 9 is not considered complete until all required tickets have an
+explicit status and the supporting evidence is recorded in the repo:
+
+- the required Sprint 9 implementation work has been completed and verified
+  or remains explicitly open with a documented evidence gap;
+- the relevant acceptance criteria for each included ticket have been
+  checked against the code and the measured output, not assumed from
+  prior narrative;
+- the relevant quality gates have been run and their results recorded
+  (`flutter analyze`, target tests or benchmarks, and any required
+  hardware verification);
+- there are no open P0 blockers for the sprint at the time of closure;
+- the status, debt, and documentation have been updated after the change,
+  including pending verification notes for any unproven item;
+- local verification, CI verification, and any published release are kept
+  clearly distinct, with no release claim unless the hosted artifact itself
+  is verified.
+
+If a condition cannot yet be checked, it stays listed as pending rather
+than being declared satisfied.
+
+### Technical debt and review findings
+
+**Known coverage gap.** The successful `_reparseAndUpsert` trigger path is
+not positively asserted in tests: no test currently proves that a
+successful reparse fires `_startBackgroundCoverExtraction` when the
+background cover pass remains enabled. This is a genuine coverage gap, not a
+claim that the path is broken.
+
+**Backup review note (pending verification during Restore Safety).**
+Reviewing `lib/data/repositories/backup_repository_impl.dart` surfaced a
+set of code-level hypotheses that have not yet been proven by an execution
+or regression test:
+- `createBackup` appears to ignore `includePlaylists` and `includeSettings`
+  when `includeLibrary` is true, because it copies the database and cover
+  directory as a single archive payload without branching on the non-library
+  flags.
+- The UI exposes toggles for backup content, but the repository appears to
+  treat the archive as effectively library-only unless additional payloads are
+  added later.
+- `restoreBackup` closes the active database and then copies the extracted
+  SQLite file into place without validating the archive beyond the presence of
+  `nexo.sqlite`.
+
+These are observed code behaviors, not confirmed defects; they should be
+verified during Phase 0 / Task 0.2 — Restore Safety and treated as
+hypotheses until proven or disconfirmed.
 
 ## 4. Non-goals (not to be re-litigated before 1.0)
 

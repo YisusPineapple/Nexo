@@ -11,7 +11,7 @@
 
 T2 reemplaza el `FutureProvider` de lista completa (`sortedSongsProvider`) que hoy alimenta a `SongsScreen` por un `Notifier` con paginación reactiva sobre Drift `.watch()`, caché LRU de 4 páginas de 50 filas (~200 canciones en RAM), y scroll alfabético resuelto por búsqueda binaria sobre offsets acumulados — sin necesidad de tener la lista completa en memoria.
 
-**Estrategia de paginación decidida el 2026-09-13 tras §5.1 y §5.3: Ruta A+A.1 — LIMIT/OFFSET con índices funcionales `LOWER()`.** §5.1 midió el baseline sin índices (38.12 ms median OFFSET 10000 en dev box, > 15 ms de umbral). §5.3 re-midió con los índices añadidos (1.13 ms, < 5 ms de umbral). Números completos en §11. La ruta B (keyset) queda descartada con número delante, no por suposición.
+**Estrategia de paginación decidida el 2026-09-13 tras §5.1 y §5.3: Ruta A+A.1 — LIMIT/OFFSET con índices funcionales `LOWER()`.** La corrida corregida de §11 mide la línea base sin índices en 38.38 ms median OFFSET 10000 y la variante con índices en 1.27 ms; la cifra histórica 38.12/1.13 del primer intento se conserva solo como nota de método para explicar el benchmark inválido. La ruta B (keyset) queda descartada con número delante, no por suposición.
 
 T2 también elimina el código muerto de Sprint 8: `SongRepository.getSongsWindow` (Future sin llamadores) y `SongRepository.coversUpdatedStream` + `coversUpdatedProvider` (nunca emitió).
 
@@ -50,7 +50,7 @@ T2 también elimina el código muerto de Sprint 8: `SongRepository.getSongsWindo
 
 **DECISIÓN CERRADA el 2026-09-13.** Ruta A+A.1: `LIMIT 50 OFFSET ?` sobre índice funcional `LOWER(col)`.
 
-§5.1 (baseline, sin índices) midió 38.12 ms median OFFSET 10000 para el sort por defecto, por encima del umbral de 15 ms de §2.1.3 — habría decidido B. §5.3 re-midió con el índice `LOWER(title)` añadido: 1.13 ms median, muy por debajo del umbral de 5 ms del criterio §5.3 extendido — decide A+A.1. Los dos números en §11.
+§5.1 (baseline, sin índices) midió 38.38 ms median OFFSET 10000 para el sort por defecto, por encima del umbral de 15 ms de §2.1.3 — habría decidido B. §5.3 re-midió con el índice `LOWER(title)` añadido: 1.27 ms median, muy por debajo del umbral de 5 ms del criterio §5.3 extendido — decide A+A.1. Los dos números en §11.
 
 **Índices requeridos (migración v15 → v16):**
 
@@ -251,7 +251,7 @@ Estos números cierran la meta de Sprint 8 que quedó pendiente.
 
 | Riesgo | Prob. | Impacto | Mitigación |
 |---|---|---|---|
-| `ORDER BY LOWER()` sin índice | **Confirmado, mitigado** | Alto | Índices funcionales en v16. §5.3 midió 1.13 ms. |
+| `ORDER BY LOWER()` sin índice | **Confirmado, mitigado** | Alto | Índices funcionales en v16. §5.3 midió 1.27 ms. |
 | Thrashing de suscripciones en scroll rápido | Media | Medio | `loadPage` deduplica; LRU no evicta hasta necesitar espacio. |
 | Inconsistencia momentánea entre `totalCount` y `pages` | Baja | Bajo | `songAt` devuelve `null` para páginas no cargadas → placeholder. |
 | Reconstrucción completa al cambiar de sort | Alta | Bajo | Aceptable, acción explícita del usuario. |
@@ -459,7 +459,7 @@ Los cuatro archivos previstos en §4 del diseño, más el benchmark y los dos `.
 
 ### Qué quedó demostrado, no asumido
 
-1. **Estrategia de paginación.** §5.1 midió 38.12 ms median en `OFFSET 10000` sin índices. §5.3 midió 1.13 ms con los índices funcionales. La decisión A+A.1 se tomó con esos dos números en la mano — no por intuición.
+1. **Estrategia de paginación.** La línea base corregida de §5.1 midió 38.38 ms median en `OFFSET 10000` sin índices; §5.3 midió 1.27 ms con los índices funcionales. La decisión A+A.1 se tomó con esos dos números en la mano — no por intuición.
 2. **Sin `.distinct()` en `watchSongsWindow`.** Cuatro tests en `song_repository_impl_test.dart` confirman que un cambio de contenido en una canción de la ventana visible re-emite con el valor nuevo, que la variante sobre otro campo también lo hace, que un cambio fuera de la ventana re-emite por diseño, y que el planner de SQLite usa `idx_songs_title_lower` (`EXPLAIN QUERY PLAN`).
 3. **`readsFrom: {_db.songs}` en `watchSongsCount(query:)`.** El test de reactividad al insertar una canción que matchea `purple` confirma que Drift re-ejecuta el conteo — la cascada trigger FTS5 → virtual table no se asume.
 4. **LRU y cancelación de suscripciones.** El test de la sección "loading 5 distinct pages evicts the oldest" verifica que la suscripción se cancela al evictar — sin esto, la LRU sería un contador, no una caché.
@@ -467,13 +467,13 @@ Los cuatro archivos previstos en §4 del diseño, más el benchmark y los dos `.
 
 ### Deuda derivada, explícita
 
-- **`Sprint9_P0_T2.1.md`** — batching de `_startBackgroundCoverExtraction`. Los números de §5.2 (14.000 re-emisiones, 4.1 s CPU-in-map, 44.8 s wall clock sobre 3.500 UPDATEs) lo justifican. No bloquea T2.
+- **`Sprint9_P0_T2.1.md`** — batching de `_startBackgroundCoverExtraction`. Los números corregidos de §5.2 (14.000 re-emisiones, 3.636 s CPU-in-map, 19.466 s wall clock sobre 3.500 UPDATEs) lo justifican. No bloquea T2.
 - **`T3`** (no redactado aún) — paginación equivalente para `multiArtistSongsProvider` y `genreSongsProvider` en `grouped_library_providers.dart`, que siguen cargando la biblioteca completa en RAM. Fuera de alcance de T2 (§9).
 
 ### Lo que NO se hizo, y por qué
 
-- No se implementó la ruta B (keyset). §5.3 la descartó con número: 1.13 ms << umbral de 5 ms de A+A.1.
+- No se implementó la ruta B (keyset). §5.3 la descartó con número: 1.27 ms << umbral de 5 ms de A+A.1.
 - No se batching en `_startBackgroundCoverExtraction`. Es `T2.1`, ticket separado.
 - No se migraron `FolderDetailScreen`, `AlbumDetailScreen`, `ArtistDetailScreen`, `GenreDetailScreen` a `itemExtent`. `T3`.
 
-**T2 cerrado.**
+**T2 cerrado.** El cierre de T2 sigue apoyado por la línea base corregida del benchmark (§11), no por la primera corrida inválida que mezcló unidades y marcaba 38.12/1.13 y 44.848/4.143 como si fueran observados. La explicación histórica del fallo metodológico se conserva para dejar constancia de la corrección.
