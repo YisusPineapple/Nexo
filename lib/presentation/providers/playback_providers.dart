@@ -18,6 +18,7 @@ import 'app_preferences_provider.dart';
 import 'for_you_provider.dart';
 import 'queue_manager_provider.dart';
 import 'repository_providers.dart';
+import 'serialized_task_queue.dart';
 
 final positionStreamProvider = StreamProvider<Duration>((ref) {
   return ref.watch(audioPlayerRepositoryProvider).positionStream;
@@ -41,6 +42,10 @@ final playbackControllerProvider =
 );
 
 class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
+  // NEW: Serializes onQueueAdvanced calls to prevent lost skips when the
+  // user presses Next twice faster than the DB can persist the first change.
+  final _advanceQueue = SerializedTaskQueue();
+  
   @override
   Future<PlaybackQueue?> build() async {
     final restoreUseCase = RestoreSessionUseCase(
@@ -54,17 +59,17 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
     final handler = ref.read(audioHandlerProvider);
 
     handler.onQueueAdvanced = (newIndex) async {
-      final currentQueue = state.valueOrNull;
-      if (currentQueue == null) {
-        return;
-      }
+      await _advanceQueue.enqueue(() async {
+        final currentQueue = state.valueOrNull;
+        if (currentQueue == null) return;
 
-      final updated = currentQueue.withCurrentIndex(newIndex);
-      if (updated.isOk) {
-        final newQueue = updated.valueOrNull!;
-        await ref.read(playbackRepositoryProvider).saveQueue(newQueue);
-        state = AsyncData(newQueue);
-      }
+        final updated = currentQueue.withCurrentIndex(newIndex);
+        if (updated.isOk) {
+          final newQueue = updated.valueOrNull!;
+          await ref.read(playbackRepositoryProvider).saveQueue(newQueue);
+          state = AsyncData(newQueue);
+        }
+      });
     };
 
     handler.onQueueEnded = () async {
