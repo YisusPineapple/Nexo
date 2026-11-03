@@ -27,29 +27,38 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
 
   @override
   Future<Result<PlaybackQueue, Failure>> getQueue(QueueId id) async {
-    final row = await (_db.select(_db.playbackQueues)
-          ..where((t) => t.id.equals(id.value)))
-        .getSingleOrNull();
-    if (row == null) {
-      return Err(NotFoundFailure('No queue found with id "${id.value}".'));
+    try {
+      final row = await (_db.select(_db.playbackQueues)
+            ..where((t) => t.id.equals(id.value)))
+          .getSingleOrNull();
+      if (row == null) {
+        return Err(NotFoundFailure('No queue found with id "${id.value}".'));
+      }
+      return await _hydrateQueue(row);
+    } catch (e) {
+      return Err(
+          UnexpectedFailure('Failed to fetch queue "${id.value}".', cause: e));
     }
-    return _hydrateQueue(row);
   }
 
   @override
   Future<Result<List<PlaybackQueue>, Failure>> getAllQueues() async {
-    final rows = await _db.select(_db.playbackQueues).get();
-    final queues = <PlaybackQueue>[];
-    for (final row in rows) {
-      final result = await _hydrateQueue(row);
-      switch (result) {
-        case Err(error: final e):
-          return Err(e);
-        case Ok(value: final queue):
-          queues.add(queue);
+    try {
+      final rows = await _db.select(_db.playbackQueues).get();
+      final queues = <PlaybackQueue>[];
+      for (final row in rows) {
+        final result = await _hydrateQueue(row);
+        switch (result) {
+          case Err(error: final e):
+            return Err(e);
+          case Ok(value: final queue):
+            queues.add(queue);
+        }
       }
+      return Ok(queues);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to fetch all queues.', cause: e));
     }
-    return Ok(queues);
   }
 
   Future<Result<PlaybackQueue, Failure>> _hydrateQueue(
@@ -126,21 +135,26 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
 
   @override
   Future<Result<void, Failure>> saveQueue(PlaybackQueue queue) async {
-    await _db.transaction(() async {
-      await _db
-          .into(_db.playbackQueues)
-          .insertOnConflictUpdate(_queueMapper.toQueueCompanion(queue));
-      await (_db.delete(_db.queueSongs)
-            ..where((t) => t.queueId.equals(queue.id.value)))
-          .go();
-      await _db.batch((batch) {
-        batch.insertAll(
-          _db.queueSongs,
-          _queueMapper.toQueueSongCompanions(queue),
-        );
+    try {
+      await _db.transaction(() async {
+        await _db
+            .into(_db.playbackQueues)
+            .insertOnConflictUpdate(_queueMapper.toQueueCompanion(queue));
+        await (_db.delete(_db.queueSongs)
+              ..where((t) => t.queueId.equals(queue.id.value)))
+            .go();
+        await _db.batch((batch) {
+          batch.insertAll(
+            _db.queueSongs,
+            _queueMapper.toQueueSongCompanions(queue),
+          );
+        });
       });
-    });
-    return const Ok(null);
+      return const Ok(null);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to save queue "${queue.id.value}".',
+          cause: e));
+    }
   }
 
   @override
@@ -166,102 +180,127 @@ class PlaybackRepositoryImpl implements PlaybackRepository {
 
   @override
   Future<Result<void, Failure>> deleteQueue(QueueId id) async {
-    final deletedCount = await (_db.delete(_db.playbackQueues)
-          ..where((t) => t.id.equals(id.value)))
-        .go();
-    if (deletedCount == 0) {
-      return Err(NotFoundFailure('No queue found with id "${id.value}".'));
+    try {
+      final deletedCount = await (_db.delete(_db.playbackQueues)
+            ..where((t) => t.id.equals(id.value)))
+          .go();
+      if (deletedCount == 0) {
+        return Err(NotFoundFailure('No queue found with id "${id.value}".'));
+      }
+      await (_db.delete(_db.queueSongs)
+            ..where((t) => t.queueId.equals(id.value)))
+          .go();
+      return const Ok(null);
+    } catch (e) {
+      return Err(
+          UnexpectedFailure('Failed to delete queue "${id.value}".', cause: e));
     }
-    await (_db.delete(_db.queueSongs)..where((t) => t.queueId.equals(id.value)))
-        .go();
-    return const Ok(null);
   }
 
   @override
   Future<Result<PlaybackSettings, Failure>> getPlaybackSettings() async {
-    final rows = await _db.select(_db.playbackSettingsTable).get();
-    if (rows.isEmpty) return const Ok(PlaybackSettings.defaults);
+    try {
+      final rows = await _db.select(_db.playbackSettingsTable).get();
+      if (rows.isEmpty) return const Ok(PlaybackSettings.defaults);
 
-    final row = rows.last;
+      final row = rows.last;
 
-    final crossfadeResult = CrossfadeConfig.create(
-      mode: row.crossfadeMode,
-      duration: Duration(milliseconds: row.crossfadeDurationMs),
-      isAutoDuration: row.isAutoDuration,
-    );
-    final speedResult = PlaybackSpeed.create(
-      multiplier: row.speedHundredths / 100,
-      pitchCorrectionEnabled: row.pitchCorrectionEnabled,
-    );
+      final crossfadeResult = CrossfadeConfig.create(
+        mode: row.crossfadeMode,
+        duration: Duration(milliseconds: row.crossfadeDurationMs),
+        isAutoDuration: row.isAutoDuration,
+      );
+      final speedResult = PlaybackSpeed.create(
+        multiplier: row.speedHundredths / 100,
+        pitchCorrectionEnabled: row.pitchCorrectionEnabled,
+      );
 
-    final CrossfadeConfig crossfade;
-    switch (crossfadeResult) {
-      case Err(error: final e):
-        return Err(e);
-      case Ok(value: final v):
-        crossfade = v;
+      final CrossfadeConfig crossfade;
+      switch (crossfadeResult) {
+        case Err(error: final e):
+          return Err(e);
+        case Ok(value: final v):
+          crossfade = v;
+      }
+
+      final PlaybackSpeed speed;
+      switch (speedResult) {
+        case Err(error: final e):
+          return Err(e);
+        case Ok(value: final v):
+          speed = v;
+      }
+
+      return Ok(PlaybackSettings(crossfade: crossfade, speed: speed));
+    } catch (e) {
+      return Err(
+          UnexpectedFailure('Failed to fetch playback settings.', cause: e));
     }
-
-    final PlaybackSpeed speed;
-    switch (speedResult) {
-      case Err(error: final e):
-        return Err(e);
-      case Ok(value: final v):
-        speed = v;
-    }
-
-    return Ok(PlaybackSettings(crossfade: crossfade, speed: speed));
   }
 
   @override
   Future<Result<void, Failure>> savePlaybackSettings(
     PlaybackSettings settings,
   ) async {
-    await _db.transaction(() async {
-      await _db.delete(_db.playbackSettingsTable).go();
+    try {
+      await _db.transaction(() async {
+        await _db.delete(_db.playbackSettingsTable).go();
 
-      await _db.into(_db.playbackSettingsTable).insert(
-            PlaybackSettingsTableCompanion.insert(
-              id: const Value(0),
-              crossfadeMode: settings.crossfade.mode,
-              crossfadeDurationMs: settings.crossfade.duration.inMilliseconds,
-              isAutoDuration: Value(settings.crossfade.isAutoDuration),
-              speedHundredths: settings.speed.speedHundredths,
-              pitchCorrectionEnabled: settings.speed.pitchCorrectionEnabled,
-            ),
-          );
-    });
-    return const Ok(null);
+        await _db.into(_db.playbackSettingsTable).insert(
+              PlaybackSettingsTableCompanion.insert(
+                id: const Value(0),
+                crossfadeMode: settings.crossfade.mode,
+                crossfadeDurationMs: settings.crossfade.duration.inMilliseconds,
+                isAutoDuration: Value(settings.crossfade.isAutoDuration),
+                speedHundredths: settings.speed.speedHundredths,
+                pitchCorrectionEnabled: settings.speed.pitchCorrectionEnabled,
+              ),
+            );
+      });
+      return const Ok(null);
+    } catch (e) {
+      return Err(
+          UnexpectedFailure('Failed to save playback settings.', cause: e));
+    }
   }
 
   @override
   Future<Result<void, Failure>> saveActiveSession(
     ActiveSessionSnapshot snapshot,
   ) async {
-    await _db.transaction(() async {
-      await _db.delete(_db.activeSessionTable).go();
+    try {
+      await _db.transaction(() async {
+        await _db.delete(_db.activeSessionTable).go();
 
-      await _db.into(_db.activeSessionTable).insert(
-            ActiveSessionTableCompanion.insert(
-              id: const Value(0),
-              activeQueueId: snapshot.activeQueueId.value,
-              positionMs: snapshot.position.inMilliseconds,
-            ),
-          );
-    });
-    return const Ok(null);
+        await _db.into(_db.activeSessionTable).insert(
+              ActiveSessionTableCompanion.insert(
+                id: const Value(0),
+                activeQueueId: snapshot.activeQueueId.value,
+                positionMs: snapshot.position.inMilliseconds,
+              ),
+            );
+      });
+      return const Ok(null);
+    } catch (e) {
+      return Err(UnexpectedFailure('Failed to save active session.', cause: e));
+    }
   }
 
   @override
   Future<Result<ActiveSessionSnapshot?, Failure>> getLastSession() async {
-    final rows = await _db.select(_db.activeSessionTable).get();
-    if (rows.isEmpty) return const Ok(null);
+    try {
+      final rows = await _db.select(_db.activeSessionTable).get();
+      if (rows.isEmpty) return const Ok(null);
 
-    final row = rows.last;
-    return Ok((
-      activeQueueId: QueueId(row.activeQueueId),
-      position: Duration(milliseconds: row.positionMs),
-    ));
+      final row = rows.last;
+      return Ok((
+        activeQueueId: QueueId(row.activeQueueId),
+        position: Duration(milliseconds: row.positionMs),
+      ));
+    } catch (e) {
+      return Err(
+          UnexpectedFailure('Failed to fetch active session.', cause: e));
+    }
   }
 
   @override

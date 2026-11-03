@@ -234,4 +234,64 @@ void main() {
       expect(result.valueOrNull?.position, const Duration(seconds: 42));
     });
   });
+    group('Contract Hardening (Result Err on DB failure)', () {
+    test('saveQueue returns Err(UnexpectedFailure) when the DB is closed',
+        () async {
+      final a = await persistedSong(1);
+      final queue = PlaybackQueue.create(
+        id: const QueueId('q1'),
+        songs: [a],
+        source: const ManualQueueSource(),
+      ).valueOrNull!;
+
+      // Force a DB failure
+      await db.close();
+
+      final result = await repo.saveQueue(queue);
+
+      expect(result.isErr, isTrue,
+          reason: 'saveQueue must return Err, not throw, when the DB fails.');
+      expect(
+        result.when(ok: (_) => null, err: (e) => e),
+        isA<UnexpectedFailure>(),
+      );
+    });
+
+    test('getQueue returns Err(UnexpectedFailure) when the DB is closed',
+        () async {
+      await db.close();
+      final result = await repo.getQueue(const QueueId('q1'));
+
+      expect(result.isErr, isTrue,
+          reason: 'getQueue must return Err, not throw, when the DB fails.');
+      expect(
+        result.when(ok: (_) => null, err: (e) => e),
+        isA<UnexpectedFailure>(),
+      );
+    });
+
+    test('savePlaybackSettings returns Err(UnexpectedFailure) when the DB is closed',
+        () async {
+      await db.close();
+      final result = await repo.savePlaybackSettings(PlaybackSettings.defaults);
+
+      expect(result.isErr, isTrue);
+      expect(
+        result.when(ok: (_) => null, err: (e) => e),
+        isA<UnexpectedFailure>(),
+      );
+    });
+
+    test('getLastSession returns Err(UnexpectedFailure) when the DB is closed',
+        () async {
+      await db.close();
+      final result = await repo.getLastSession();
+
+      expect(result.isErr, isTrue);
+      expect(
+        result.when(ok: (_) => null, err: (e) => e),
+        isA<UnexpectedFailure>(),
+      );
+    });
+  });
 }
