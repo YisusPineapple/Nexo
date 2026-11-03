@@ -682,13 +682,18 @@ class SongRepositoryImpl implements SongRepository {
 
   @override
   Future<Result<Song, Failure>> getSongById(SongId id) async {
-    final row = await (_db.select(_db.songs)
-          ..where((t) => t.id.equals(id.value)))
-        .getSingleOrNull();
-    if (row == null) {
-      return Err(NotFoundFailure('No song found with id "${id.value}".'));
+    try {
+      final row = await (_db.select(_db.songs)
+            ..where((t) => t.id.equals(id.value)))
+          .getSingleOrNull();
+      if (row == null) {
+        return Err(NotFoundFailure('No song found with id "${id.value}".'));
+      }
+      return _mapper.toEntity(row);
+    } catch (e) {
+      return Err(
+          UnexpectedFailure('Failed to fetch song "${id.value}".', cause: e));
     }
-    return _mapper.toEntity(row);
   }
 
   @override

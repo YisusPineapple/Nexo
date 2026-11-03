@@ -747,4 +747,32 @@ void main() {
       }
     });
   });
+  // ---------------------------------------------------------------------
+  // Contract Hardening (Slice B2) — same pattern as PlaybackRepositoryImpl.
+  // Closes the DB and asserts that getSongById returns Err instead of
+  // throwing, honoring CONVENTIONS.md's "no exceptions across Data->
+  // Presentation" rule.
+  // ---------------------------------------------------------------------
+  group('Contract Hardening (Result Err on DB failure)', () {
+    test('getSongById returns Err(UnexpectedFailure) when the DB is closed',
+        () async {
+      // Sanity: verify the row exists before closing the DB, so that the
+      // test proves the failure comes from the closed DB, not from a
+      // missing row.
+      final id = await seedSong(artist: 'artist-1');
+
+      await db.close();
+
+      final result = await repo.getSongById(SongId(id));
+
+      expect(result.isErr, isTrue,
+          reason: 'getSongById must return Err, not throw, when the DB '
+              'fails. Throwing would bypass the Result contract enforced '
+              'by CONVENTIONS.md.');
+      expect(
+        result.when(ok: (_) => null, err: (e) => e),
+        isA<UnexpectedFailure>(),
+      );
+    });
+  });
 }
