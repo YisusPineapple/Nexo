@@ -240,7 +240,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   itemExtent: itemExtent,
                 )
               : Hero(
-                  tag: 'cover_${currentSong.id.value}',
+                  tag: 'np_cover_${currentSong.id.value}',
                   child: _CoverArtView(
                       key: const ValueKey('cover'),
                       coverArtPath: currentSong.coverArtPath),
