@@ -110,7 +110,17 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final currentSong = queue?.currentSong;
 
     if (currentSong == null) {
-      return const Scaffold(body: Center(child: Text('No active playback')));
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(PhosphorIconsRegular.caretDown),
+            onPressed: widget.onClose ?? () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: const Center(child: Text('No active playback')),
+      );
     }
 
     final theme = Theme.of(context);

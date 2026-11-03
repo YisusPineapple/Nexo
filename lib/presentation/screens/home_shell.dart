@@ -5,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
-import '../../core/error/failures.dart';
-import '../providers/library_providers.dart';
 import '../providers/navigation_providers.dart';
 import '../providers/playback_providers.dart';
 import '../widgets/mini_player.dart';
@@ -109,14 +107,16 @@ class _HomeShellState extends ConsumerState<HomeShell>
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(selectedNavIndexProvider);
     final queueAsync = ref.watch(playbackControllerProvider);
-    final hasQueue = queueAsync.valueOrNull != null;
+    // Only consider the queue "active" if it actually has a current song.
+    final hasQueue = queueAsync.valueOrNull?.currentSong != null;
 
-    ref.listen(indexDirectoriesControllerProvider, (previous, next) {
-      if (next case AsyncError(:final error)) {
-        final msg = error is Failure ? error.message : error.toString();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not index folder: $msg')),
-        );
+    // NEW: Automatically close the full-screen player when the queue
+    // reaches its natural end (currentSong becomes null).
+    ref.listen(playbackControllerProvider, (prev, next) {
+      final wasPlaying = prev?.valueOrNull?.currentSong != null;
+      final isPlaying = next.valueOrNull?.currentSong != null;
+      if (wasPlaying && !isPlaying && !_playerAnim.isDismissed) {
+        _playerAnim.reverse();
       }
     });
 
