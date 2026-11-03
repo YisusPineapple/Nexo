@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 
-import '../../../domain/entities/song.dart';
-import '../../../domain/entities/queue_source.dart';
+import '../../domain/entities/song.dart';
+import '../../domain/entities/queue_source.dart';
 import '../providers/for_you_provider.dart';
 import '../providers/playback_providers.dart';
 import 'settings_screen.dart';
