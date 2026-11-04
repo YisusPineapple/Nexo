@@ -45,7 +45,7 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
   // NEW: Serializes onQueueAdvanced calls to prevent lost skips when the
   // user presses Next twice faster than the DB can persist the first change.
   final _advanceQueue = SerializedTaskQueue();
-  
+
   @override
   Future<PlaybackQueue?> build() async {
     final restoreUseCase = RestoreSessionUseCase(
@@ -74,24 +74,22 @@ class PlaybackController extends AsyncNotifier<PlaybackQueue?> {
 
     handler.onQueueEnded = () async {
       final currentQueue = state.valueOrNull;
-      if (currentQueue == null) {
-        return;
-      }
+      if (currentQueue == null) return;
 
-      final updated = currentQueue.withCurrentIndex(0);
+      // Respect the domain model: withAdvancedToNext() returns a queue
+      // with currentIndex = -1 when the last track ends with RepeatMode.off.
+      // The previous implementation forced currentIndex to 0 and paused,
+      // which contradicted the domain and left the mini-player showing
+      // a phantom "track 1 paused" state.
+      final updated = currentQueue.withAdvancedToNext();
       if (updated.isOk) {
         final newQueue = updated.valueOrNull!;
         await ref.read(playbackRepositoryProvider).saveQueue(newQueue);
         state = AsyncData(newQueue);
 
-        final repo = ref.read(audioPlayerRepositoryProvider);
-        await repo.updateQueue(
-          newQueue.songs,
-          currentIndex: 0,
-          repeatMode: newQueue.repeatMode,
-        );
-        await repo.pause();
-        await repo.seekTo(Duration.zero);
+        // The queue is finished. Stop the engine cleanly so the
+        // notification and media session are torn down.
+        await ref.read(audioPlayerRepositoryProvider).stop();
       }
     };
 
