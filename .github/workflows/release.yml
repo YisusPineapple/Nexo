@@ -20,6 +20,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.44.7'
 
       - name: Install dependencies
         run: flutter pub get
@@ -50,6 +51,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.44.7'
 
       - name: Validate release signing inputs and create key.properties
         env:
@@ -137,6 +139,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.44.7'
 
       - name: Install dependencies
         run: flutter pub get
@@ -166,6 +169,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.44.7'
 
       - name: Install dependencies
         run: flutter pub get
