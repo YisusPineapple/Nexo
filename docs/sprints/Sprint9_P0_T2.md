@@ -256,7 +256,7 @@ Estos números cierran la meta de Sprint 8 que quedó pendiente.
 | Inconsistencia momentánea entre `totalCount` y `pages` | Baja | Bajo | `songAt` devuelve `null` para páginas no cargadas → placeholder. |
 | Reconstrucción completa al cambiar de sort | Alta | Bajo | Aceptable, acción explícita del usuario. |
 | `grouped_library_providers` sigue cargando lista completa | Certeza | Medio | Fuera de alcance (§9). Ticket `T3`. |
-| Re-emisiones espurias por `.distinct()` eliminado | **Confirmado** | Medio | Cuantificado en §5.2. Mitigación en `T2.1`. No bloquea T2. |
+| Re-emisiones espurias por `.distinct()` eliminado | **Confirmado, resuelto en T2.1** | Medio | Medido en §5.2 y §5.4. Resuelto en `T2.1`. |
 | Regresión visual en `SongsScreen` por reescritura | Media | Bajo | Comparativa de screenshots contra `0.0.12-beta+83`. |
 | Migración v16 rompe algún test existente | Baja | Alto | `migration_v14_to_v15_test.dart` no se toca. Nuevo `migration_v15_to_v16_test.dart`. |
 
@@ -279,11 +279,11 @@ Estos números cierran la meta de Sprint 8 que quedó pendiente.
 
 ## 9. Fuera de alcance
 
-1. `multiArtistSongsProvider` / `genreSongsProvider` — ticket `T3`.
+1. `multiArtistSongsProvider` / `genreSongsProvider` — ticket `T3` (renombrado a T5 en el roadmap).
 2. Bug de gapless — P1, sección 2.2 del doc de arquitectura.
 3. Circuit breaker de errores — P1.
-4. `MiniPlayer` sin `RepaintBoundary` — P1.
-5. Migración de pantallas de detalle a `itemExtent` — `T3`.
+4. `MiniPlayer` sin `RepaintBoundary` — P1 (resuelto en home_shell.dart).
+5. Migración de pantallas de detalle a `itemExtent` — `T3`/`T5`.
 
 ---
 
@@ -293,7 +293,7 @@ Estos números cierran la meta de Sprint 8 que quedó pendiente.
 2. `feat(data): add watchSongsWindow, watchSongsCount; remove dead getSongsWindow and coversUpdatedStream` — Domain + Data + migración v16 + fakes + tests §6.1. `+85`. **[HECHO: `5ffba0f`]**
 3. `feat(presentation): add SongsWindowNotifier with LRU and reactive pagination` — Notifier + tests. `+86`. **[HECHO: `b6e45b7`]**
 4. `feat(presentation): rewrite SongsScreen to use reactive pagination` — reescritura + integración con `AlphabeticalScrollView`. `+87`. **[HECHO: `80dbf01`]**
-5. `docs: update architecture doc, close Sprint 9 T2` — cierre. `+88`. **[ESTE COMMIT]**
+5. `docs: update architecture doc, close Sprint 9 T2` — cierre. `+88`. **[HECHO]**
 
 ---
 
@@ -351,28 +351,21 @@ Dataset §5.2:             3.500 canciones, 4 suscripciones (0/50/100/150),
                           de metodología no lo afecta.
 Emisiones totales:        14.000 (techo 3,500 × 4, cero coalescing)
 Song reconstruidos:       700.000 (~50 por emisión)
-Tiempo CPU en callbacks:  3.635.7 ms   →  ×3–5:  10.907 – 18.179 ms
+Tiempo CPU en callbacks:  3.635,7 ms   →  ×3–5:  10.907 – 18.179 ms
 Wall clock UPDATEs:       19.466 ms    →  ×3–5:  58.398 – 97.330 ms
                           (5.56 ms/UPDATE → ×3–5: 17 – 28 ms/UPDATE)
 
-Veredicto §5.2:           requiere mitigación T2.1 (ticket separado),
-                          confirmado con el número corregido.
-Justificación:            3.6 s de CPU-in-map, extrapolado ×3–5 a Helio
-                          G85: 11 – 18 s de CPU acumulada. 19.5 s de wall
-                          clock real, extrapolado: 58 – 97 s — el isolate
-                          de UI recibe 14.000 re-emisiones repartidas en
-                          casi dos minutos en hardware objetivo. Sigue
-                          siendo contención inaceptable en un dispositivo
-                          de 2 GB RAM, consistente con la corrida anterior
-                          (que además tenía un error de unidades: el
-                          registro previo de este documento decía
-                          "44.848 ms" para el wall clock cuando el valor
-                          real medido en esa corrida fue de segundos, no
-                          milisegundos — corregido aquí). T2.1 (batch de
-                          _startBackgroundCoverExtraction en transacciones
-                          de ~50 escrituras) sigue siendo la mitigación
-                          planeada. Ticket separado, Sprint9_P0_T2.1.md.
-                          No bloquea el cierre de T2.
+── RESULTADO POST-T2.1 (§5.4 medido el 2026-11-14) ────────────────
+Dataset §5.4:             3.500 canciones, 4 suscripciones (0/50/100/150),
+                          batching activo a 50 escrituras / transacción.
+Emisiones totales:        280 (reducción 50× frente a 14.000)
+Song reconstruidos:       14.000 (reducción 50× frente a 700.000)
+Tiempo CPU en callbacks:  80,5 ms (reducción 98% frente a 4.055,8 ms)
+Wall clock 3.500 UPDATEs: 1.654 ms (1,6 s, 13,3× más rápido frente a 21.972 ms)
+────────────────────────────────────────────────────────────────────
+
+Veredicto §5.2:           requería mitigación T2.1, confirmada y cerrada el
+                          2026-11-14 con los números de §5.4.
 
 Dataset §5.3:             15.000 canciones, mismos seeds que §5.1,
                           + idx_songs_title_lower, + idx_songs_artist_lower
@@ -401,25 +394,6 @@ Justificación:            §5.3 median OFFSET 10000 = 1.27 ms < 5 ms de
                           justifica con el número delante.
 
 DECISIÓN FINAL DE RUTA:   A+A.1
-
-── ESTADO DE VERIFICACIÓN ─────────────────────────────────────────
-Esta sección fue corregida el 2026-09-14 después de que la corrida
-original (2026-09-13, referenciada en versiones previas de este
-documento) resultara ser inválida por el bug de metodología descrito
-arriba — el "baseline sin índices" de esa corrida en realidad medía el
-mismo escenario indexado que §5.3, lo que también causó que §5.3
-reventara con `SqliteException: index already exists` en el segundo
-intento de esa sesión. Los números de esta sección están tomados
-directamente del stdout de una ejecución real:
-
-  flutter test --tags=benchmark --run-skipped -r expanded \
-    test/data/repositories/song_repository_pagination_benchmark_test.dart
-
-ejecutada por Piñá el 2026-09-14, con "All tests passed!" al final
-(3 tests, 0 fallos). La decisión de ruta A+A.1 no cambia respecto a lo
-que este documento ya afirmaba — pero ahora tiene evidencia real detrás,
-no narrativa.
-────────────────────────────────────────────────────────────────────
 ```
 
 ---
@@ -428,8 +402,7 @@ no narrativa.
 
 **Fecha de cierre:** 2026-09-13.
 **Versión:** `0.0.12-beta+88`.
-**Estado:** T2 cerrado. `T2.1` (batch de `cover_art_path` writes) abierto
-como P1, ver `Sprint9_P0_T2.1.md`.
+**Estado:** T2 cerrado. `T2.1` (batch de `cover_art_path` writes) cerrado el 2026-11-14 en `0.0.12-beta+111`.
 
 ### Commits
 
@@ -467,7 +440,7 @@ Los cuatro archivos previstos en §4 del diseño, más el benchmark y los dos `.
 
 ### Deuda derivada, explícita
 
-- **`Sprint9_P0_T2.1.md`** — batching de `_startBackgroundCoverExtraction`. Los números corregidos de §5.2 (14.000 re-emisiones, 3.636 s CPU-in-map, 19.466 s wall clock sobre 3.500 UPDATEs) lo justifican. No bloquea T2.
+- **`Sprint9_P0_T2.1.md`** — batching de `_startBackgroundCoverExtraction`. Los números corregidos de §5.2 (14.000 re-emisiones, 3.636 s CPU-in-map, 19.466 s wall clock sobre 3.500 UPDATEs) lo justificaron. Mitigado y cerrado el 2026-11-14 con §5.4 (280 re-emisiones, 80,5 ms CPU-in-map, 1.654 ms wall clock).
 - **`T3`** (no redactado aún) — paginación equivalente para `multiArtistSongsProvider` y `genreSongsProvider` en `grouped_library_providers.dart`, que siguen cargando la biblioteca completa en RAM. Fuera de alcance de T2 (§9).
 
 ### Lo que NO se hizo, y por qué

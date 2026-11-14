@@ -2,7 +2,7 @@
 
 **Repo:** github.com/YisusPineapple/Nexo (branch `main`)
 **Package Name:** `io.github.yisus.nexo`
-**Last confirmed version:** `0.0.12-beta+101`
+**Last confirmed version:** `0.0.12-beta+111`
 **Database schema (Drift):** `schemaVersion = 17` (verified by
 `migration_v14_to_v15_test.dart`, `migration_v15_to_v16_test.dart`, and
 `migration_v16_to_v17_test.dart`)
@@ -18,11 +18,11 @@ readiness work.
 - **T3 closed** on 2026-09-17, verified on Linux dev box: 1408 unique
   cover files, zero duplicates across restart, SHA-256 names (see
   §2.5 and §3).
-- **T2.1 open as P1**: batching of `cover_art_path` writes in
-  `_startBackgroundCoverExtraction`. The corrected benchmark shows
-  19.466 s wall-clock and 3.636 s CPU-in-map over 3,500 updates, so the
-  issue remains real and trackable with a measured baseline. See
-  `Sprint9_P0_T2.1.md`.
+- **T2.1 closed** on 2026-11-14: batching of `cover_art_path` writes in
+  `_startBackgroundCoverExtraction` verified in benchmark §5.4
+  (re-emisiones reducidas de 14.000 a 280 [50×], wall-clock de 21.97 s a
+  1.65 s [13,3×], CPU-in-map de 4.056 ms a 80,5 ms [98% reducción]).
+  Ver `Sprint9_P0_T2.1.md`.
 - T4 has no recovered ticket record or implementation evidence in the repo
   history; as a result, this is intentionally documented as an evidence
   gap rather than a fictional scope item.
@@ -257,8 +257,7 @@ Implemented across six commits on 2026-09-21/22:
 - `be08591` test(data): cover MetadataDatasource with T9 fixture suite
 - `b212c6f` docs: initial T9 write-up (status was corrected to
   "pending device verification" in the commit below)
-- (this commit) fix(data): restore cover extraction trigger after
-  reparse; correct §2.6 status
+- fix(data): restore cover extraction trigger after reparse; correct §2.6 status
 
 **Reader.** `lib/data/sources/metadata_datasource.dart` is the
 single backend, using `audio_metadata_reader` (pure Dart). Its
@@ -369,11 +368,11 @@ same Helio G85 device that exposed the original bug:
   pending Helio G85 smoke test before closing.
 
 ### P1 — non-blocker
-- [ ] **T2.1** — Batch `cover_art_path` writes in
-  `_startBackgroundCoverExtraction`. The corrected benchmark (2026-09-14)
-  measured 19.466 s wall-clock and 3.636 s CPU-in-map over 3,500
-  updates; the issue remains open because the observed contention is still
-  too high for the Helio G85 ceiling. See `Sprint9_P0_T2.1.md`.
+- [x] **T2.1** — Batch `cover_art_path` writes in
+  `_startBackgroundCoverExtraction`. Closed on 2026-11-14 with benchmark
+  §5.4 verified: re-emisiones reducidas de 14.000 a 280 (50×), wall-clock
+  de 21.97 s a 1.65 s (13,3×), CPU-in-map de 4.056 ms a 80,5 ms. Ver
+  `Sprint9_P0_T2.1.md`.
 - [ ] **T4** — No reliable source or Git evidence for this ticket was
   recovered in the current repo state. The absence of evidence is itself
   the documented finding: do not invent historic scope or implementation
@@ -411,7 +410,7 @@ same Helio G85 device that exposed the original bug:
   backlog item remains for this fix.
 
 ### Deferred — exploration only, not tickets
-These are explicitly **not** to become tickets until T2.1, T5, T6,
+These are explicitly **not** to become tickets until T5, T6,
 T7, T8 and the engine refactor are closed:
 - Rust / C++ / Zig rewrite of the audio engine.
 - Bit-perfect path with external USB DAC (bypassing the Android audio

@@ -19,6 +19,57 @@ import 'package:path/path.dart' as p;
 
 import '../../domain/repositories/fakes/fake_library_folder_repository.dart';
 
+/// Intercepts [beginTransaction] calls on a delegated [QueryExecutor]
+/// to verify transaction batching in SQLite without altering behavior.
+class _CountingQueryExecutor extends QueryExecutor {
+  _CountingQueryExecutor(this._inner);
+  final QueryExecutor _inner;
+  int transactionCount = 0;
+
+  @override
+  SqlDialect get dialect => _inner.dialect;
+
+  @override
+  Future<bool> ensureOpen(QueryExecutorUser user) => _inner.ensureOpen(user);
+
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+          String statement, List<Object?> args) =>
+      _inner.runSelect(statement, args);
+
+  @override
+  Future<int> runInsert(String statement, List<Object?> args) =>
+      _inner.runInsert(statement, args);
+
+  @override
+  Future<int> runUpdate(String statement, List<Object?> args) =>
+      _inner.runUpdate(statement, args);
+
+  @override
+  Future<int> runDelete(String statement, List<Object?> args) =>
+      _inner.runDelete(statement, args);
+
+  @override
+  Future<void> runCustom(String statement, [List<Object?>? args]) =>
+      _inner.runCustom(statement, args);
+
+  @override
+  Future<void> runBatched(BatchedStatements statements) =>
+      _inner.runBatched(statements);
+
+  @override
+  TransactionExecutor beginTransaction() {
+    transactionCount++;
+    return _inner.beginTransaction();
+  }
+
+  @override
+  QueryExecutor beginExclusive() => _inner.beginExclusive();
+
+  @override
+  Future<void> close() => _inner.close();
+}
+
 /// Mirrors the production `_computeSectionKey` (private to
 /// `song_repository_impl.dart`, therefore not importable) closely enough for
 /// the titles these tests use. Production seeds `section_key` at scan time;
@@ -76,14 +127,6 @@ void main() {
       db,
       coverArtCacheDirectory: '/tmp/nexo_covers',
       libraryFolderRepository: FakeLibraryFolderRepository(),
-      // Tests here exercise the repository's own behavior, not the
-      // background cover pipeline. The cover pass spawns real isolates
-      // and drives `_db.update` from an async `receivePort.listen`
-      // handler that does not serialize message processing — the final
-      // `'DONE'` can arrive while an earlier update is still in flight,
-      // and `tearDown` closes the DB under it. See the
-      // `_enableBackgroundCoverExtraction` docstring in
-      // `song_repository_impl.dart` for the full diagnosis.
       enableBackgroundCoverExtraction: false,
     );
     await db.customSelect('SELECT 1').get();
@@ -101,6 +144,8 @@ void main() {
     String path = '/music/song.mp3',
     Duration duration = const Duration(minutes: 3),
     String? sectionKey,
+    String? coverArtPath,
+    bool hasNoCover = false,
   }) async {
     final companion = const SongMapper().toCompanion(
       (Song.create(
@@ -114,6 +159,8 @@ void main() {
         fileSizeBytes: 1000,
         dateAddedUtc: DateTime.utc(2026, 1, 1),
         sectionKey: sectionKey ?? _sectionKeyFor(title),
+        coverArtPath: coverArtPath,
+        hasNoCover: hasNoCover,
       )).valueOrNull!,
     );
     final insertCompanion = companion.copyWith(id: const Value.absent());
@@ -542,25 +589,183 @@ void main() {
   });
 
   // ---------------------------------------------------------------------
+  // T2.1 regression suite — Batch cover_art_path writes & coalescing
+  // ---------------------------------------------------------------------
+  group('T2.1: Background cover extraction batching', () {
+    test(
+        'batching real: 120 songs updated in <= 4 transactions and none is lost',
+        () async {
+      final inner = NativeDatabase.memory(setup: (rawDb) {
+        rawDb.execute('PRAGMA journal_mode=WAL;');
+      });
+      final countingExecutor = _CountingQueryExecutor(inner);
+      final testDb = AppDatabase(countingExecutor);
+      await testDb.customSelect('SELECT 1').get();
+
+      for (var i = 0; i < 120; i++) {
+        await testDb.into(testDb.songs).insert(
+              SongsCompanion.insert(
+                title: 'Song $i',
+                trackArtistId: 'Artist',
+                durationMs: 1000,
+                filePath: '/music/batch120_$i.mp3',
+                format: AudioFormat.mp3,
+                fileSizeBytes: 1000,
+                genreNames: const [],
+                dateAddedUtcMs: 0,
+                sectionKey: const Value('#'),
+                hasNoCover: const Value(false),
+              ),
+            );
+      }
+
+      final transactionsBefore = countingExecutor.transactionCount;
+
+      final testRepo = SongRepositoryImpl(
+        testDb,
+        coverArtCacheDirectory: '/tmp/nexo_covers',
+        libraryFolderRepository: FakeLibraryFolderRepository(),
+        coverWorkerSpawner: (files, cacheDir, sendPort) async {
+          for (final f in files) {
+            sendPort.send({
+              'filePath': f.$1,
+              'path': '/covers/${p.basename(f.$1)}.jpg',
+            });
+          }
+          sendPort.send('DONE');
+        },
+      );
+
+      await testRepo.startBackgroundCoverExtractionForTest();
+
+      final transactionsDuring =
+          countingExecutor.transactionCount - transactionsBefore;
+      expect(transactionsDuring, lessThanOrEqualTo(4),
+          reason: '120 items batched at 50/batch + final flush must take <= 4 '
+              'transactions (expected 3: 50 + 50 + 20). Got: $transactionsDuring');
+
+      // Visibility: All 120 songs have their cover_art_path populated
+      final rows = await testDb.select(testDb.songs).get();
+      expect(rows.length, 120);
+      for (final r in rows) {
+        expect(r.coverArtPath, '/covers/${p.basename(r.filePath)}.jpg');
+        expect(r.hasNoCover, isFalse);
+      }
+
+      await testDb.close();
+    });
+
+    test('flush final writes pending updates (< 50) before extraction finishes',
+        () async {
+      for (var i = 0; i < 37; i++) {
+        await db.into(db.songs).insert(
+              SongsCompanion.insert(
+                title: 'Song $i',
+                trackArtistId: 'Artist',
+                durationMs: 1000,
+                filePath: '/music/flush37_$i.mp3',
+                format: AudioFormat.mp3,
+                fileSizeBytes: 1000,
+                genreNames: const [],
+                dateAddedUtcMs: 0,
+                sectionKey: const Value('#'),
+                hasNoCover: const Value(false),
+              ),
+            );
+      }
+
+      final testRepo = SongRepositoryImpl(
+        db,
+        coverArtCacheDirectory: '/tmp/nexo_covers',
+        libraryFolderRepository: FakeLibraryFolderRepository(),
+        coverWorkerSpawner: (files, cacheDir, sendPort) async {
+          for (final f in files) {
+            sendPort.send({
+              'filePath': f.$1,
+              'path': '/covers/${p.basename(f.$1)}.jpg',
+            });
+          }
+          sendPort.send('DONE');
+        },
+      );
+
+      await testRepo.startBackgroundCoverExtractionForTest();
+
+      expect(testRepo.isExtractingCoversForTest, isFalse);
+
+      final rows = await (db.select(db.songs)
+            ..where((t) => t.filePath.like('/music/flush37_%')))
+          .get();
+      expect(rows.length, 37);
+      for (final r in rows) {
+        expect(r.coverArtPath, '/covers/${p.basename(r.filePath)}.jpg');
+        expect(r.hasNoCover, isFalse);
+      }
+    });
+
+    test(
+        'subscriber coalescing: watchSongsWindow re-emits < 10 times for 200 cover updates',
+        () async {
+      for (var i = 0; i < 200; i++) {
+        await db.into(db.songs).insert(
+              SongsCompanion.insert(
+                title: 'Song ${i.toString().padLeft(3, '0')}',
+                trackArtistId: 'Artist',
+                durationMs: 1000,
+                filePath: '/music/coalesce_$i.mp3',
+                format: AudioFormat.mp3,
+                fileSizeBytes: 1000,
+                genreNames: const [],
+                dateAddedUtcMs: 0,
+                sectionKey: const Value('#'),
+                hasNoCover: const Value(false),
+              ),
+            );
+      }
+
+      final emissions = <List<Song>>[];
+      final sub = repo
+          .watchSongsWindow(offset: 0, limit: 50)
+          .listen((r) => r.when(ok: emissions.add, err: (_) {}));
+
+      await _waitFor(() => emissions.isNotEmpty,
+          reason: 'initial window emission');
+
+      final testRepo = SongRepositoryImpl(
+        db,
+        coverArtCacheDirectory: '/tmp/nexo_covers',
+        libraryFolderRepository: FakeLibraryFolderRepository(),
+        coverWorkerSpawner: (files, cacheDir, sendPort) async {
+          for (final f in files) {
+            sendPort.send({
+              'filePath': f.$1,
+              'path': '/covers/${p.basename(f.$1)}.jpg',
+            });
+          }
+          sendPort.send('DONE');
+        },
+      );
+
+      await testRepo.startBackgroundCoverExtractionForTest();
+
+      // Drain any microtask/event queue emissions
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      await sub.cancel();
+
+      // 200 items batched at 50/batch = ~4 transaction flushes + 1 initial emission = ~5 emissions.
+      // Acceptance criterion from Sprint9_P0_T2.1.md: < 10 emissions.
+      expect(emissions.length, lessThan(10),
+          reason: 'Batching must coalesce re-emissions on watchSongsWindow: '
+              'got ${emissions.length} emissions (unbatched would be ~200)');
+    });
+  });
+
+  // ---------------------------------------------------------------------
   // T9 regression suite — one-shot fallback metadata recovery.
-  //
-  // The recovery pass is targeted: it queries the DB for rows that match
-  // the fallback heuristic (artist == 'Unknown Artist', or null album
-  // with no cover flagged), re-runs the same isolate pipeline a normal
-  // scan uses, and upserts by filePath. It is idempotent, and the
-  // callers own the `_isScanning` guard entry.
-  //
-  // Test 2 requires a real audio file because the whole point is that
-  // the file is re-read through the real metadata pipeline. It reuses
-  // the T9 spike fixture; the group skips if the fixture is missing,
-  // which keeps commit 3 runnable before commit 4 lands the fixture
-  // tree.
   // ---------------------------------------------------------------------
   group('refreshFallbackMetadata (T9)', () {
     test('returns Ok(null) with zero candidates and does not spawn isolates',
         () async {
-      // Seed a row that does NOT match the fallback heuristic — real
-      // artist, real album.
       await seedSong(
         artist: 'Real Artist',
         albumId: 'Real Album',
@@ -588,9 +793,6 @@ void main() {
         final target = File(p.join(tmpDir.path, '02_mp3_replaygain.mp3'));
         await fixture.copy(target.path);
 
-        // Seed the row in fallback state: artist is the literal fallback
-        // string, album is null. This is exactly what a failed metadata
-        // read on a pre-T9 build would have produced.
         await seedSong(
           artist: 'Unknown Artist',
           albumId: null,
@@ -644,11 +846,6 @@ void main() {
           path: target.path,
         );
 
-        // Fire the first pass WITHOUT awaiting. `refreshFallbackMetadata`
-        // sets `_isScanning = true` synchronously before its first
-        // `await`, so by the time this call returns, the guard is
-        // already held. The subsequent call must therefore observe
-        // `_isScanning == true` on its own synchronous prologue.
         final first = repo.refreshFallbackMetadata();
 
         final second = await repo.refreshFallbackMetadata();
@@ -661,8 +858,6 @@ void main() {
               'songs table.',
         );
 
-        // Drain the first pass so the test does not end with a live
-        // isolate writing to a closed DB.
         final firstResult = await first;
         expect(firstResult.isOk, isTrue);
       } finally {
@@ -675,17 +870,6 @@ void main() {
 
   // ---------------------------------------------------------------------
   // T3 regression suite — content-addressed cover cache key.
-  //
-  // The pre-T3 implementation derived the cache filename from
-  // `String.hashCode`, which is unstable across isolates and across
-  // process restarts. The fix is `computeCoverId`, a SHA-256 over the
-  // raw cover bytes. See ARCHITECTURE.md §2.5.
-  //
-  // The first three cases below are pure-function checks on the hash.
-  // The last one drives the hash through the real `cacheCoverArt`
-  // write path and asserts that two identical byte blobs land at the
-  // SAME on-disk path — which is exactly the property the pre-T3 code
-  // failed to provide.
   // ---------------------------------------------------------------------
   group('computeCoverId (T3: SHA-256 stable cover cache key)', () {
     test('identical cover bytes produce an identical coverId', () {
@@ -711,9 +895,6 @@ void main() {
       final tmpDir = await Directory.systemTemp.createTemp('nexo_t3_test_');
       try {
         const datasource = MetadataDatasource();
-        // Bytes chosen to be visually distinct from empty/null so that a
-        // regression that wrote a zero-length file would not accidentally
-        // pass this test via the `file.exists()` short-circuit.
         final bytes = Uint8List.fromList(
           const [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
         );
@@ -747,18 +928,13 @@ void main() {
       }
     });
   });
+
   // ---------------------------------------------------------------------
-  // Contract Hardening (Slice B2) — same pattern as PlaybackRepositoryImpl.
-  // Closes the DB and asserts that getSongById returns Err instead of
-  // throwing, honoring CONVENTIONS.md's "no exceptions across Data->
-  // Presentation" rule.
+  // Contract Hardening (Slice B2)
   // ---------------------------------------------------------------------
   group('Contract Hardening (Result Err on DB failure)', () {
     test('getSongById returns Err(UnexpectedFailure) when the DB is closed',
         () async {
-      // Sanity: verify the row exists before closing the DB, so that the
-      // test proves the failure comes from the closed DB, not from a
-      // missing row.
       final id = await seedSong(artist: 'artist-1');
 
       await db.close();

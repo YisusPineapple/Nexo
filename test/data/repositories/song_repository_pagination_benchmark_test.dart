@@ -27,25 +27,17 @@
 // whether the user-facing cost of the OFFSET-based pagination drops below
 // the §2.1.3 pre-committed threshold once the index is in place.
 //
-// IMPORTANT — this file must run BEFORE `watchSongsWindow` is written. It
-// deliberately inlines the exact SQL that production will use (route A) and
-// mirrors it via `customSelect(...).watch()` + `SongMapper`, so that the
-// numbers are meaningful regardless of whether production has landed yet.
+// §5.4 (added in T2.1) measures the impact of batching cover_art_path writes
+// (50 updates per transaction) under the exact same 3,500 song / 4-window
+// scenario as §5.2.
 //
-// CRITICAL METHODOLOGY NOTE (added after a real run on 2026-09-14 crashed
-// §5.3 with "index idx_songs_title_lower already exists"):
-//
-// `AppDatabase.schemaVersion` is 16, and `onCreate` now calls
-// `_createSortIndexes()` directly (this landed as part of implementing the
-// very feature this benchmark is supposed to justify). That means ANY fresh
-// `AppDatabase(NativeDatabase.memory())` — including the one §5.1 opens for
-// its "NO indexes" baseline — is born with all six sort indexes already in
-// place. §5.1's baseline was therefore NOT measuring a no-index scenario;
-// it was silently measuring the same indexed scenario §5.3 claims to be the
-// first to measure. §5.1's `setUp` now explicitly DROPs the six indexes
-// right after opening the database, before seeding, to restore a genuine
-// no-index baseline. §5.3's index creation now uses `IF NOT EXISTS` so it
-// does not collide with the indexes `onCreate` already added.
+// CRITICAL METHODOLOGY NOTE:
+// `AppDatabase.schemaVersion` is 16+, and `onCreate` now calls
+// `_createSortIndexes()` directly. That means ANY fresh
+// `AppDatabase(NativeDatabase.memory())` is born with all six sort indexes
+// already in place. §5.1's baseline explicitly DROPs the six indexes right
+// after opening the database to restore a genuine no-index baseline. §5.3's
+// index creation uses `IF NOT EXISTS` so it does not collide.
 
 @Tags(['benchmark'])
 @Skip('Run explicitly: flutter test --tags=benchmark --run-skipped -r expanded '
@@ -58,11 +50,15 @@ import 'dart:math' as math;
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:nexo/data/local/app_database.dart';
 import 'package:nexo/data/local/mappers/song_mapper.dart';
+import 'package:nexo/data/repositories/song_repository_impl.dart';
 import 'package:nexo/domain/entities/audio_format.dart';
 import 'package:nexo/domain/entities/song.dart';
+
+import '../../domain/repositories/fakes/fake_library_folder_repository.dart';
 
 const _mapper = SongMapper();
 
@@ -152,6 +148,7 @@ Future<void> _seedSongs(AppDatabase db, int count) async {
             genreNames: const [],
             dateAddedUtcMs: i * 1000,
             sectionKey: Value(_sectionKeyFor(title)),
+            hasNoCover: const Value(false),
           ),
         );
       }
@@ -236,16 +233,15 @@ Future<_Stats> _measureOffset({
 // ─────────────────────────────────────────────────────────────────────────────
 
 void main() {
+  setUpAll(() {
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+  });
+
   group('§5.1 — LIMIT/OFFSET pagination strategy (baseline, no indexes)', () {
     late AppDatabase db;
 
     setUp(() async {
       db = AppDatabase(NativeDatabase.memory());
-      // Migration runs lazily on first query. Since schemaVersion 16's
-      // onCreate bakes in all six sort indexes, this DB is NOT actually
-      // index-free at this point — see the CRITICAL METHODOLOGY NOTE at
-      // the top of this file. Drop them explicitly to restore a genuine
-      // "no index" baseline before seeding.
       await db.customSelect('SELECT 1').get();
       await _dropAllSortIndexes(db);
       await _seedSongs(db, 15000);
@@ -359,8 +355,6 @@ void main() {
         }));
       }
 
-      // Let initial emissions land before taking a baseline, so we don't
-      // count the first "here's the initial page" as a spurious re-emission.
       await Future<void>.delayed(const Duration(milliseconds: 200));
 
       final emissionBaseline = List<int>.of(emissionsPerSub);
@@ -374,7 +368,6 @@ void main() {
       }
       wallClock.stop();
 
-      // Drain any in-flight re-emissions before measuring.
       await Future<void>.delayed(const Duration(milliseconds: 500));
 
       for (final sub in subs) {
@@ -436,11 +429,6 @@ void main() {
       await db.customSelect('SELECT 1').get();
       await _seedSongs(db, 15000);
 
-      // NOTE: as of schema v16, onCreate already calls _createSortIndexes(),
-      // so these indexes exist on this DB before this statement even runs.
-      // IF NOT EXISTS makes this idempotent regardless — it mirrors the
-      // exact migration DDL either way, and stays correct if onCreate's
-      // behavior ever changes.
       await db.customStatement(
         'CREATE INDEX IF NOT EXISTS idx_songs_title_lower ON songs (LOWER(title));',
       );
@@ -448,9 +436,6 @@ void main() {
         'CREATE INDEX IF NOT EXISTS idx_songs_artist_lower ON songs (LOWER(track_artist_id));',
       );
 
-      // ANALYZE primes SQLite's planner statistics so it picks the index
-      // rather than falling back to a full scan + sort. Production would
-      // run this once after the migration; the benchmark mirrors that.
       await db.customStatement('ANALYZE;');
     });
 
@@ -498,6 +483,123 @@ void main() {
       print('     prefer A+A.1 over B for lower implementation complexity)');
       print('  §5.3 median OFFSET 10000 ≥  5ms  → route B (keyset)');
       print('──────────────────────────────────────────────────────────────\n');
+    }, timeout: const Timeout(Duration(minutes: 10)));
+  });
+
+  group('§5.4 — T2.1 verified: post-batching re-emission cost (3,500 songs)',
+      () {
+    late AppDatabase db;
+
+    setUp(() async {
+      db = AppDatabase(NativeDatabase.memory());
+      await db.customSelect('SELECT 1').get();
+      await _seedSongs(db, 3500);
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    test('3,500 cover updates batched at 50/batch against 4 open windows',
+        () async {
+      print('\n══════════════════════════════════════════════════════════════');
+      print('§5.4 — T2.1: Batched re-emission cost (post-optimization)');
+      print('  3,500 songs, 4 subscriptions, batch size = 50');
+      print('  Executes via SongRepositoryImpl with batching active.');
+      print('══════════════════════════════════════════════════════════════');
+
+      final offsets = [0, 50, 100, 150];
+      final subs = <StreamSubscription<List<Song>>>[];
+      final emissionsPerSub = <int>[0, 0, 0, 0];
+      final songsPerSub = <int>[0, 0, 0, 0];
+      final cpuMicrosPerSub = <int>[0, 0, 0, 0];
+
+      for (var s = 0; s < offsets.length; s++) {
+        final idx = s;
+        final stream = db
+            .customSelect(
+              'SELECT * FROM songs '
+              'ORDER BY LOWER(title) ASC '
+              'LIMIT 50 OFFSET ?',
+              variables: [Variable.withInt(offsets[idx])],
+              readsFrom: {db.songs},
+            )
+            .watch()
+            .map((rows) {
+              final sw = Stopwatch()..start();
+              final songs = _materialize(db, rows);
+              sw.stop();
+              cpuMicrosPerSub[idx] += sw.elapsedMicroseconds;
+              return songs;
+            });
+
+        subs.add(stream.listen((songs) {
+          emissionsPerSub[idx]++;
+          songsPerSub[idx] += songs.length;
+        }));
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      final emissionBaseline = List<int>.of(emissionsPerSub);
+      final songsBaseline = List<int>.of(songsPerSub);
+      final cpuBaseline = List<int>.of(cpuMicrosPerSub);
+
+      final repo = SongRepositoryImpl(
+        db,
+        coverArtCacheDirectory: '/tmp/nexo_benchmark_covers',
+        libraryFolderRepository: FakeLibraryFolderRepository(),
+        coverWorkerSpawner: (files, cacheDir, sendPort) async {
+          for (final f in files) {
+            sendPort.send({
+              'filePath': f.$1,
+              'path': '/covers/${p.basename(f.$1)}.jpg',
+            });
+          }
+          sendPort.send('DONE');
+        },
+      );
+
+      final wallClock = Stopwatch()..start();
+      await repo.startBackgroundCoverExtractionForTest();
+      wallClock.stop();
+
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+
+      for (final sub in subs) {
+        await sub.cancel();
+      }
+
+      final totalEmissions = emissionsPerSub.reduce((a, b) => a + b) -
+          emissionBaseline.reduce((a, b) => a + b);
+      final totalSongs = songsPerSub.reduce((a, b) => a + b) -
+          songsBaseline.reduce((a, b) => a + b);
+      final totalCpuMicros = cpuMicrosPerSub.reduce((a, b) => a + b) -
+          cpuBaseline.reduce((a, b) => a + b);
+
+      print('\nPer-subscription deltas (post-baseline, batched):');
+      for (var s = 0; s < offsets.length; s++) {
+        final em = emissionsPerSub[s] - emissionBaseline[s];
+        final so = songsPerSub[s] - songsBaseline[s];
+        final cpuMs = (cpuMicrosPerSub[s] - cpuBaseline[s]) / 1000.0;
+        print('  offset ${offsets[s].toString().padLeft(5)}: '
+            'emissions=$em  songs=$so  '
+            'cpu-in-map=${cpuMs.toStringAsFixed(1)}ms');
+      }
+
+      final perEmissionSongs =
+          totalEmissions == 0 ? 0.0 : totalSongs / totalEmissions;
+
+      print('\nAggregate across 4 subscriptions (batched vs §5.2 unbatched):');
+      print(
+          '  Total re-emissions:           $totalEmissions (vs 14,000 unbatched)');
+      print(
+          '  Total Songs rebuilt:          $totalSongs (~${perEmissionSongs.toStringAsFixed(1)}/emission, vs 700,000)');
+      print(
+          '  Total CPU inside .map:        ${(totalCpuMicros / 1000).toStringAsFixed(1)} ms (vs ~3,825 ms)');
+      print(
+          '  Wall-clock for 3,500 updates: ${wallClock.elapsedMilliseconds} ms (vs 20,132 ms)');
+      print('══════════════════════════════════════════════════════════════\n');
     }, timeout: const Timeout(Duration(minutes: 10)));
   });
 }

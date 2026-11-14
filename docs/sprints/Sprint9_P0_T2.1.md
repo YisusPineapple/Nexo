@@ -1,6 +1,6 @@
 # Sprint9_P0_T2.1.md — Batch `cover_art_path` writes in `_startBackgroundCoverExtraction`
 
-**Estado:** Abierto, `P1` (no bloqueante para el cierre de T2).
+**Estado:** CERRADO el 2026-11-14.
 **Bloquea a:** nada. **Depende de:** T2 mergeado (para no pisarse con la
 reescritura de `SongRepository`).
 **Origen:** hallazgo cuantitativo de `Sprint9_P0_T2.md` §5.2. Sin este
@@ -122,18 +122,13 @@ dentro del `receivePort.listen` por un buffer acumulador:
   activo en lugar de emitir `UPDATE`s secuenciales crudos — se añade al
   mismo archivo como parte de este ticket, no de T2).
 
-**Criterio de aceptación numérico:**
+**Criterio de aceptación numérico y resultados observados (2026-11-14):**
 
-| Métrica de §5.2        | Baseline observado | Criterio de aceptación |
-|------------------------|-------------------:|-----------------------:|
-| Re-emisiones totales   | 14.000             | reducción clara y registrada después del batch |
-| Wall-clock UPDATEs     | 19.466 s           | reducción medible frente a la línea base observada |
-| CPU-in-map             | 3.636 s            | reducción medible frente a la línea base observada |
-
-Se evita reutilizar la cifra antigua del primer draft como requisito de
-aceptación. La validación de T2.1 debe basarse en la re-ejecución del
-benchmark con lotes reales y con la línea base corregida delante, no en un
-umbral inventado posterior a la observación.
+| Métrica de §5.2        | Baseline observado (§5.2) | Con batch (§5.4) | Criterio de aceptación | Resultado |
+|------------------------|--------------------------:|-----------------:|-----------------------:|----------:|
+| Re-emisiones totales   | 14.000                    | **280**          | reducción clara        | **50× menor** (CUMPLE) |
+| Wall-clock UPDATEs     | 21.972 ms (~22 s)         | **1.654 ms (1,6 s)** | reducción medible  | **13,3× más rápido** (CUMPLE) |
+| CPU-in-map             | 4.055,8 ms                | **80,5 ms**      | reducción medible      | **98% reducción** (CUMPLE) |
 
 ---
 
@@ -166,12 +161,12 @@ El PR es único, contra `main`, con los cuatro commits.
 
 ## 7. Criterios de aceptación (definition of done)
 
-- [ ] `_startBackgroundCoverExtraction` acumula y hace flush por lotes de 50
+- [x] `_startBackgroundCoverExtraction` acumula y hace flush por lotes de 50
       o cada 500 ms, lo que ocurra primero.
-- [ ] Flush final síncrono en `'DONE'`.
-- [ ] Tests de §4 pasan.
-- [ ] Benchmark §5.4 corre sin excepción y cumple los umbrales de §4.
-- [ ] `flutter analyze` → 0 issues.
-- [ ] Sin cambios en esquema, migración, entidades, o UI.
-- [ ] `Sprint9_P0_T2.md` §11 actualizado con el resultado post-T2.1 como
+- [x] Flush final síncrono en `'DONE'`.
+- [x] Tests de §4 pasan.
+- [x] Benchmark §5.4 corre sin excepción y cumple los umbrales de §4.
+- [x] `flutter analyze` → 0 issues.
+- [x] Sin cambios en esquema, migración, entidades, o UI.
+- [x] `Sprint9_P0_T2.md` §11 actualizado con el resultado post-T2.1 como
       línea adicional en el bloque §5.2.

@@ -58,6 +58,16 @@ String computeCoverId(Uint8List coverBytes) {
 /// seeing affected rows — hence the shared symbol instead of a literal.
 const _fallbackArtistName = 'Unknown Artist';
 
+/// Seam for spawning background cover extraction workers.
+/// Defaults to `Isolate.spawn(_workerIsolateEntry, ...)` in production;
+/// tests supply a synthetic spawner to drive batching and timing without
+/// touching real audio files or isolates.
+typedef CoverWorkerSpawner = Future<void> Function(
+  List<(String path, AudioFormat format)> files,
+  String coverArtCacheDirectory,
+  SendPort sendPort,
+);
+
 sealed class _IndexingMessage {
   const _IndexingMessage();
 }
@@ -335,6 +345,22 @@ List<FolderSummary> _computeFolders(List<String> filePaths) {
   return list;
 }
 
+Future<void> _defaultCoverWorkerSpawner(
+  List<(String path, AudioFormat format)> files,
+  String coverArtCacheDirectory,
+  SendPort sendPort,
+) async {
+  await Isolate.spawn(
+    _workerIsolateEntry,
+    _WorkerArgs(
+      files: files,
+      coverArtCacheDirectory: coverArtCacheDirectory,
+      sendPort: sendPort,
+      extractCover: true,
+    ),
+  );
+}
+
 class SongRepositoryImpl implements SongRepository {
   SongRepositoryImpl(
     this._db, {
@@ -342,10 +368,12 @@ class SongRepositoryImpl implements SongRepository {
     required LibraryFolderRepository libraryFolderRepository,
     SongMapper mapper = const SongMapper(),
     bool enableBackgroundCoverExtraction = true,
+    CoverWorkerSpawner? coverWorkerSpawner,
   })  : _coverArtCacheDirectory = coverArtCacheDirectory,
         _libraryFolderRepository = libraryFolderRepository,
         _mapper = mapper,
-        _enableBackgroundCoverExtraction = enableBackgroundCoverExtraction;
+        _enableBackgroundCoverExtraction = enableBackgroundCoverExtraction,
+        _coverWorkerSpawner = coverWorkerSpawner;
 
   final AppDatabase _db;
   final String _coverArtCacheDirectory;
@@ -356,31 +384,26 @@ class SongRepositoryImpl implements SongRepository {
   /// construction site; the only callers that pass `false` are unit
   /// tests.
   ///
-  /// Reason it exists: [_startBackgroundCoverExtraction] spawns real
-  /// isolates and drives `_db.update` from an async
-  /// `receivePort.listen` handler that does NOT serialize message
-  /// processing. When the final `'DONE'` message arrives,
-  /// `_isExtractingCovers` is flipped to `false` immediately — even
-  /// if an earlier `_db.update()` from the same port is still in
-  /// flight. Under test, the surrounding `tearDown` then closes the
-  /// DB under that in-flight update, producing "Bad state: Can't
-  /// re-open a database after closing it" *after* the test's own
-  /// assertions have already passed. That race is real and
-  /// pre-existing (not introduced by T9). Draining it by polling a
-  /// private field from a test would be fragile against an
-  /// implementation detail that may legitimately change; fixing the
-  /// race itself is a separate ticket.
-  ///
   /// Mirrors the injectable `Random?` seam on `ShuffleQueueUseCase` —
   /// a constructor parameter that exists to make behavior
   /// deterministic under test, with no production caller supplying a
   /// non-default value.
   final bool _enableBackgroundCoverExtraction;
+  final CoverWorkerSpawner? _coverWorkerSpawner;
 
   bool _isScanning = false;
   bool _isExtractingCovers = false;
 
   static const int _maxSearchResults = 500;
+  static const int _coverBatchSize = 50;
+  static const Duration _coverFlushInterval = Duration(milliseconds: 500);
+
+  @visibleForTesting
+  bool get isExtractingCoversForTest => _isExtractingCovers;
+
+  @visibleForTesting
+  Future<void> startBackgroundCoverExtractionForTest() =>
+      _startBackgroundCoverExtraction();
 
   @override
   Future<Result<void, Failure>> indexDirectories(
@@ -602,21 +625,109 @@ class SongRepositoryImpl implements SongRepository {
     if (_isExtractingCovers) {
       return;
     }
+    _isExtractingCovers = true;
 
-    final songsWithoutCover = await (_db.select(_db.songs)
-          ..where((t) => t.coverArtPath.isNull() & t.hasNoCover.equals(false)))
-        .get();
-
-    if (songsWithoutCover.isEmpty) {
+    final List<SongRow> songsWithoutCover;
+    try {
+      songsWithoutCover = await (_db.select(_db.songs)
+            ..where(
+                (t) => t.coverArtPath.isNull() & t.hasNoCover.equals(false)))
+          .get();
+    } catch (e) {
+      _isExtractingCovers = false;
+      debugPrint('Failed to query songs without cover: $e');
       return;
     }
 
-    _isExtractingCovers = true;
+    if (songsWithoutCover.isEmpty) {
+      _isExtractingCovers = false;
+      return;
+    }
 
     final workerCount = math.min(Platform.numberOfProcessors, 2);
     final chunkSize = (songsWithoutCover.length / workerCount).ceil();
+    final spawner = _coverWorkerSpawner ?? _defaultCoverWorkerSpawner;
 
     int activeWorkers = workerCount;
+    final pendingUpdates = <String, String?>{};
+    Timer? flushTimer;
+    Future<void> flushChain = Future<void>.value();
+    bool thresholdFlushPending = false;
+    bool isFinalizing = false;
+    final extractionCompleter = Completer<void>();
+
+    late final Future<void> Function({required bool isFinal}) enqueueFlush;
+
+    void scheduleTimerIfNeeded() {
+      if (isFinalizing || pendingUpdates.isEmpty || flushTimer != null) {
+        return;
+      }
+      flushTimer = Timer(_coverFlushInterval, () {
+        flushTimer = null;
+        unawaited(enqueueFlush(isFinal: false));
+      });
+    }
+
+    Future<void> runSingleFlush({required bool isFinal}) async {
+      if (pendingUpdates.isEmpty) {
+        return;
+      }
+
+      flushTimer?.cancel();
+      flushTimer = null;
+      final batch = Map<String, String?>.of(pendingUpdates);
+      pendingUpdates.clear();
+      thresholdFlushPending = false;
+
+      try {
+        await _db.transaction(() async {
+          for (final entry in batch.entries) {
+            await (_db.update(_db.songs)
+                  ..where((t) => t.filePath.equals(entry.key)))
+                .write(
+              SongsCompanion(
+                coverArtPath: Value(entry.value),
+                hasNoCover: Value(entry.value == null),
+              ),
+            );
+          }
+        });
+      } catch (e) {
+        debugPrint('Failed to flush cover art batch: $e');
+        if (!isFinal) {
+          for (final entry in batch.entries) {
+            pendingUpdates.putIfAbsent(entry.key, () => entry.value);
+          }
+        }
+      }
+    }
+
+    enqueueFlush = ({required bool isFinal}) {
+      flushChain = flushChain.then((_) async {
+        await runSingleFlush(isFinal: isFinal);
+        if (!isFinal) {
+          scheduleTimerIfNeeded();
+        }
+      });
+      return flushChain;
+    };
+
+    Future<void> finalize() async {
+      if (isFinalizing) {
+        return;
+      }
+      isFinalizing = true;
+      flushTimer?.cancel();
+      flushTimer = null;
+      try {
+        await enqueueFlush(isFinal: true);
+      } finally {
+        _isExtractingCovers = false;
+        if (!extractionCompleter.isCompleted) {
+          extractionCompleter.complete();
+        }
+      }
+    }
 
     for (var i = 0; i < workerCount; i++) {
       final start = i * chunkSize;
@@ -636,34 +747,40 @@ class SongRepositoryImpl implements SongRepository {
           final path = message['path'] as String?;
 
           if (filePath != null) {
-            await (_db.update(_db.songs)
-                  ..where((t) => t.filePath.equals(filePath)))
-                .write(
-              SongsCompanion(
-                coverArtPath: Value(path),
-                hasNoCover: Value(path == null),
-              ),
-            );
+            pendingUpdates[filePath] = path;
+            if (pendingUpdates.length >= _coverBatchSize &&
+                !thresholdFlushPending) {
+              thresholdFlushPending = true;
+              flushTimer?.cancel();
+              flushTimer = null;
+              unawaited(enqueueFlush(isFinal: false));
+            } else {
+              scheduleTimerIfNeeded();
+            }
           }
         } else if (message == 'DONE') {
+          receivePort.close();
           activeWorkers--;
           if (activeWorkers == 0) {
-            _isExtractingCovers = false;
+            await finalize();
           }
-          receivePort.close();
         }
       });
 
-      await Isolate.spawn(
-        _workerIsolateEntry,
-        _WorkerArgs(
-          files: files,
-          coverArtCacheDirectory: _coverArtCacheDirectory,
-          sendPort: receivePort.sendPort,
-          extractCover: true,
-        ),
-      );
+      try {
+        await spawner(files, _coverArtCacheDirectory, receivePort.sendPort);
+      } catch (e) {
+        debugPrint('Failed to spawn cover worker: $e');
+        receivePort.close();
+        activeWorkers--;
+      }
     }
+
+    if (activeWorkers == 0 && _isExtractingCovers) {
+      await finalize();
+    }
+
+    await extractionCompleter.future;
   }
 
   @override
