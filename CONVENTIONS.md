@@ -32,7 +32,7 @@ This file is loaded as read-only context in every session (see `.aider.conf.yml`
 ## Code Delivery
 - Full file replacements, ready to copy-paste. Never placeholders like `// rest of code unchanged`.
 - Always verify that the proposed code satisfies `flutter analyze` with zero issues.
-- Every commit increments the build number (`+N`) in `pubspec.yaml` monotonically. Semantic version (`0.0.X-beta`) only increments upon completing a full sprint.
+- The `+N` suffix in `pubspec.yaml` is the local-build fallback; do not increment it on every commit. All installable CI artifacts must use the shared `.github/workflows/build.yml` workflow, which handles both normal builds and `v*` tag releases and calculates `114 + GITHUB_RUN_NUMBER` in Bash in the `compute_build_number` job and exposes the validated value to all build jobs. Do not use arithmetic inside GitHub Actions `${{ }}` expressions. Keep that workflow file stable; `run_number` is scoped to one workflow. Android CI checks the `2,100,000,000` `versionCode` ceiling. Semantic version (`0.0.X-beta`) only increments upon completing a full sprint.
 
 ## What to do when in doubt
 Ask before assuming. A short pause is always better than a fix that violates any of the above rules.

@@ -3,6 +3,7 @@ name: Nexo Build & Release
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -33,9 +34,27 @@ jobs:
       - name: Test
         run: flutter test
 
+  compute_build_number:
+    name: Compute shared build number
+    runs-on: ubuntu-latest
+    outputs:
+      build_number: ${{ steps.compute.outputs.build_number }}
+    steps:
+      - name: Calculate and validate build number
+        id: compute
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_number=$((114 + GITHUB_RUN_NUMBER))
+          if (( build_number <= 114 || build_number > 2100000000 )); then
+            echo "::error::Invalid Android-compatible build number: $build_number"
+            exit 1
+          fi
+          echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
+
   build-android:
     name: Build Android APK
-    needs: quality-gate
+    needs: [quality-gate, compute_build_number]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -103,7 +122,11 @@ jobs:
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --build-number "${{ needs.compute_build_number.outputs.build_number }}"
+
+      - name: Build Split APKs (per ABI)
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        run: flutter build apk --split-per-abi --release --build-number "${{ needs.compute_build_number.outputs.build_number }}" -P force-version-code-ignoring-abi=true
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -111,13 +134,23 @@ jobs:
           name: nexo-android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
+      - name: Upload Split APK Artifacts
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexo-android-split-apks
+          path: |
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            build/app/outputs/flutter-apk/app-x86_64-release.apk
+
       - name: Cleanup sensitive files
         if: always()
         run: rm -f android/app/nexo-release.jks android/key.properties
 
   build-linux:
     name: Build Linux Binary
-    needs: quality-gate
+    needs: [quality-gate, compute_build_number]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -139,7 +172,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Linux
-        run: flutter build linux --release
+        run: flutter build linux --release --build-number "${{ needs.compute_build_number.outputs.build_number }}"
 
       - name: Compress Linux Build
         run: tar -czvf nexo-linux-x64.tar.gz -C build/linux/x64/release/bundle .
@@ -152,7 +185,7 @@ jobs:
 
   build-windows:
     name: Build Windows EXE
-    needs: quality-gate
+    needs: [quality-gate, compute_build_number]
     if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
@@ -169,7 +202,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows
-        run: flutter build windows --release
+        run: flutter build windows --release --build-number "${{ needs.compute_build_number.outputs.build_number }}"
 
       - name: Compress Windows Build
         run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath nexo-windows-x64.zip
@@ -179,3 +212,26 @@ jobs:
         with:
           name: nexo-windows-x64
           path: nexo-windows-x64.zip
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-android, build-linux, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/nexo-android-apk/app-release.apk
+            release-assets/nexo-android-split-apks/app-armeabi-v7a-release.apk
+            release-assets/nexo-android-split-apks/app-arm64-v8a-release.apk
+            release-assets/nexo-android-split-apks/app-x86_64-release.apk
+            release-assets/nexo-linux-x64/nexo-linux-x64.tar.gz
+            release-assets/nexo-windows-x64/nexo-windows-x64.zip
