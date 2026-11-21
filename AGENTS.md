@@ -160,14 +160,29 @@ request it before editing.
 
 ## 9. Versioning policy
 
-- Build number (`+N` in `pubspec.yaml`, maps to Android `versionCode`):
-  increment on **every** commit, without exception, strictly
-  increasing.
 - Semantic version (`0.0.X-beta`): increment the patch digit only when
   a full sprint closes with meaningful shipped functionality.
-- Example: during a sprint, `0.0.11-beta+51`, `+52`, `+53` stay at
-  `0.0.11` until the sprint closes; the next sprint starts at
-  `0.0.12-beta+N`.
+- The `+N` suffix in `pubspec.yaml` is the local-build fallback; do not
+  increment it on every commit just to produce CI artifacts.
+- All installable CI artifacts MUST be built by the single stable
+  workflow `.github/workflows/build.yml`. That workflow handles both
+  `main` builds and `v*` tag releases and calculates the build number in Bash as `114 + GITHUB_RUN_NUMBER`
+  in the `compute_build_number` job, exposing one validated output to all
+  platform jobs. The base `114` is the current
+  `pubspec.yaml` build suffix and ensures new CI artifacts start above
+  previously generated artifacts that used that suffix.
+- Do NOT create a second workflow that independently builds installable
+  artifacts, or rename/delete/recreate `.github/workflows/build.yml`,
+  without first migrating the shared build-number sequence. GitHub's
+  `run_number` is scoped to one workflow.
+- Do not use arithmetic operators inside GitHub Actions `${{ }}` expressions;
+  compute build identifiers in a shell step and expose them as job outputs.
+- Reruns retain the original `run_number`; do not redistribute an old
+  rerun as a newer update after a later workflow run has been published.
+- Android CI validates that `versionCode` does not exceed
+  `2,100,000,000`. Split APKs use Flutter's
+  `force-version-code-ignoring-abi` option so their code matches the
+  universal APK from the same workflow run.
 
 ---
 
